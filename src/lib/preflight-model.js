@@ -94,8 +94,8 @@ export function runKdpPreflight({ project, preview, storyLockOk = true } = {}) {
     'Interior images / bleed',
     imageCount === 0 ? 'pass' : 'error',
     imageCount === 0
-      ? 'No DOCX image assets detected. 0.7 exports a no-bleed text interior.'
-      : `${imageCount} DOCX image asset(s) detected. Image/bleed production is intentionally blocked in 0.7.`,
+      ? 'No DOCX image assets detected. The current print exporter produces a no-bleed text interior.'
+      : `${imageCount} DOCX image asset(s) detected. Image/bleed production is intentionally blocked in the current print exporter.`,
   ));
 
   const chapterPages = pages.filter((page) => page.hasChapterTitle);

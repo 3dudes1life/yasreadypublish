@@ -1,5 +1,6 @@
 import { sha256Hex } from './hash.js';
 import { DEFAULT_PRINT_DESIGN, ensurePrintDesign } from './print-model.js';
+import { DEFAULT_EBOOK_DESIGN, ensureEbookDesign } from './ebook-model.js';
 
 export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
   const [sourceFileHash, manuscriptHash] = await Promise.all([
@@ -12,8 +13,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   return {
     id: crypto.randomUUID(),
-    version: 7,
-    appVersion: '0.7.0',
+    version: 8,
+    appVersion: '0.8.0',
     title: baseName,
     author: '',
     createdAt: now,
@@ -42,6 +43,7 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
     design: {
       template: 'Tres Amigos Series · Book 1',
       print: { ...DEFAULT_PRINT_DESIGN },
+      ebook: { ...DEFAULT_EBOOK_DESIGN },
     },
   };
 }
@@ -50,10 +52,11 @@ export function migrateProject(project) {
   if (!project) return project;
   const oldVersion = Number(project.version) || 1;
   ensurePrintDesign(project);
+  ensureEbookDesign(project);
   // Existing projects retain any user-set 0.2 geometry. New projects receive the calibrated template.
   if (oldVersion < 2 && !project.design?.print?.templateId) project.design.print = { ...DEFAULT_PRINT_DESIGN };
-  project.version = Math.max(oldVersion, 7);
-  project.appVersion = '0.7.0';
+  project.version = Math.max(oldVersion, 8);
+  project.appVersion = '0.8.0';
   return project;
 }
 

@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.8.0 — EPUB / Kindle Engine
+
+- Added a dedicated reflowable Ebook / Kindle workspace.
+- Added independent ebook design metadata so print geometry can never leak into EPUB layout.
+- Added EPUB 3 package generation with uncompressed root `mimetype`, container.xml, OPF, XHTML reading order, CSS, `nav.xhtml`, and `toc.ncx`.
+- Added automatic clickable Contents from safely detected chapters and recognized front/back matter.
+- Added ebook section mapping that preserves every source block exactly once and in original order.
+- Added ebook source-coverage integrity checks in addition to the canonical Story Lock SHA-256 check.
+- Added reflowable preview and chapter/matter navigation.
+- Added EPUB metadata controls for language and publisher while retaining project title/author metadata.
+- Added Story Lock hash metadata inside the EPUB package for auditability.
+- Added EPUB preflight and downloadable EPUB preflight JSON report.
+- Added direct browser download of the generated `.epub`.
+- Kept DOCX image assets blocked in 0.8 rather than silently omitting them.
+- Migrated projects to schema version 8 / app version 0.8.0 without changing Story Lock hashes.
+- Expanded the automated suite to 42 tests, including a real EPUB archive check that verifies the required uncompressed root `mimetype` entry.
+
 ## v0.7.0 — KDP Production Gate
 
 - Added dedicated KDP Export workspace.

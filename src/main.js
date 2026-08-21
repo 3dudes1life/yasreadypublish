@@ -18,8 +18,11 @@ import { adjacentChapter, buildPreviewNavigation, currentNavigationEntry, spread
 import { deleteCustomTheme, loadCustomThemes, parseThemeJson, saveCustomTheme, serializeTheme } from './lib/theme-store.js';
 import { runKdpPreflight } from './lib/preflight-model.js';
 import { buildPrintMasterHtml } from './lib/print-export.js';
+import { normalizeEbookDesign } from './lib/ebook-model.js';
+import { runEpubPreflight } from './lib/ebook-preflight.js';
+import { buildEbookPreviewHtml, buildEpubBlob } from './lib/epub-export.js';
 
-const VERSION = '0.7.0';
+const VERSION = '0.8.0';
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
 
@@ -37,6 +40,8 @@ const state = {
   previewZoom: 58,
   customThemes: [],
   themeMessage: '',
+  ebookSectionIndex: 0,
+  ebookMessage: '',
 };
 
 const app = document.querySelector('#app');
@@ -83,7 +88,7 @@ function renderShell() {
         <div>
           <div class="eyebrow">Story-safe book production</div>
           <h1>Build the pages.<br>Protect every word.</h1>
-          <p>Version 0.7 adds the production gate: KDP preflight, single-page print-master export, and a browser PDF workflow that refuses to print when Story Lock or page overflow checks fail.</p>
+          <p>Version 0.8 adds the second production engine: reflowable EPUB/Kindle export with clickable navigation, ebook-specific typography, and Story Lock verification before packaging.</p>
         </div>
         <div class="story-lock-pill"><span class="dot"></span> Story Lock is mandatory</div>
       </section>
@@ -100,7 +105,7 @@ function renderSidebar() {
   const hasProject = Boolean(state.project);
   return `
     <aside class="sidebar">
-      <div class="sidebar-head"><strong>Publish workspace</strong><span>0.7 turns the locked preview into a KDP-ready production gate: preflight first, export second, story changes never.</span></div>
+      <div class="sidebar-head"><strong>Publish workspace</strong><span>0.8 keeps print and ebook as separate production engines: fixed pages for paperback, reflowable chapters for Kindle, one locked manuscript underneath.</span></div>
       <nav class="sidebar-nav">
         ${navButton('import', '＋', hasProject ? 'Project' : 'Import')}
         ${navButton('chapters', '☷', 'Contents', !hasProject)}
@@ -109,6 +114,7 @@ function renderSidebar() {
         ${navButton('design', 'Aa', 'Design', !hasProject)}
         ${navButton('print', '▣', 'Print Preview', !hasProject)}
         ${navButton('export', '⇩', 'KDP Export', !hasProject)}
+        ${navButton('ebook', 'e', 'Ebook / Kindle', !hasProject)}
         ${navButton('source', '≡', 'Source', !hasProject)}
         ${navButton('library', '▦', 'Library')}
       </nav>
@@ -130,6 +136,7 @@ function renderMain() {
   if (state.activeView === 'design') return renderDesign();
   if (state.activeView === 'print') return renderPrint();
   if (state.activeView === 'export') return renderExport();
+  if (state.activeView === 'ebook') return renderEbook();
   if (state.activeView === 'source') return renderSource();
   return renderProject();
 }
@@ -149,7 +156,7 @@ function renderImport() {
       </div>
     </article>
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">v0.7 production gate</div><h2>Preflight before Amazon</h2><p>Build the page model, run KDP checks, then open a single-page print master whose own overflow guard must pass before Save as PDF is enabled.</p></div></div>
+      <div class="panel-head"><div><div class="eyebrow">v0.8 two-engine publishing</div><h2>Paperback + Kindle from one locked source</h2><p>The print engine keeps physical-page rules. The ebook engine creates reflowable XHTML, clickable Contents, EPUB metadata, and a Kindle-ready archive without importing print page numbers or blank versos.</p></div></div>
       <div class="summary-grid six">
         <div class="stat"><b>✓</b><span>Read DOCX</span></div>
         <div class="stat"><b>✓</b><span>Story Lock</span></div>
@@ -190,10 +197,10 @@ function renderProject() {
         <div class="stat"><b>${design.insideMargin.toFixed(2)}”</b><span>Inside margin</span></div>
       </div>
       ${s.chapters === 0 ? `<div class="notice error"><strong>No chapter titles were auto-detected.</strong> Publish will not guess where chapters begin. Inspect Source before using print pagination.</div>` : ''}
-      <div class="action-row"><button class="btn primary" data-go-view="design">Set print design</button><button class="btn secondary" data-go-view="print">Build print preview</button><button class="btn secondary" data-go-view="export">KDP preflight</button></div>
+      <div class="action-row"><button class="btn primary" data-go-view="design">Set print design</button><button class="btn secondary" data-go-view="print">Build print preview</button><button class="btn secondary" data-go-view="export">KDP preflight</button><button class="btn secondary" data-go-view="ebook">Build Kindle EPUB</button></div>
     </article>
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">0.7 production workspace</div><h2>Export is now a gated action</h2><p>Publish can now identify the material before Chapter 1, the chapter body, and recognized back matter such as About the Authors or Join the Journey without reordering source blocks.</p></div></div>
+      <div class="panel-head"><div><div class="eyebrow">0.8 production workspace</div><h2>One manuscript, two output engines</h2><p>Publish can now identify the material before Chapter 1, the chapter body, and recognized back matter such as About the Authors or Join the Journey without reordering source blocks.</p></div></div>
       <div class="notice info"><strong>Story Lock still wins:</strong> inline bold/italic/underline styling is rendered from DOCX run metadata, but the exact manuscript characters are independently verified after pagination.</div>
     </article>`;
 }
@@ -469,7 +476,7 @@ function renderPrint() {
           </div>
         </div>
       </div>
-      <div class="notice success preview-note"><strong>0.7 production path:</strong> this page map now feeds KDP Preflight and a fixed single-page print master. Intentional blank versos suppress both running headers and folios.</div>
+      <div class="notice success preview-note"><strong>Print production path:</strong> this page map now feeds KDP Preflight and a fixed single-page print master. Intentional blank versos suppress both running headers and folios.</div>
     </article>`;
 }
 
@@ -617,7 +624,58 @@ function renderExport() {
         <button class="btn secondary" id="downloadPrintMaster" ${report.ready ? '' : 'disabled'}>Download Print Master HTML</button>
         <button class="btn secondary" id="downloadPreflightReport">Download Preflight Report</button>
       </div>
-      <div class="notice info"><strong>0.7 PDF workflow:</strong> the print master contains one fixed ${report.design.trimWidth} × ${report.design.trimHeight} in page per physical page. In the export window, click <strong>Print / Save as PDF</strong>. Keep scale at 100%, disable browser headers/footers, and save as PDF. Font embedding must still be confirmed in the resulting PDF before KDP upload.</div>
+      <div class="notice info"><strong>PDF workflow:</strong> the print master contains one fixed ${report.design.trimWidth} × ${report.design.trimHeight} in page per physical page. In the export window, click <strong>Print / Save as PDF</strong>. Keep scale at 100%, disable browser headers/footers, and save as PDF. Font embedding must still be confirmed in the resulting PDF before KDP upload.</div>
+    </article>`;
+}
+
+
+function renderEbook() {
+  const project = state.project;
+  const design = normalizeEbookDesign(project.design?.ebook || {});
+  const report = runEpubPreflight({ project, storyLockOk: project.storyLock?.status === 'verified' });
+  const preview = buildEbookPreviewHtml({ project, sectionIndex: state.ebookSectionIndex });
+  state.ebookSectionIndex = preview.index;
+  const frameHtml = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${preview.css}body{padding:2.2em 2.5em;max-width:42em;margin:0 auto;color:#18181a;background:#fffdf9} @media(max-width:600px){body{padding:1.4em}}</style></head><body>${preview.html}</body></html>`;
+  const sectionRows = preview.sections.map((section, index) => `
+    <button class="ebook-toc-row ${index === preview.index ? 'active' : ''}" data-ebook-section="${index}">
+      <span>${section.type === 'chapter' ? 'CH' : section.type === 'front' ? 'FR' : 'BK'}</span>
+      <div><strong>${escapeHtml(section.title)}</strong><small>${formatNumber(section.wordCount)} words · source ${section.startBlockIndex + 1}–${section.endBlockIndex + 1}</small></div>
+    </button>`).join('');
+
+  return `
+    <article class="panel ebook-panel">
+      <div class="panel-head"><div><span class="badge ${report.ready ? 'good' : 'bad'}">${report.ready ? 'EPUB READY' : 'EPUB BLOCKED'}</span><h2>Ebook / Kindle</h2><p>Reflowable EPUB 3 uses the same locked manuscript, but deliberately excludes print-only folios, gutters, fixed pages, and blank versos.</p></div><button class="btn secondary" data-go-view="import">Book metadata</button></div>
+      ${state.ebookMessage ? `<div class="notice info">${escapeHtml(state.ebookMessage)}</div>` : ''}
+      <div class="ebook-engine-banner">
+        <div><div class="eyebrow">Separate output engine</div><h3>Reader-controlled pages. Publisher-controlled structure.</h3><p>Chapter order, inline emphasis, scene breaks, text messages, and navigation survive. Screen size and reader font choices are allowed to reflow the book.</p></div>
+        <div class="ebook-format-chip"><b>EPUB 3</b><span>Kindle-ready reflowable</span></div>
+      </div>
+      <div class="ebook-settings-grid">
+        <label class="design-field"><span>Language</span><input id="ebookLanguage" value="${escapeHtml(design.language)}" placeholder="en"></label>
+        <label class="design-field"><span>Publisher metadata</span><input id="ebookPublisher" value="${escapeHtml(design.publisher)}" placeholder="Optional publisher / imprint"></label>
+        <label class="design-field"><span>Reader font behavior</span><select id="ebookFontFamily"><option value="reader" ${design.fontFamily === 'reader' ? 'selected' : ''}>Reader default</option><option value="serif" ${design.fontFamily === 'serif' ? 'selected' : ''}>Publisher serif fallback</option><option value="sans" ${design.fontFamily === 'sans' ? 'selected' : ''}>Publisher sans fallback</option></select></label>
+        <label class="design-field"><span>Body alignment</span><select id="ebookBodyAlignment"><option value="left" ${design.bodyAlignment === 'left' ? 'selected' : ''}>Left</option><option value="justify" ${design.bodyAlignment === 'justify' ? 'selected' : ''}>Justified</option></select></label>
+        <label class="design-field"><span>Line height</span><input id="ebookLineHeight" type="number" min="1" max="2.2" step="0.01" value="${design.lineHeight}"></label>
+        <label class="design-field"><span>First-line indent</span><div class="number-wrap"><input id="ebookFirstIndent" type="number" min="0" max="3" step="0.05" value="${design.firstLineIndentEm}"><em>em</em></div></label>
+        <label class="design-field"><span>Paragraph gap</span><div class="number-wrap"><input id="ebookParagraphGap" type="number" min="0" max="2" step="0.05" value="${design.paragraphGapEm}"><em>em</em></div></label>
+        <label class="design-field"><span>Chapter title alignment</span><select id="ebookChapterAlignment"><option value="left" ${design.chapterTitleAlignment === 'left' ? 'selected' : ''}>Left</option><option value="center" ${design.chapterTitleAlignment === 'center' ? 'selected' : ''}>Center</option><option value="right" ${design.chapterTitleAlignment === 'right' ? 'selected' : ''}>Right</option></select></label>
+      </div>
+      <div class="action-row"><button class="btn primary" id="saveEbookSettings">Save Ebook Settings</button><button class="btn secondary" id="downloadEpubPreflight">Download EPUB Preflight</button><button class="btn primary" id="downloadEpub" ${report.ready ? '' : 'disabled'}>Download .EPUB</button></div>
+      <div class="ebook-summary-grid">
+        <div><b>${report.sections}</b><span>Reading-order files</span></div>
+        <div><b>${report.chapterEntries}</b><span>Chapter links</span></div>
+        <div><b>${report.tocEntries}</b><span>Contents links</span></div>
+        <div><b>${project.manuscript.stats.words.toLocaleString()}</b><span>Locked words</span></div>
+      </div>
+      <div class="preflight-list ebook-preflight">${report.checks.map(renderPreflightCheck).join('')}</div>
+    </article>
+    <article class="panel ebook-workbench-panel">
+      <div class="panel-head"><div><div class="eyebrow">Reflowable preview</div><h2>${escapeHtml(preview.section.title)}</h2><p>Section ${preview.index + 1} of ${preview.sections.length}. This preview intentionally has no physical page numbers.</p></div><div class="ebook-section-buttons"><button class="btn small secondary" id="prevEbookSection" ${preview.index <= 0 ? 'disabled' : ''}>← Previous</button><button class="btn small secondary" id="nextEbookSection" ${preview.index >= preview.sections.length - 1 ? 'disabled' : ''}>Next →</button></div></div>
+      <div class="ebook-workbench">
+        <aside class="ebook-toc"><div class="ebook-toc-head"><strong>Generated Contents</strong><span>${report.tocEntries} links</span></div><div class="ebook-toc-list">${sectionRows}</div></aside>
+        <div class="ebook-reader-shell"><iframe class="ebook-reader" title="Ebook reflowable preview" srcdoc="${escapeHtml(frameHtml)}"></iframe></div>
+      </div>
+      <div class="notice info"><strong>Clickable Kindle Contents:</strong> the EPUB writes both EPUB 3 <code>nav.xhtml</code> and legacy <code>toc.ncx</code> navigation from detected structure. Chapter links update automatically from the manuscript structure; there are no manually typed ebook page numbers to maintain.</div>
     </article>`;
 }
 
@@ -644,7 +702,7 @@ function renderSource() {
 function renderLibrary() {
   return `
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">Local projects</div><h2>Library</h2><p>Projects live in this browser's IndexedDB. Older projects are migrated to the 0.7 production model without touching source blocks or Story Lock hashes.</p></div><button class="btn primary" id="libraryImport">New project</button></div>
+      <div class="panel-head"><div><div class="eyebrow">Local projects</div><h2>Library</h2><p>Projects live in this browser's IndexedDB. Older projects are migrated to the 0.8 print + ebook model without touching source blocks or Story Lock hashes.</p></div><button class="btn primary" id="libraryImport">New project</button></div>
       ${state.projects.length ? `<div class="project-list">${state.projects.map((raw) => { const p = migrateProject(raw); return `
         <div class="project-row">
           <div><strong>${escapeHtml(p.title)}</strong><span>${escapeHtml(p.source.fileName)} · ${p.manuscript.stats.chapters} chapters · ${formatNumber(p.manuscript.stats.words)} words · Updated ${new Date(p.updatedAt).toLocaleString()}</span></div>
@@ -686,10 +744,10 @@ function bindDynamicEvents() {
   });
 
   document.querySelector('#newImport')?.addEventListener('click', () => {
-    state.project = null; state.preview = null; state.activeView = 'import'; state.error = ''; renderShell();
+    state.project = null; state.preview = null; state.ebookSectionIndex = 0; state.ebookMessage = ''; state.activeView = 'import'; state.error = ''; renderShell();
   });
   document.querySelector('#libraryImport')?.addEventListener('click', () => {
-    state.project = null; state.preview = null; state.activeView = 'import'; state.error = ''; renderShell();
+    state.project = null; state.preview = null; state.ebookSectionIndex = 0; state.ebookMessage = ''; state.activeView = 'import'; state.error = ''; renderShell();
   });
   document.querySelector('#saveMetadata')?.addEventListener('click', saveProjectMetadata);
   document.querySelector('#verifyLock')?.addEventListener('click', verifyLock);
@@ -707,6 +765,12 @@ function bindDynamicEvents() {
   document.querySelector('#openPrintMaster')?.addEventListener('click', openPrintMaster);
   document.querySelector('#downloadPrintMaster')?.addEventListener('click', downloadPrintMaster);
   document.querySelector('#downloadPreflightReport')?.addEventListener('click', downloadPreflightReport);
+  document.querySelector('#saveEbookSettings')?.addEventListener('click', saveEbookSettings);
+  document.querySelector('#downloadEpub')?.addEventListener('click', downloadEpub);
+  document.querySelector('#downloadEpubPreflight')?.addEventListener('click', downloadEpubPreflight);
+  document.querySelector('#prevEbookSection')?.addEventListener('click', () => jumpEbookSection(state.ebookSectionIndex - 1));
+  document.querySelector('#nextEbookSection')?.addEventListener('click', () => jumpEbookSection(state.ebookSectionIndex + 1));
+  document.querySelectorAll('[data-ebook-section]').forEach((button) => button.addEventListener('click', () => jumpEbookSection(Number(button.dataset.ebookSection))));
 
   document.querySelectorAll('[data-go-view]').forEach((button) => button.addEventListener('click', () => {
     state.activeView = button.dataset.goView;
@@ -764,6 +828,8 @@ function bindDynamicEvents() {
     await saveProject(state.project);
     state.preview = null;
     state.spreadIndex = 0;
+    state.ebookSectionIndex = 0;
+    state.ebookMessage = '';
     state.activeView = 'import';
     renderShell();
   }));
@@ -815,6 +881,8 @@ async function importFile(file) {
     state.projects = await listProjects();
     state.preview = null;
     state.spreadIndex = 0;
+    state.ebookSectionIndex = 0;
+    state.ebookMessage = '';
     state.activeView = 'import';
   } catch (error) {
     console.error(error);
@@ -868,6 +936,17 @@ function downloadTextFile(filename, text, type = 'application/json') {
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
+}
+
+function downloadBlobFile(filename, blob) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 
@@ -940,6 +1019,105 @@ function downloadPreflightReport() {
     ...report,
   };
   downloadTextFile(`${safeExportBaseName()}-kdp-preflight.json`, JSON.stringify(payload, null, 2));
+}
+
+
+function readEbookForm() {
+  const value = (id) => document.querySelector(`#${id}`)?.value;
+  const base = normalizeEbookDesign(state.project?.design?.ebook || {});
+  return normalizeEbookDesign({
+    ...base,
+    language: value('ebookLanguage') ?? base.language,
+    publisher: value('ebookPublisher') ?? base.publisher,
+    fontFamily: value('ebookFontFamily') ?? base.fontFamily,
+    bodyAlignment: value('ebookBodyAlignment') ?? base.bodyAlignment,
+    lineHeight: value('ebookLineHeight') ?? base.lineHeight,
+    firstLineIndentEm: value('ebookFirstIndent') ?? base.firstLineIndentEm,
+    paragraphGapEm: value('ebookParagraphGap') ?? base.paragraphGapEm,
+    chapterTitleAlignment: value('ebookChapterAlignment') ?? base.chapterTitleAlignment,
+  });
+}
+
+async function saveEbookSettings() {
+  if (!state.project) return;
+  state.project.design = state.project.design || {};
+  state.project.design.ebook = readEbookForm();
+  state.project.updatedAt = new Date().toISOString();
+  state.ebookMessage = 'Ebook settings saved. Story wording and Story Lock hash were not changed.';
+  await saveProject(state.project);
+  state.projects = await listProjects();
+  updateMain();
+}
+
+function jumpEbookSection(index) {
+  if (!state.project) return;
+  const preview = buildEbookPreviewHtml({ project: state.project, sectionIndex: index });
+  state.ebookSectionIndex = preview.index;
+  updateMain();
+}
+
+async function ensureEpubReady() {
+  if (!state.project) return { ok: false, report: null };
+  const lock = await verifyProjectStoryLock(state.project);
+  if (!lock.ok) {
+    state.project.storyLock.status = 'failed';
+    await saveProject(state.project);
+    return { ok: false, report: runEpubPreflight({ project: state.project, storyLockOk: false }) };
+  }
+  state.project.storyLock.status = 'verified';
+  state.project.storyLock.verifiedAt = new Date().toISOString();
+  await saveProject(state.project);
+  const report = runEpubPreflight({ project: state.project, storyLockOk: true });
+  return { ok: Boolean(report.ready), report };
+}
+
+async function downloadEpub() {
+  if (!state.project) return;
+  state.project.design = state.project.design || {};
+  state.project.design.ebook = readEbookForm();
+  state.project.updatedAt = new Date().toISOString();
+  await saveProject(state.project);
+
+  state.busy = true;
+  state.busyMessage = 'Packaging EPUB without touching the manuscript…';
+  updateMain();
+  try {
+    const ready = await ensureEpubReady();
+    if (!ready.ok) {
+      alert('EPUB export is blocked. Review the ebook preflight checks first.');
+      return;
+    }
+    const packaged = await buildEpubBlob({ project: state.project });
+    downloadBlobFile(`${safeExportBaseName()}.epub`, packaged.blob);
+    state.ebookMessage = `EPUB built with ${packaged.sections.length} reading-order files and ${packaged.toc.length} clickable Contents links. Story Lock verified immediately before packaging.`;
+  } catch (error) {
+    console.error(error);
+    alert(error?.message || 'EPUB export failed safely.');
+  } finally {
+    state.busy = false;
+    state.busyMessage = '';
+    state.activeView = 'ebook';
+    updateMain();
+  }
+}
+
+async function downloadEpubPreflight() {
+  if (!state.project) return;
+  state.project.design = state.project.design || {};
+  state.project.design.ebook = readEbookForm();
+  const lock = await verifyProjectStoryLock(state.project);
+  const report = runEpubPreflight({ project: state.project, storyLockOk: lock.ok });
+  const payload = {
+    yasreadyPublishVersion: VERSION,
+    format: 'EPUB 3 reflowable',
+    bookTitle: state.project.title,
+    author: state.project.author || '',
+    sourceFile: state.project.source.fileName,
+    manuscriptSha256: state.project.source.manuscriptHash,
+    generatedAt: new Date().toISOString(),
+    ...report,
+  };
+  downloadTextFile(`${safeExportBaseName()}-epub-preflight.json`, JSON.stringify(payload, null, 2));
 }
 
 async function applyThemeFromLibrary(id, kind = 'built-in') {
