@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.9.0 — Automatic Print TOC + Structure Repair
+
+- Added automatic print Table of Contents generation from final printed page numbers.
+- Added Book 1-style TOC title, dot leaders, chapter entries, and recognized back-matter entries.
+- Added multi-pass pagination and a TOC convergence/integrity gate; stale generated page numbers block export.
+- Added source/manual TOC detection so YasReady never duplicates or silently deletes an existing manuscript TOC.
+- Added metadata-only Structure Repair for chapter titles, body paragraphs, scene breaks, text messages, matter headings, headings, and blanks.
+- Updated print and EPUB structure engines to honor structure overrides while preserving original source text and source order.
+- Added Word-document edge metadata for tables, fields, hyperlinks, manual page breaks, footnotes, and endnotes.
+- Added safe import blocking for footnotes/endnotes rather than silently omitting note text.
+- Expanded KDP preflight with automatic TOC verification, unexpected-empty-page checks, Word-table warnings, Word-field warnings, and manual-page-break warnings.
+- Expanded EPUB preflight with structure-repair and Word-layout warnings.
+- Migrated projects to schema version 9 / app version 0.9.0 without changing Story Lock hashes.
+- Expanded the automated suite to 50 tests before release packaging.
+
 ## v0.8.0 — EPUB / Kindle Engine
 
 - Added a dedicated reflowable Ebook / Kindle workspace.

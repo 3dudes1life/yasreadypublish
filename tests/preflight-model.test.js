@@ -9,7 +9,7 @@ function sampleProject(overrides = {}) {
     author: 'D.C.W.',
     storyLock: { status: 'verified' },
     manuscript: { blocks: [{ id: 'p-1', text: 'Hello' }], metadata: { imageCount: 0 }, ...overrides.manuscript },
-    design: { print: { ...TRES_AMIGOS_TEMPLATE, ...overrides.design } },
+    design: { print: { ...TRES_AMIGOS_TEMPLATE, printToc: false, ...overrides.design } },
   };
 }
 
@@ -21,13 +21,14 @@ function samplePreview(pageCount = 571, overrides = {}) {
     intentionalBlank: false,
     showRunningHeader: false,
     showFolio: true,
+    fragments: [{ sourceBlockId: 'p-1', kind: 'body', text: 'Hello' }],
   }));
   pages[0].hasChapterTitle = true;
   return {
     pages,
     blankVersos: 0,
     integrity: { ok: true, checkedBlocks: 1 },
-    design: { ...TRES_AMIGOS_TEMPLATE, ...overrides.design },
+    design: { ...TRES_AMIGOS_TEMPLATE, printToc: false, ...overrides.design },
     ...overrides,
   };
 }
@@ -56,7 +57,7 @@ test('insufficient binding margin blocks export', () => {
   assert.equal(report.checks.find((item) => item.id === 'inside-margin').status, 'error');
 });
 
-test('image assets block 0.7 no-bleed export instead of being silently dropped', () => {
+test('image assets block text-first no-bleed export instead of being silently dropped', () => {
   const project = sampleProject({ manuscript: { blocks: [{ id: 'p-1', text: 'Hello' }], metadata: { imageCount: 2 } } });
   const report = runKdpPreflight({ project, preview: samplePreview(571), storyLockOk: true });
   assert.equal(report.ready, false);

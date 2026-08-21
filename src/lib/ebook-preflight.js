@@ -1,4 +1,5 @@
 import { buildEbookSections, ebookTocEntries, normalizeEbookDesign, verifyEbookSourceCoverage } from './ebook-model.js';
+import { effectiveStats } from './structure-overrides.js';
 
 const check = (id, label, status, message) => ({ id, label, status, message });
 
@@ -7,7 +8,8 @@ export function runEpubPreflight({ project, storyLockOk = true } = {}) {
   const { sections } = buildEbookSections(project);
   const toc = ebookTocEntries(project);
   const coverage = verifyEbookSourceCoverage(project, sections);
-  const chapters = project?.manuscript?.stats?.chapters || 0;
+  const stats = effectiveStats(project);
+  const chapters = stats.chapters || 0;
   const imageCount = project?.manuscript?.metadata?.imageCount || 0;
   const title = String(project?.title || '').trim();
   const author = String(project?.author || '').trim();
@@ -20,7 +22,10 @@ export function runEpubPreflight({ project, storyLockOk = true } = {}) {
     check('title', 'Book title metadata', title ? 'pass' : 'error', title ? `EPUB title: ${title}` : 'A book title is required for EPUB metadata.'),
     check('author', 'Author metadata', author ? 'pass' : 'warning', author ? `Creator metadata: ${author}` : 'Author metadata is blank. The EPUB can be generated, but author metadata should be set before release.'),
     check('language', 'Language metadata', languageOk ? 'pass' : 'error', languageOk ? `Language tag: ${design.language}` : `“${design.language}” is not a supported language-tag format.`),
-    check('images', 'Image assets', imageCount === 0 ? 'pass' : 'error', imageCount === 0 ? 'No DOCX image assets need ebook packaging.' : `${imageCount} DOCX image asset(s) detected. v0.8 blocks EPUB export rather than silently omitting them.`),
+    check('images', 'Image assets', imageCount === 0 ? 'pass' : 'error', imageCount === 0 ? 'No DOCX image assets need ebook packaging.' : `${imageCount} DOCX image asset(s) detected. v0.9 blocks EPUB export rather than silently omitting them.`),
+    check('structure-overrides', 'Structure repair metadata', 'pass', `${stats.structureOverrides || 0} paragraph classification override(s) are applied outside Story Lock; source wording is unchanged.`),
+    check('word-tables', 'Word tables', (project?.manuscript?.metadata?.tableCount || 0) ? 'warning' : 'pass', (project?.manuscript?.metadata?.tableCount || 0) ? `${project.manuscript.metadata.tableCount} Word table(s) were detected. Paragraph text is preserved, but table grid layout is not reproduced in EPUB v0.9.` : 'No Word table structures detected.'),
+    check('manual-breaks', 'Manual Word page breaks', (project?.manuscript?.metadata?.manualPageBreakCount || 0) ? 'warning' : 'pass', (project?.manuscript?.metadata?.manualPageBreakCount || 0) ? `${project.manuscript.metadata.manualPageBreakCount} manual Word page break(s) were detected. Reflowable EPUB intentionally ignores fixed Word page breaks.` : 'No manual Word page breaks detected.'),
     check('sections', 'Reflowable sections', sections.length > 0 ? 'pass' : 'error', `${sections.length} XHTML reading-order section${sections.length === 1 ? '' : 's'} will be packaged.`),
     check('toc', 'Clickable Contents', toc.length > 0 ? 'pass' : 'error', `${toc.length} navigation entr${toc.length === 1 ? 'y' : 'ies'} will be written to EPUB nav.xhtml and NCX.`),
   ];

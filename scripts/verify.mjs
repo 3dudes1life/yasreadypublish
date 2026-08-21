@@ -18,6 +18,8 @@ const required = [
   'src/lib/ebook-model.js',
   'src/lib/ebook-preflight.js',
   'src/lib/epub-export.js',
+  'src/lib/structure-overrides.js',
+  'src/lib/print-toc.js',
   'public/vendor/jszip.min.js',
   'STORY-LOCK-SPEC.md',
   'KDP-PREFLIGHT.md',
@@ -43,6 +45,8 @@ const jsFiles = [
   'src/lib/ebook-model.js',
   'src/lib/ebook-preflight.js',
   'src/lib/epub-export.js',
+  'src/lib/structure-overrides.js',
+  'src/lib/print-toc.js',
 ];
 
 for (const file of jsFiles) execFileSync(process.execPath, ['--check', file], { stdio: 'inherit' });
@@ -53,8 +57,13 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
 }
 
 const main = readFileSync('src/main.js', 'utf8');
-if (!main.includes("const VERSION = '0.8.0'") || !main.includes('Ebook / Kindle') || !main.includes('downloadEpub')) {
-  throw new Error('v0.8 ebook workspace is not wired into main.js.');
+if (!main.includes("const VERSION = '0.9.0'") || !main.includes('Ebook / Kindle') || !main.includes('Structure Repair') || !main.includes('generated-toc-entry')) {
+  throw new Error('v0.9 publishing workspace is not fully wired into main.js.');
 }
 
-console.log('YasReady Publish v0.8.0 static verification passed.');
+const printModel = readFileSync('src/lib/print-model.js', 'utf8');
+if (!printModel.includes("tocTitle: 'Table of Contents'") || !printModel.includes('printToc: true')) {
+  throw new Error('v0.9 automatic print TOC defaults are missing.');
+}
+
+console.log('YasReady Publish v0.9.0 static verification passed.');

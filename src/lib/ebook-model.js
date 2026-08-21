@@ -1,4 +1,5 @@
 import { analyzeMatter, matterSectionForBlockIndex } from './structure-model.js';
+import { effectiveBlocks } from './structure-overrides.js';
 
 export const DEFAULT_EBOOK_DESIGN = Object.freeze({
   themeId: 'tres-amigos-ebook',
@@ -72,7 +73,7 @@ function sectionTitle(type, blocks, ordinal) {
 }
 
 export function buildEbookSections(project) {
-  const blocks = project?.manuscript?.blocks || [];
+  const blocks = effectiveBlocks(project);
   const structure = analyzeMatter(blocks);
   const sections = [];
   let current = null;

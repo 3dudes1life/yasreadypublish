@@ -1,4 +1,6 @@
 import { normalizePrintDesign } from './print-model.js';
+import { shouldGeneratePrintToc, verifyGeneratedPrintToc } from './print-toc.js';
+import { effectiveStats } from './structure-overrides.js';
 
 export const KDP_MARGIN_BANDS = Object.freeze([
   { min: 24, max: 150, inside: 0.375 },
@@ -23,6 +25,9 @@ export function runKdpPreflight({ project, preview, storyLockOk = true } = {}) {
   const pageCount = pages.length;
   const requiredInside = requiredInsideMargin(pageCount);
   const imageCount = Number(project?.manuscript?.metadata?.imageCount || 0);
+  const stats = effectiveStats(project);
+  const tocMode = shouldGeneratePrintToc(project, design);
+  const tocIntegrity = verifyGeneratedPrintToc({ project, preview, design });
   const checks = [];
 
   checks.push(check(
@@ -119,6 +124,59 @@ export function runKdpPreflight({ project, preview, storyLockOk = true } = {}) {
     blankLeaks.length
       ? `${blankLeaks.length} intentional blank page(s) contain header/folio presentation metadata.`
       : `${preview?.blankVersos || 0} intentional blank verso(s) stay truly blank in export.`,
+  ));
+
+
+  checks.push(check(
+    'print-toc',
+    'Automatic print Table of Contents',
+    tocMode.reason === 'source-toc-detected' ? 'warning' : tocIntegrity.ok ? 'pass' : 'error',
+    tocMode.reason === 'disabled'
+      ? 'Generated print TOC is turned off.'
+      : tocMode.reason === 'source-toc-detected'
+        ? 'A source Table of Contents is already present in the DOCX. YasReady will not add a second one or remove source text; remove the manual TOC from the master DOCX if you want generated page numbers.'
+        : tocIntegrity.ok
+          ? `${tocIntegrity.entries} generated TOC entries match the final printed page map.`
+          : 'Generated TOC page numbers do not match final pagination. Rebuild Print Preview before export.',
+  ));
+
+  checks.push(check(
+    'structure-repair',
+    'Structure repair metadata',
+    'pass',
+    `${stats.structureOverrides || 0} paragraph classification override(s) are applied as metadata only. Story text remains unchanged.`,
+  ));
+
+  const unexpectedEmpty = pages.filter((page) => !page.intentionalBlank && !(page.fragments || []).length);
+  checks.push(check(
+    'unexpected-empty-pages',
+    'Unexpected empty pages',
+    unexpectedEmpty.length ? 'error' : 'pass',
+    unexpectedEmpty.length ? `${unexpectedEmpty.length} non-intentional page(s) contain no layout fragments.` : 'No unexplained empty physical pages were found.',
+  ));
+
+  const tableCount = Number(project?.manuscript?.metadata?.tableCount || 0);
+  checks.push(check(
+    'word-tables',
+    'Word tables',
+    tableCount ? 'warning' : 'pass',
+    tableCount ? `${tableCount} Word table(s) were detected. Paragraph text is preserved, but table grid layout is not reproduced by the v0.9 fiction formatter.` : 'No Word table structures detected.',
+  ));
+
+  const manualBreaks = Number(project?.manuscript?.metadata?.manualPageBreakCount || 0);
+  checks.push(check(
+    'manual-page-breaks',
+    'Manual Word page breaks',
+    manualBreaks ? 'warning' : 'pass',
+    manualBreaks ? `${manualBreaks} manual Word page break(s) were detected. YasReady repaginates from book rules instead of honoring Word page positions.` : 'No manual Word page breaks detected.',
+  ));
+
+  const fieldCount = Number(project?.manuscript?.metadata?.fieldCount || 0);
+  checks.push(check(
+    'word-fields',
+    'Word fields',
+    fieldCount ? 'warning' : 'pass',
+    fieldCount ? `${fieldCount} Word field instruction(s) were detected. Review Source/Print Preview because dynamic Word fields are flattened to their visible text.` : 'No Word field instructions detected.',
   ));
 
   checks.push(check(

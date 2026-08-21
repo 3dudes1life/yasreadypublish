@@ -21,8 +21,10 @@ import { buildPrintMasterHtml } from './lib/print-export.js';
 import { normalizeEbookDesign } from './lib/ebook-model.js';
 import { runEpubPreflight } from './lib/ebook-preflight.js';
 import { buildEbookPreviewHtml, buildEpubBlob } from './lib/epub-export.js';
+import { effectiveBlocks, effectiveChapters, effectiveStats, setStructureOverride, structureOverrideSummary, STRUCTURE_OVERRIDE_KINDS } from './lib/structure-overrides.js';
+import { buildPrintTocEntries, printTocSignature, shouldGeneratePrintToc, verifyGeneratedPrintToc } from './lib/print-toc.js';
 
-const VERSION = '0.8.0';
+const VERSION = '0.9.0';
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
 
@@ -42,6 +44,8 @@ const state = {
   themeMessage: '',
   ebookSectionIndex: 0,
   ebookMessage: '',
+  repairSearch: '',
+  repairMessage: '',
 };
 
 const app = document.querySelector('#app');
@@ -88,7 +92,7 @@ function renderShell() {
         <div>
           <div class="eyebrow">Story-safe book production</div>
           <h1>Build the pages.<br>Protect every word.</h1>
-          <p>Version 0.8 adds the second production engine: reflowable EPUB/Kindle export with clickable navigation, ebook-specific typography, and Story Lock verification before packaging.</p>
+          <p>Version 0.9 adds automatic print Table of Contents generation, metadata-only structure repair, and edge-case preflight hardening while Story Lock keeps every source character immutable.</p>
         </div>
         <div class="story-lock-pill"><span class="dot"></span> Story Lock is mandatory</div>
       </section>
@@ -105,11 +109,12 @@ function renderSidebar() {
   const hasProject = Boolean(state.project);
   return `
     <aside class="sidebar">
-      <div class="sidebar-head"><strong>Publish workspace</strong><span>0.8 keeps print and ebook as separate production engines: fixed pages for paperback, reflowable chapters for Kindle, one locked manuscript underneath.</span></div>
+      <div class="sidebar-head"><strong>Publish workspace</strong><span>0.9 adds a third safety layer: generated print matter and structure repair live outside the locked manuscript, while paperback and Kindle continue from the same exact source text.</span></div>
       <nav class="sidebar-nav">
         ${navButton('import', '＋', hasProject ? 'Project' : 'Import')}
         ${navButton('chapters', '☷', 'Contents', !hasProject)}
         ${navButton('matter', '§', 'Book Matter', !hasProject)}
+        ${navButton('repair', '⚙', 'Structure Repair', !hasProject)}
         ${navButton('navigator', '⌘', 'Navigator', !hasProject)}
         ${navButton('design', 'Aa', 'Design', !hasProject)}
         ${navButton('print', '▣', 'Print Preview', !hasProject)}
@@ -132,6 +137,7 @@ function renderMain() {
   if (!state.project) return renderImport();
   if (state.activeView === 'chapters') return renderChapters();
   if (state.activeView === 'matter') return renderMatter();
+  if (state.activeView === 'repair') return renderRepair();
   if (state.activeView === 'navigator') return renderNavigator();
   if (state.activeView === 'design') return renderDesign();
   if (state.activeView === 'print') return renderPrint();
@@ -156,7 +162,7 @@ function renderImport() {
       </div>
     </article>
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">v0.8 two-engine publishing</div><h2>Paperback + Kindle from one locked source</h2><p>The print engine keeps physical-page rules. The ebook engine creates reflowable XHTML, clickable Contents, EPUB metadata, and a Kindle-ready archive without importing print page numbers or blank versos.</p></div></div>
+      <div class="panel-head"><div><div class="eyebrow">v0.9 production hardening</div><h2>Automatic print Contents + safe structure repair</h2><p>YasReady can now generate print Table of Contents page numbers from final pagination and repair misclassified chapter/scene/message structure as metadata only—without editing or deleting source text.</p></div></div>
       <div class="summary-grid six">
         <div class="stat"><b>✓</b><span>Read DOCX</span></div>
         <div class="stat"><b>✓</b><span>Story Lock</span></div>
@@ -174,7 +180,7 @@ function renderBusy() {
 
 function renderProject() {
   const p = state.project;
-  const s = p.manuscript.stats;
+  const s = effectiveStats(p);
   const design = currentDesign();
   return `
     <article class="panel">
@@ -200,13 +206,13 @@ function renderProject() {
       <div class="action-row"><button class="btn primary" data-go-view="design">Set print design</button><button class="btn secondary" data-go-view="print">Build print preview</button><button class="btn secondary" data-go-view="export">KDP preflight</button><button class="btn secondary" data-go-view="ebook">Build Kindle EPUB</button></div>
     </article>
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">0.8 production workspace</div><h2>One manuscript, two output engines</h2><p>Publish can now identify the material before Chapter 1, the chapter body, and recognized back matter such as About the Authors or Join the Journey without reordering source blocks.</p></div></div>
+      <div class="panel-head"><div><div class="eyebrow">0.9 production workspace</div><h2>One manuscript, print + ebook + generated matter</h2><p>Publish maps front matter, chapter body, and recognized back matter; structure repairs and generated print Contents stay outside the canonical Story-Locked text.</p></div></div>
       <div class="notice info"><strong>Story Lock still wins:</strong> inline bold/italic/underline styling is rendered from DOCX run metadata, but the exact manuscript characters are independently verified after pagination.</div>
     </article>`;
 }
 
 function renderChapters() {
-  const chapters = state.project.manuscript.chapters;
+  const chapters = effectiveChapters(state.project);
   return `
     <article class="panel">
       <div class="panel-head"><div><div class="eyebrow">Detected structure</div><h2>Contents</h2><p>${chapters.length} chapter ${chapters.length === 1 ? 'start' : 'starts'} detected from the locked source.</p></div></div>
@@ -221,7 +227,7 @@ function renderChapters() {
 
 
 function renderMatter() {
-  const structure = analyzeMatter(state.project.manuscript.blocks);
+  const structure = analyzeMatter(effectiveBlocks(state.project));
   const front = structure.frontMatterHeadings;
   const back = structure.backMatterHeadings;
   const headingRows = (items, emptyText) => items.length
@@ -245,6 +251,58 @@ function renderMatter() {
 }
 
 
+function renderRepair() {
+  const sourceBlocks = state.project.manuscript.blocks || [];
+  const effective = effectiveBlocks(state.project);
+  const effectiveById = new Map(effective.map((block) => [block.id, block]));
+  const overrides = structureOverrideSummary(state.project);
+  const overrideIds = new Set(overrides.map((item) => item.blockId));
+  const query = state.repairSearch.trim().toLowerCase();
+  const candidates = sourceBlocks.filter((block) => {
+    if (block.kind === 'blank' && !overrideIds.has(block.id)) return false;
+    if (query) return block.text.toLowerCase().includes(query) || block.kind.includes(query) || (block.style?.name || '').toLowerCase().includes(query) || block.id.toLowerCase().includes(query);
+    return overrideIds.has(block.id) || block.kind !== 'body' || /chapter|heading|title/i.test(block.style?.name || '');
+  }).slice(0, 500);
+  const labels = {
+    'chapter-title': 'Chapter title',
+    body: 'Body paragraph',
+    'scene-break': 'Scene break',
+    'text-message': 'Text message',
+    'front-back-heading': 'Front / back heading',
+    heading: 'Heading',
+    blank: 'Blank paragraph',
+  };
+  const sourceStats = state.project.manuscript.stats || {};
+  const derivedStats = effectiveStats(state.project);
+  return `
+    <article class="panel">
+      <div class="panel-head"><div><span class="badge good">Metadata only</span><h2>Structure Repair</h2><p>Fix chapter, scene-break, message, or book-matter classification without editing a single character of manuscript text.</p></div></div>
+      ${state.repairMessage ? `<div class="notice success">${escapeHtml(state.repairMessage)}</div>` : ''}
+      <div class="repair-summary">
+        <div><b>${formatNumber(overrides.length)}</b><span>manual overrides</span></div>
+        <div><b>${formatNumber(sourceStats.chapters || 0)}</b><span>source-detected chapters</span></div>
+        <div><b>${formatNumber(derivedStats.chapters || 0)}</b><span>effective chapters</span></div>
+      </div>
+      <div class="notice info"><strong>Story Lock rule:</strong> these controls only change a paragraph's structural label. The text, punctuation, capitalization, order, and SHA-256 source fingerprint are never changed.</div>
+      <div class="repair-toolbar"><input id="repairSearch" placeholder="Find text, paragraph ID, Word style, or classification…" value="${escapeHtml(state.repairSearch)}"><span>${formatNumber(candidates.length)} shown</span></div>
+      <div class="repair-list">${candidates.map((block) => {
+        const effectiveBlock = effectiveById.get(block.id) || block;
+        const currentOverride = state.project.structureOverrides?.[block.id] || '';
+        return `<div class="repair-row ${currentOverride ? 'overridden' : ''}">
+          <div class="repair-meta"><b>${escapeHtml(block.id)}</b><span>source: ${escapeHtml(block.kind)}</span><span>${escapeHtml(block.style?.name || 'Normal')}</span></div>
+          <div class="repair-text">${escapeHtml(block.text || '[blank paragraph]')}</div>
+          <label class="repair-select"><span>${currentOverride ? `Override → ${escapeHtml(effectiveBlock.kind)}` : 'Use source detection'}</span><select data-repair-block="${escapeHtml(block.id)}">
+            <option value="" ${!currentOverride ? 'selected' : ''}>Use source detection (${escapeHtml(block.kind)})</option>
+            ${STRUCTURE_OVERRIDE_KINDS.map((kind) => `<option value="${kind}" ${currentOverride === kind ? 'selected' : ''}>${escapeHtml(labels[kind] || kind)}</option>`).join('')}
+          </select></label>
+        </div>`;
+      }).join('')}</div>
+      ${!candidates.length ? '<div class="matter-empty">No matching paragraphs.</div>' : ''}
+      ${candidates.length >= 500 ? '<div class="notice warning">Showing the first 500 matches. Narrow the search to locate a specific paragraph.</div>' : ''}
+    </article>`;
+}
+
+
 function currentPhysicalPage() {
   if (!state.preview?.pages?.length) return 1;
   const visible = spreadPageNumbers(state.spreadIndex);
@@ -258,7 +316,7 @@ function previewNavigation() {
 
 function renderNavigator() {
   const query = state.navigatorSearch.trim().toLowerCase();
-  const sourceChapters = state.project.manuscript.chapters || [];
+  const sourceChapters = effectiveChapters(state.project);
 
   if (!state.preview) {
     const chapters = sourceChapters.filter((chapter) => !query || chapter.title.toLowerCase().includes(query));
@@ -334,6 +392,7 @@ function renderDesign() {
   const validation = validatePrintDesign(d);
   const calibration = compareDesignToTemplate(d, TRES_AMIGOS_TEMPLATE);
   const changedRows = calibration.rows.filter((row) => !row.match);
+  const tocMode = shouldGeneratePrintToc(state.project, d);
   return `
     <article class="panel">
       <div class="panel-head"><div><span class="badge good">Story layer untouched</span><h2>Design studio</h2><p>Choose a reusable house style or tune the page system. Themes contain only presentation metadata; Story-Locked manuscript wording is never stored inside them.</p></div><button class="btn primary" id="saveDesign">Save design</button></div>
@@ -381,6 +440,20 @@ function renderDesign() {
             <label class="design-field"><span>Chapter alignment</span><select id="chapterTitleAlignment"><option value="center" ${d.chapterTitleAlignment === 'center' ? 'selected' : ''}>Center</option><option value="left" ${d.chapterTitleAlignment === 'left' ? 'selected' : ''}>Left</option><option value="right" ${d.chapterTitleAlignment === 'right' ? 'selected' : ''}>Right</option></select></label>
           </div>
           <div class="design-readout"><span>Live text box</span><strong>${validation.content.width.toFixed(2)} × ${validation.content.height.toFixed(2)} in</strong></div>
+        </section>
+        <section class="design-card">
+          <div class="eyebrow">Generated front matter</div><h3>Print Table of Contents</h3>
+          <label class="toggle-row"><input type="checkbox" id="printToc" ${d.printToc ? 'checked' : ''}><span><strong>Generate print Table of Contents</strong><small>Page numbers are calculated from final pagination.</small></span></label>
+          <label class="design-field"><span>TOC title</span><input id="tocTitle" value="${escapeHtml(d.tocTitle)}" maxlength="80"></label>
+          <label class="toggle-row"><input type="checkbox" id="tocIncludeBackMatter" ${d.tocIncludeBackMatter ? 'checked' : ''}><span><strong>Include recognized back matter</strong><small>Matches Book 1 behavior for About the Authors / Join the Journey.</small></span></label>
+          <div class="field-grid two">
+            ${designNumberField('tocTitleSize', 'TOC title size', d.tocTitleSize, '0.25', '9', '24', 'pt')}
+            ${designNumberField('tocEntryFontSize', 'TOC entry size', d.tocEntryFontSize, '0.25', '7', '16', 'pt')}
+            ${designNumberField('tocLineHeight', 'TOC line height', d.tocLineHeight, '0.01', '1', '2', '×')}
+            ${designNumberField('tocTopSpace', 'TOC top space', d.tocTopSpace, '0.01', '0', '1.5')}
+            ${designNumberField('tocAfterTitleSpace', 'After TOC title', d.tocAfterTitleSpace, '0.01', '0', '1.5')}
+          </div>
+          ${tocMode.reason === 'source-toc-detected' ? '<div class="notice warning mini"><strong>Manual TOC detected in the DOCX.</strong> Generated TOC will stay off during pagination so YasReady does not duplicate or remove source content. Remove the manual TOC from the master DOCX and re-import to use generated page numbers.</div>' : '<div class="notice success mini"><strong>Automatic TOC ready.</strong> YasReady will insert generated Contents pages before Chapter 1 and verify every printed page number against final pagination.</div>'}
         </section>
         <section class="design-card">
           <div class="eyebrow">Page furniture</div><h3>Folios + running headers</h3>
@@ -454,7 +527,7 @@ function renderPrint() {
         <div><b>${formatNumber(preview.blankVersos)}</b><span>blank versos inserted</span></div>
         <div><b>${formatNumber(preview.chapterStarts)}</b><span>chapter starts</span></div>
         <div><b>${formatNumber(preview.chaptersOnRight)}</b><span>chapters on right</span></div>
-        <div><b>${formatNumber(preview.structure?.frontMatterBlocks || 0)}</b><span>front matter ¶</span></div>
+        <div><b>${formatNumber(preview.generatedToc?.entries?.length || 0)}</b><span>TOC entries</span></div>
         <div><b>${formatNumber(preview.structure?.backMatterBlocks || 0)}</b><span>back matter ¶</span></div>
       </div>
       <div class="preview-commandbar">
@@ -476,7 +549,7 @@ function renderPrint() {
           </div>
         </div>
       </div>
-      <div class="notice success preview-note"><strong>Print production path:</strong> this page map now feeds KDP Preflight and a fixed single-page print master. Intentional blank versos suppress both running headers and folios.</div>
+      <div class="notice success preview-note"><strong>Print production path:</strong> this page map feeds KDP Preflight and the fixed single-page print master. Generated TOC numbers are verified against this final page map; intentional blank versos suppress both running headers and folios.</div>
     </article>`;
 }
 
@@ -555,6 +628,14 @@ function renderBookPage(page, design) {
     ? `<div class="intentional-blank">Intentional blank verso<br><small>Kept blank so the next chapter opens on the right.</small></div>`
     : page.fragments.map((fragment) => {
       if (fragment.kind === 'blank') return `<div class="print-fragment blank-space" style="height:${(fragment.previewHeight || 6) * (px / PREVIEW_PX_PER_INCH)}px"></div>`;
+      if (fragment.kind === 'generated-toc-title') {
+        const tocTitlePx = design.tocTitleSize * (96 / 72) * (px / 96);
+        return `<div class="print-fragment generated-toc-title" style="padding-top:${design.tocTopSpace * px}px;padding-bottom:${design.tocAfterTitleSpace * px}px;font-size:${tocTitlePx}px;text-align:center;line-height:1.15">${escapeHtml(fragment.text)}</div>`;
+      }
+      if (fragment.kind === 'generated-toc-entry') {
+        const tocEntryPx = design.tocEntryFontSize * (96 / 72) * (px / 96);
+        return `<div class="print-fragment generated-toc-entry" style="font-size:${tocEntryPx}px;line-height:${design.tocLineHeight}"><span class="toc-label">${escapeHtml(fragment.tocTitle || fragment.text)}</span><span class="toc-leader"></span><span class="toc-page">${escapeHtml(fragment.tocPageNumber ?? '')}</span></div>`;
+      }
       const classes = `print-fragment ${escapeHtml(fragment.kind)} ${fragment.continuation ? 'continuation' : ''}`;
       let extra = '';
       let content = renderInlineRuns(fragment);
@@ -565,7 +646,7 @@ function renderBookPage(page, design) {
       const shouldIndent = fragment.kind === 'body' && !fragment.continuation && !fragment.suppressIndent;
       if (fragment.kind === 'body') extra += `text-align:${design.bodyAlignment};`;
       if (shouldIndent) extra += `text-indent:${indent}px;`;
-      const gap = fragment.isFinalPiece && design.paragraphGap && !['chapter-title','blank'].includes(fragment.kind)
+      const gap = fragment.isFinalPiece && design.paragraphGap && !['chapter-title','blank','generated-toc-title','generated-toc-entry'].includes(fragment.kind)
         ? design.paragraphGap * px : 0;
       if (gap) extra += `padding-bottom:${gap}px;`;
       return `<div class="${classes}" style="${extra}">${content}</div>`;
@@ -702,10 +783,10 @@ function renderSource() {
 function renderLibrary() {
   return `
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">Local projects</div><h2>Library</h2><p>Projects live in this browser's IndexedDB. Older projects are migrated to the 0.8 print + ebook model without touching source blocks or Story Lock hashes.</p></div><button class="btn primary" id="libraryImport">New project</button></div>
+      <div class="panel-head"><div><div class="eyebrow">Local projects</div><h2>Library</h2><p>Projects live in this browser's IndexedDB. Older projects are migrated to the 0.9 print + ebook + structure-repair model without touching source blocks or Story Lock hashes.</p></div><button class="btn primary" id="libraryImport">New project</button></div>
       ${state.projects.length ? `<div class="project-list">${state.projects.map((raw) => { const p = migrateProject(raw); return `
         <div class="project-row">
-          <div><strong>${escapeHtml(p.title)}</strong><span>${escapeHtml(p.source.fileName)} · ${p.manuscript.stats.chapters} chapters · ${formatNumber(p.manuscript.stats.words)} words · Updated ${new Date(p.updatedAt).toLocaleString()}</span></div>
+          <div><strong>${escapeHtml(p.title)}</strong><span>${escapeHtml(p.source.fileName)} · ${effectiveStats(p).chapters} chapters · ${formatNumber(effectiveStats(p).words)} words · Updated ${new Date(p.updatedAt).toLocaleString()}</span></div>
           <div class="project-actions"><button class="btn secondary" data-open-project="${p.id}">Open</button><button class="btn danger" data-delete-project="${p.id}">Delete</button></div>
         </div>`; }).join('')}</div>` : `<div class="empty-project"><h3>No saved projects yet</h3><p>Import a DOCX and it will appear here automatically.</p></div>`}
     </article>`;
@@ -784,6 +865,14 @@ function bindDynamicEvents() {
     search._timer = setTimeout(updateMain, 180);
   });
 
+  const repairSearch = document.querySelector('#repairSearch');
+  repairSearch?.addEventListener('input', (event) => {
+    state.repairSearch = event.target.value;
+    clearTimeout(repairSearch._timer);
+    repairSearch._timer = setTimeout(updateMain, 160);
+  });
+  document.querySelectorAll('[data-repair-block]').forEach((select) => select.addEventListener('change', () => applyStructureRepair(select.dataset.repairBlock, select.value)));
+
   const navigatorSearch = document.querySelector('#navigatorSearch');
   navigatorSearch?.addEventListener('input', (event) => {
     state.navigatorSearch = event.target.value;
@@ -840,6 +929,26 @@ function bindDynamicEvents() {
     state.projects = await listProjects();
     updateMain();
   }));
+}
+
+async function applyStructureRepair(blockId, kind) {
+  if (!state.project) return;
+  try {
+    setStructureOverride(state.project, blockId, kind || null);
+    state.project.updatedAt = new Date().toISOString();
+    state.preview = null;
+    state.spreadIndex = 0;
+    state.ebookSectionIndex = 0;
+    state.repairMessage = kind
+      ? `Structure metadata updated for ${blockId}. Story text was not changed.`
+      : `Structure override cleared for ${blockId}; source detection is active again.`;
+    await saveProject(state.project);
+    state.projects = await listProjects();
+    updateMain();
+  } catch (error) {
+    console.error(error);
+    alert(error?.message || 'Structure repair could not be saved safely.');
+  }
 }
 
 function jumpToPhysicalPage(value, rerender = true) {
@@ -1223,6 +1332,14 @@ function readDesignForm() {
     runningHeaderTop: value('runningHeaderTop') ?? base.runningHeaderTop,
     runningHeaderOutsideInset: value('runningHeaderOutsideInset') ?? base.runningHeaderOutsideInset,
     suppressHeaderOnChapterOpen: document.querySelector('#suppressHeaderOnChapterOpen') ? Boolean(document.querySelector('#suppressHeaderOnChapterOpen')?.checked) : base.suppressHeaderOnChapterOpen,
+    printToc: document.querySelector('#printToc') ? Boolean(document.querySelector('#printToc')?.checked) : base.printToc,
+    tocTitle: value('tocTitle') ?? base.tocTitle,
+    tocIncludeBackMatter: document.querySelector('#tocIncludeBackMatter') ? Boolean(document.querySelector('#tocIncludeBackMatter')?.checked) : base.tocIncludeBackMatter,
+    tocTitleSize: value('tocTitleSize') ?? base.tocTitleSize,
+    tocEntryFontSize: value('tocEntryFontSize') ?? base.tocEntryFontSize,
+    tocLineHeight: value('tocLineHeight') ?? base.tocLineHeight,
+    tocTopSpace: value('tocTopSpace') ?? base.tocTopSpace,
+    tocAfterTitleSpace: value('tocAfterTitleSpace') ?? base.tocAfterTitleSpace,
     chapterStarts: value('chapterStarts') ?? base.chapterStarts,
     templateId: 'custom',
     name: 'Custom',
@@ -1264,6 +1381,33 @@ function createMeasureRig(design) {
   return { root, content, pageHeightPx: content.height * CSS_PX_PER_INCH };
 }
 
+function measureTocEntry(rig, design, title, pageNumber) {
+  const wrapper = document.createElement('div');
+  wrapper.style.boxSizing = 'border-box';
+  wrapper.style.display = 'flex';
+  wrapper.style.alignItems = 'baseline';
+  wrapper.style.gap = '0.08in';
+  wrapper.style.fontSize = `${design.tocEntryFontSize}pt`;
+  wrapper.style.lineHeight = String(design.tocLineHeight);
+  wrapper.style.whiteSpace = 'normal';
+
+  const label = document.createElement('span');
+  label.textContent = title;
+  label.style.flex = '0 1 auto';
+  label.style.minWidth = '0';
+  const leader = document.createElement('span');
+  leader.style.flex = '1 1 auto';
+  leader.style.minWidth = '0.16in';
+  leader.style.borderBottom = '1px dotted currentColor';
+  const page = document.createElement('span');
+  page.textContent = String(pageNumber ?? '');
+  page.style.flex = '0 0 auto';
+  page.style.textAlign = 'right';
+  wrapper.append(label, leader, page);
+  rig.root.replaceChildren(wrapper);
+  return wrapper.getBoundingClientRect().height;
+}
+
 function measureFragment(rig, design, kind, text, continuation = false, isFinalPiece = true, suppressIndent = false) {
   const wrapper = document.createElement('div');
   wrapper.style.boxSizing = 'border-box';
@@ -1274,13 +1418,20 @@ function measureFragment(rig, design, kind, text, continuation = false, isFinalP
   paragraph.style.whiteSpace = 'pre-wrap';
   paragraph.style.overflowWrap = 'break-word';
 
-  if (kind === 'chapter-title') {
+  if (kind === 'generated-toc-title') {
+    wrapper.style.paddingTop = `${design.tocTopSpace}in`;
+    wrapper.style.paddingBottom = `${design.tocAfterTitleSpace}in`;
+    paragraph.style.fontSize = `${design.tocTitleSize}pt`;
+    paragraph.style.lineHeight = '1.15';
+    paragraph.style.fontWeight = '400';
+    paragraph.style.textAlign = 'center';
+  } else if (kind === 'chapter-title') {
     wrapper.style.paddingTop = `${design.chapterTopSpace}in`;
     wrapper.style.paddingBottom = `${design.chapterAfterSpace}in`;
     paragraph.style.fontSize = `${design.chapterTitleSize}pt`;
     paragraph.style.lineHeight = String(design.chapterTitleLineHeight);
     paragraph.style.fontWeight = '400';
-    paragraph.style.textAlign = 'center';
+    paragraph.style.textAlign = design.chapterTitleAlignment;
   } else if (kind === 'scene-break') {
     wrapper.style.paddingTop = '0.12in';
     wrapper.style.paddingBottom = '0.12in';
@@ -1296,7 +1447,7 @@ function measureFragment(rig, design, kind, text, continuation = false, isFinalP
     paragraph.style.textIndent = `${design.firstLineIndent}in`;
   }
 
-  if (isFinalPiece && design.paragraphGap && !['chapter-title','blank'].includes(kind)) {
+  if (isFinalPiece && design.paragraphGap && !['chapter-title','blank','generated-toc-title','generated-toc-entry'].includes(kind)) {
     wrapper.style.paddingBottom = `${design.paragraphGap}in`;
   }
   wrapper.appendChild(paragraph);
@@ -1344,15 +1495,18 @@ function verifyPaginatedText(project, pages) {
 
 
 function attachPageStructure(project, pages, design) {
-  const structure = analyzeMatter(project.manuscript.blocks);
-  const blockIndex = new Map(project.manuscript.blocks.map((block) => [block.id, block.index]));
+  const effective = effectiveBlocks(project);
+  const structure = analyzeMatter(effective);
+  const blockIndex = new Map(effective.map((block) => [block.id, block.index]));
   for (const page of pages) {
+    const generatedTocPage = (page.fragments || []).some((fragment) => fragment.kind === 'generated-toc-title' || fragment.kind === 'generated-toc-entry');
     const sourceFragments = (page.fragments || []).filter((fragment) => blockIndex.has(fragment.sourceBlockId));
     const firstIndex = sourceFragments.length ? blockIndex.get(sourceFragments[0].sourceBlockId) : null;
-    page.section = firstIndex == null ? 'blank' : matterSectionForBlockIndex(firstIndex, structure);
+    page.section = generatedTocPage ? 'front' : firstIndex == null ? 'blank' : matterSectionForBlockIndex(firstIndex, structure);
     const chapter = firstIndex == null ? null : chapterForBlockIndex(firstIndex, structure);
     page.chapterTitle = chapter?.title || '';
     page.hasChapterTitle = (page.fragments || []).some((fragment) => fragment.kind === 'chapter-title');
+    page.hasGeneratedToc = generatedTocPage;
     page.showRunningHeader = Boolean(
       design.runningHeaders &&
       !page.intentionalBlank &&
@@ -1364,13 +1518,11 @@ function attachPageStructure(project, pages, design) {
   return structure;
 }
 
-async function paginateProject(project) {
+async function paginateProjectPass(project, { tocEntries = [] } = {}) {
   const design = currentDesign();
-  const lock = await verifyProjectStoryLock(project);
-  if (!lock.ok) throw new Error('Story Lock failed. Print pagination was blocked.');
-
+  const blocks = effectiveBlocks(project);
   const rig = createMeasureRig(design);
-  const structure = analyzeMatter(project.manuscript.blocks);
+  const structure = analyzeMatter(blocks);
   const pages = [];
   let current = null;
   let blankVersos = 0;
@@ -1378,6 +1530,7 @@ async function paginateProject(project) {
   let chaptersOnRight = 0;
   let firstChapterPhysicalPage = null;
   let previousNonEmptyKind = null;
+  let tocInserted = false;
 
   const newPage = ({ intentionalBlank = false } = {}) => {
     const number = pages.length + 1;
@@ -1394,7 +1547,7 @@ async function paginateProject(project) {
     ensurePage();
     const height = measuredHeight ?? measureFragment(rig, design, kind, text, continuation, meta.isFinalPiece !== false, meta.suppressIndent);
     current.fragments.push({
-      sourceBlockId: block.id,
+      sourceBlockId: block?.id || null,
       kind,
       text,
       continuation,
@@ -1404,14 +1557,39 @@ async function paginateProject(project) {
       endOffset: meta.endOffset ?? text.length,
       isFinalPiece: meta.isFinalPiece !== false,
       suppressIndent: Boolean(meta.suppressIndent),
+      generated: Boolean(meta.generated),
+      tocTitle: meta.tocTitle || null,
+      tocPageNumber: meta.tocPageNumber ?? null,
+      tocTargetId: meta.tocTargetId || null,
     });
     current.usedPx += height;
+  };
+
+  const placeGeneratedToc = () => {
+    if (!tocEntries.length || tocInserted) return;
+    if (!current) newPage();
+    else if (current.fragments.length || current.intentionalBlank) newPage();
+    const titleBlock = { id: null };
+    const titleHeight = measureFragment(rig, design, 'generated-toc-title', design.tocTitle, false, true, true);
+    addFragment(titleBlock, design.tocTitle, 'generated-toc-title', false, titleHeight, { generated: true, suppressIndent: true });
+    for (const entry of tocEntries) {
+      const height = measureTocEntry(rig, design, entry.title, entry.bookPageNumber);
+      if (height > remaining() && current.fragments.length) newPage();
+      addFragment(null, entry.title, 'generated-toc-entry', false, height, {
+        generated: true,
+        suppressIndent: true,
+        tocTitle: entry.title,
+        tocPageNumber: entry.bookPageNumber,
+        tocTargetId: entry.id,
+      });
+    }
+    tocInserted = true;
   };
 
   const placeTextBlock = (block) => {
     const kind = block.kind;
     const text = block.text;
-    const suppressIndent = kind === 'chapter-opening' || previousNonEmptyKind === 'scene-break';
+    const suppressIndent = kind === 'chapter-opening' || previousNonEmptyKind === 'scene-break' || previousNonEmptyKind === 'chapter-title';
     if (kind === 'blank') {
       ensurePage();
       const height = measureFragment(rig, design, kind, '', false, true, true);
@@ -1477,8 +1655,9 @@ async function paginateProject(project) {
   };
 
   try {
-    for (let i = 0; i < project.manuscript.blocks.length; i += 1) {
-      const block = project.manuscript.blocks[i];
+    for (let i = 0; i < blocks.length; i += 1) {
+      const block = blocks[i];
+      if (tocEntries.length && !tocInserted && structure.firstChapterIndex === i) placeGeneratedToc();
       if (structure.backMatterStartIndex === i && current?.fragments?.length) newPage();
       if (block.kind === 'chapter-title') {
         chapterStarts += 1;
@@ -1525,12 +1704,48 @@ async function paginateProject(project) {
     firstChapterPhysicalPage,
     structure: { ...structure.counts, backMatterStartIndex: structure.backMatterStartIndex },
     integrity: { ok: true, checkedBlocks: project.manuscript.blocks.length },
+    generatedToc: { enabled: tocEntries.length > 0, entries: tocEntries.map((entry) => ({ ...entry })) },
   };
+}
+
+async function paginateProject(project) {
+  const design = currentDesign();
+  const lock = await verifyProjectStoryLock(project);
+  if (!lock.ok) throw new Error('Story Lock failed. Print pagination was blocked.');
+
+  const tocMode = shouldGeneratePrintToc(project, design);
+  let preview = await paginateProjectPass(project);
+  if (!tocMode.generate) {
+    preview.generatedToc = { enabled: false, entries: [], reason: tocMode.reason, sourceToc: tocMode.sourceToc };
+    return preview;
+  }
+
+  let entries = buildPrintTocEntries({ project, pages: preview.pages, design });
+  preview = await paginateProjectPass(project, { tocEntries: entries });
+
+  // Front matter can change physical parity, so verify the generated page map against the final pass.
+  // Printed numbering begins at Chapter 1, which normally makes this stable in two passes; a third pass is allowed if needed.
+  let finalEntries = buildPrintTocEntries({ project, pages: preview.pages, design });
+  if (printTocSignature(finalEntries) !== printTocSignature(entries)) {
+    entries = finalEntries;
+    preview = await paginateProjectPass(project, { tocEntries: entries });
+    finalEntries = buildPrintTocEntries({ project, pages: preview.pages, design });
+  }
+  preview.generatedToc = {
+    enabled: true,
+    entries: entries.map((entry) => ({ ...entry })),
+    verified: printTocSignature(finalEntries) === printTocSignature(entries),
+    reason: 'generated',
+    sourceToc: tocMode.sourceToc,
+  };
+  const tocIntegrity = verifyGeneratedPrintToc({ project, preview, design });
+  if (!tocIntegrity.ok) throw new Error('Automatic Table of Contents could not converge on final printed page numbers. Preview was blocked rather than exporting stale page numbers.');
+  return preview;
 }
 
 async function buildPreview() {
   if (!state.project) return;
-  if (state.project.manuscript.stats.chapters === 0) {
+  if (effectiveStats(state.project).chapters === 0) {
     alert('No chapter starts were detected. Publish will not guess chapter boundaries. Inspect Source first.');
     return;
   }

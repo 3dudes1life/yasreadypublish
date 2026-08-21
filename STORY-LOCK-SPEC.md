@@ -66,3 +66,25 @@ EPUB export is a second presentation engine, not a manuscript editor. Print-only
 Immediately before EPUB packaging, Publish re-verifies the canonical SHA-256 manuscript fingerprint. It then builds an ebook section map and verifies that every imported source block appears exactly once, in original order, with identical text. A mismatch blocks export.
 
 Generated XHTML may encode reserved XML characters such as `<` and `&` for valid markup, but their decoded text remains the original source characters. Navigation labels, metadata, stylesheets, package files, and EPUB container files are presentation/package metadata and are kept outside the canonical manuscript layer.
+
+## Generated matter + Structure Repair isolation (v0.9)
+
+Version 0.9 introduces two presentation/structure features that remain outside the canonical source layer.
+
+### Generated print Table of Contents
+
+The print TOC is created as generated layout fragments after a first pagination pass. Its labels come from detected chapter/back-matter headings and its numbers come from the printed page map. These generated fragments have no source paragraph identity and are excluded from canonical manuscript reconstruction.
+
+After the generated TOC is inserted, Publish re-paginates and compares every TOC target against the final printed page map. A mismatch blocks print export.
+
+If the imported DOCX already contains a source `Table of Contents` / `Contents` heading, Publish does not add a second generated TOC and does not delete the source TOC. The user must intentionally change the master DOCX and re-import if they want to replace a manual TOC with generated matter.
+
+### Structure Repair
+
+Structure Repair stores only a mapping of source paragraph ID to structural classification. It may change how a paragraph is treated by layout—for example, `body` → `chapter-title`—but it cannot change that paragraph's text, runs, order, source ID, or canonical hash input.
+
+Story Lock verification always hashes the original `project.manuscript.blocks`, never an effective/overridden copy. Print and EPUB engines may consume an effective structural clone, but source coverage is checked against the immutable original block IDs and text.
+
+### Unsupported source-content protection
+
+If a DOCX contains footnotes or endnotes that the current importer cannot safely place into reading order, import is blocked instead of omitting the note text. Other layout-sensitive constructs such as tables, Word fields, and manual page breaks are surfaced in preflight rather than silently treated as fully supported formatting.

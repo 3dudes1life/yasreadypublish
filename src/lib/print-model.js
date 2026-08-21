@@ -33,6 +33,14 @@ export const TRES_AMIGOS_TEMPLATE = Object.freeze({
   runningHeaderTop: 0.35,
   runningHeaderOutsideInset: 0.35,
   suppressHeaderOnChapterOpen: true,
+  printToc: true,
+  tocTitle: 'Table of Contents',
+  tocIncludeBackMatter: true,
+  tocTitleSize: 12,
+  tocEntryFontSize: 10.5,
+  tocLineHeight: 1.22,
+  tocTopSpace: 0.05,
+  tocAfterTitleSpace: 0.16,
 });
 
 export const CLASSIC_NOVEL_TEMPLATE = Object.freeze({
@@ -136,6 +144,14 @@ export function normalizePrintDesign(input = {}) {
   merged.runningHeaders = Boolean(merged.runningHeaders);
   merged.runningHeaderMode = ['book-chapter','author-book','book-author'].includes(merged.runningHeaderMode) ? merged.runningHeaderMode : 'book-chapter';
   merged.suppressHeaderOnChapterOpen = merged.suppressHeaderOnChapterOpen !== false;
+  merged.printToc = merged.printToc !== false;
+  merged.tocTitle = String(merged.tocTitle || 'Table of Contents').trim() || 'Table of Contents';
+  merged.tocIncludeBackMatter = merged.tocIncludeBackMatter !== false;
+  merged.tocTitleSize = number(merged.tocTitleSize, 12, 9, 24);
+  merged.tocEntryFontSize = number(merged.tocEntryFontSize, 10.5, 7, 16);
+  merged.tocLineHeight = number(merged.tocLineHeight, 1.22, 1, 2);
+  merged.tocTopSpace = number(merged.tocTopSpace, 0.05, 0, 1.5);
+  merged.tocAfterTitleSpace = number(merged.tocAfterTitleSpace, 0.16, 0, 1.5);
   merged.templateId = merged.templateId || 'custom';
   merged.name = merged.name || (merged.templateId === 'custom' ? 'Custom' : 'Print Theme');
   merged.description = merged.description || '';
@@ -212,6 +228,10 @@ const CALIBRATION_FIELDS = Object.freeze([
   ['folioOutsideInset', 'Folio outside inset', 'in'],
   ['chapterStarts', 'Chapter starts', 'text'],
   ['pageNumbers', 'Page number placement', 'text'],
+  ['printToc', 'Generated print TOC', 'text'],
+  ['tocTitle', 'TOC title', 'text'],
+  ['tocEntryFontSize', 'TOC entry size', 'pt'],
+  ['tocIncludeBackMatter', 'TOC back matter', 'text'],
 ]);
 
 export function compareDesignToTemplate(designInput, templateInput = TRES_AMIGOS_TEMPLATE) {

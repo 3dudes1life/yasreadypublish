@@ -127,7 +127,7 @@ function paragraphTextAndRuns(paragraph) {
         const parsed = parseRun(child);
         runs.push(parsed);
         text += parsed.text;
-      } else if (child.localName === 'hyperlink' || child.localName === 'smartTag' || child.localName === 'sdt') {
+      } else if (['hyperlink', 'smartTag', 'sdt', 'fldSimple', 'customXml', 'dir', 'bdo'].includes(child.localName)) {
         walk(child);
       }
     }
@@ -170,17 +170,40 @@ export async function parseDocx(arrayBuffer) {
   const imageCount = Object.keys(zip.files).filter((name) => /^word\/media\/[^/]+$/i.test(name)).length;
   if (!documentFile) throw new Error('The DOCX is missing word/document.xml and cannot be imported safely.');
 
-  const [documentXml, stylesXml, numberingXml] = await Promise.all([
+  const [documentXml, stylesXml, numberingXml, footnotesXml, endnotesXml] = await Promise.all([
     documentFile.async('string'),
     zip.file('word/styles.xml')?.async('string') ?? null,
     zip.file('word/numbering.xml')?.async('string') ?? null,
+    zip.file('word/footnotes.xml')?.async('string') ?? null,
+    zip.file('word/endnotes.xml')?.async('string') ?? null,
   ]);
+
+
+  const countRealNotes = (xml, elementName) => {
+    if (!xml) return 0;
+    const noteDoc = xmlDoc(xml);
+    return Array.from(noteDoc.getElementsByTagNameNS(WORD_NS, elementName)).filter((note) => {
+      const type = getAttr(note, 'type');
+      const id = Number(getAttr(note, 'id'));
+      return !['separator', 'continuationSeparator', 'continuationNotice'].includes(type) && (!Number.isFinite(id) || id >= 0);
+    }).length;
+  };
+  const footnoteCount = countRealNotes(footnotesXml, 'footnote');
+  const endnoteCount = countRealNotes(endnotesXml, 'endnote');
+  if (footnoteCount || endnoteCount) {
+    throw new Error(`Story Lock stopped this import because the DOCX contains ${footnoteCount} footnote(s) and ${endnoteCount} endnote(s). v0.9 will not silently omit note text; convert or remove notes in the master DOCX before import.`);
+  }
 
   const styles = parseStyles(stylesXml);
   const numbering = parseNumbering(numberingXml);
   const document = xmlDoc(documentXml);
   const body = document.getElementsByTagNameNS(WORD_NS, 'body')[0];
   if (!body) throw new Error('The DOCX does not contain a readable document body.');
+
+  const tableCount = body.getElementsByTagNameNS(WORD_NS, 'tbl').length;
+  const hyperlinkCount = body.getElementsByTagNameNS(WORD_NS, 'hyperlink').length;
+  const fieldCount = body.getElementsByTagNameNS(WORD_NS, 'fldSimple').length + body.getElementsByTagNameNS(WORD_NS, 'instrText').length;
+  const manualPageBreakCount = Array.from(body.getElementsByTagNameNS(WORD_NS, 'br')).filter((node) => getAttr(node, 'type') === 'page').length;
 
   // Tracked revisions create ambiguity about which wording is canonical. Story Lock refuses to guess.
   const inserted = body.getElementsByTagNameNS(WORD_NS, 'ins').length;
@@ -236,6 +259,12 @@ export async function parseDocx(arrayBuffer) {
       hasStyles: Boolean(stylesXml),
       hasNumbering: Boolean(numberingXml),
       imageCount,
+      tableCount,
+      hyperlinkCount,
+      fieldCount,
+      manualPageBreakCount,
+      footnoteCount,
+      endnoteCount,
     },
   };
 }

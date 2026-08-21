@@ -1,6 +1,6 @@
-# YasReady Publish 0.7 — KDP Paperback Preflight
+# YasReady Publish 0.9 — KDP Paperback Preflight
 
-This file documents the checks built into the 0.7 production gate.
+This file documents the paperback production checks built into YasReady Publish v0.9.
 
 ## Blocking checks
 
@@ -17,7 +17,7 @@ This file documents the checks built into the 0.7 production gate.
 - Active text styles must not be below 7 pt.
 - If the theme requires right-hand chapter starts, every detected chapter opener must land on an odd/right physical page.
 - Intentional blank versos must not carry running headers or folios.
-- DOCX image assets block 0.7 export because image/bleed production is not yet implemented.
+- DOCX image assets block the current text-first/no-bleed export path because image/bleed production is not yet implemented.
 
 ## Warning checks
 
@@ -29,3 +29,12 @@ This file documents the checks built into the 0.7 production gate.
 When preflight has no blocking errors, YasReady Publish creates a fixed single-page Print Master. The Print Master runs an additional DOM overflow check against every physical page. The Print / Save as PDF button remains disabled if overflow is detected.
 
 The KDP Previewer remains the final manufacturing preview.
+
+
+## v0.9 additional gates
+
+- Generated print TOC entries must match the final printed page map.
+- A source/manual TOC is never silently replaced or removed.
+- Unexpected non-intentional empty physical pages are blocking errors.
+- Word tables, Word fields, and manual Word page breaks are surfaced for review.
+- Structure-repair overrides are reported as metadata-only and do not modify Story Lock text.

@@ -63,6 +63,9 @@ test('page furniture defaults preserve the Book 1 look', () => {
   assert.equal(design.runningHeaders, false);
   assert.equal(design.runningHeaderMode, 'book-chapter');
   assert.equal(design.suppressHeaderOnChapterOpen, true);
+  assert.equal(design.printToc, true);
+  assert.equal(design.tocTitle, 'Table of Contents');
+  assert.equal(design.tocIncludeBackMatter, true);
 });
 
 
