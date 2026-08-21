@@ -1,64 +1,46 @@
-# YasReady Publish — Story Lock Specification v1
+# YasReady Publish — Story Lock Specification
 
-## Prime directive
+## Non-negotiable rule
 
-YasReady Publish is a publishing/layout system, not a manuscript rewriting system.
+YasReady Publish may transform **presentation metadata**. It may not silently transform manuscript language.
 
-**Design is mutable. Story wording is immutable.**
+## Canonical source
 
-## Canonical content layer
+The imported final DOCX is treated as the canonical manuscript source. On import, Publish creates SHA-256 fingerprints for both the source file and canonical manuscript text.
 
-On DOCX import, v0.1 reads `word/document.xml` and reconstructs each visible Word paragraph from `w:t` text nodes plus supported visible control characters:
+## Allowed operations
 
-- tabs → `\\t`
-- explicit line breaks / carriage returns → `\\n`
-- non-breaking hyphen → U+2011
-- soft hyphen → U+00AD
+- classify paragraphs and chapter boundaries
+- map front/body/back matter without reordering source blocks
+- paginate source blocks
+- change trim size, margins, gutters, typography, spacing, headers, and folios
+- insert print-only blank pages
+- save/apply reusable print themes
+- export/import **theme metadata**
+- navigate and preview the resulting book
 
-Paragraph text is stored exactly as imported. Paragraph boundaries are represented in the Story Lock canonical string with U+2029 (PARAGRAPH SEPARATOR).
+## Forbidden silent operations
 
-## Fingerprints
+- rewriting or paraphrasing prose
+- autocorrecting spelling or punctuation
+- changing capitalization
+- merging/deleting/reordering manuscript paragraphs
+- altering text-message wording
+- guessing tracked-change outcomes
+- storing manuscript prose inside reusable theme files
 
-Two SHA-256 hashes are generated:
+## Theme isolation (v0.6)
 
-1. **Source file hash** — raw `.docx` bytes.
-2. **Manuscript hash** — canonical paragraph text and paragraph boundaries.
+A theme contains presentation settings only. Theme save/export/import operations do not copy `project.manuscript`, source blocks, canonical text, or Story Lock hashes.
 
-The manuscript hash is the export gate for future versions.
+Deleting a theme affects only the saved theme record. It does not alter a book project or its manuscript.
 
-## Allowed transformations
+## Pagination verification
 
-Future versions may alter only presentation or explicit structure metadata, including:
+Before pagination, Story Lock verifies the current canonical manuscript text against the import fingerprint.
 
-- page size
-- margins / gutter
-- font family / font size
-- leading
-- paragraph indentation
-- chapter-opening page rules
-- headers / footers / page numbers
-- visual style of text messages or scene breaks
-- generated table of contents
-- print-only blank pages
+After pagination, Publish reconstructs each source paragraph from its rendered page fragments and compares the reconstructed text character-for-character with the source paragraph. A mismatch blocks the preview.
 
-## Forbidden implicit transformations
+## Failure behavior
 
-Without a deliberate source-manuscript update, Publish may never silently:
-
-- rewrite or paraphrase prose
-- spell-correct
-- grammar-correct
-- change punctuation
-- normalize capitalization
-- convert words or names
-- merge or split paragraph wording in a way that changes the canonical manuscript
-- remove repeated-looking text
-- invent missing text
-- alter `[Name]: message` wording
-- reorder story paragraphs
-
-If the software cannot safely classify source content, it must preserve it and flag the structure rather than guessing.
-
-## v0.5 navigation rule
-
-The Navigator may index physical page numbers, printed page numbers, spreads, chapter titles already present in the manuscript, and generated book-section labels. It must never store or generate rewritten story prose. Navigation destinations are disposable presentation metadata and are rebuilt whenever pagination changes.
+When Publish cannot safely interpret or verify content, it must stop and report the problem rather than inventing a correction.

@@ -1,45 +1,47 @@
 # Changelog
 
-## 0.5.0 — Long-book navigator + production workbench
+## v0.6.0 — Reusable House Styles
 
-- Added a dedicated Manuscript Navigator view for fast chapter inspection.
-- Added page-map generation after safe pagination; no page numbers are guessed before layout exists.
-- Added direct jumps to front matter, every detected chapter, and recognized back matter.
-- Added previous/next chapter navigation in Print Preview.
-- Added a full-book physical-page scrubber for large manuscripts.
-- Added searchable navigator rail beside the two-page spread.
-- Added four preview zoom levels without changing pagination or manuscript content.
-- Added current chapter/location highlighting and physical/printed page readouts.
-- Added tested physical-page ↔ spread mapping helpers.
-- Story Lock and post-pagination paragraph reconstruction remain mandatory.
+- Added a reusable Theme Library while preserving the Story-Locked manuscript layer.
+- Added built-in `Tres Amigos Series · Book 1`, `Classic Novel`, and `Modern Romance` print themes.
+- Added private custom-theme creation from the current design.
+- Added theme JSON export/import for backups and reuse across books/browsers.
+- Added safe custom-theme deletion; deleting a theme never deletes or alters a manuscript.
+- Added a Book 1 Calibration Inspector that compares presentation metadata against the saved series reference profile.
+- Added body alignment and chapter-title alignment controls.
+- Added configurable folio bottom/outside positions and running-header top/outside positions.
+- Updated Book 1 preview furniture to use design-controlled placement rather than fixed preview pixels.
+- Migrated projects to schema version 6 / app version 0.6.0 without changing Story Lock hashes.
+- Added theme-store and calibration tests.
 
-## 0.4.0 — Whole-book structure + page furniture
+## v0.5.0 — Long Book Navigator
 
-- Added read-only Book Matter view that maps front matter, chapter body, and recognized back matter without moving source paragraphs.
-- Added conservative back-matter detection; uncertain content stays in the story body instead of being guessed.
-- Added project-level book title and author metadata outside Story Lock text.
-- Added optional running headers with book/chapter and author/book patterns.
-- Added running-header suppression on front matter, recognized back matter, intentional blanks, and chapter-opening pages.
-- Added page section/chapter metadata to the two-page preview.
-- Recognized back matter begins on a fresh physical page while continuing printed book numbering.
-- Expanded Story Lock tests to cover book matter and generated page furniture.
-- Manuscript wording remains read-only and pagination integrity is still mandatory.
+- Added a dedicated Navigator view for 500+ page books.
+- Added physical-page and printed-page mapping for every detected chapter.
+- Added direct jumps to front matter, chapters, and recognized back matter.
+- Added previous/next chapter and previous/next spread controls.
+- Added physical-page jump, full-book page scrubber, and preview zoom levels.
+- Added a searchable navigation rail next to the spread preview.
+- Kept all navigation outside the Story-Locked source layer.
 
-## 0.3.0 — Book 1 calibrated series template
+## v0.4.0 — Whole Book Structure
 
-- Added `Tres Amigos Series · Book 1` template based on the published paperback interior.
-- Calibrated 6×9 trim, 1.25 in inside margin, 0.5 in outside/top margin, 0.75 in bottom margin.
-- Calibrated Arial 12 pt body typography, 1.10 line-height, 0.5 in first-line indent and paragraph rhythm.
-- Added 14 pt centered chapter treatment with bold `Chapter N:` prefix and regular chapter title.
-- Added outside-bottom printed folios beginning with page 1 at the first chapter; front matter remains unnumbered.
-- Added inline DOCX emphasis rendering for bold, italic, underline, strike and small caps.
-- Added pagination-integrity verification that reconstructs every source paragraph after page splitting and blocks preview on mismatch.
-- Story Lock remains mandatory and manuscript wording remains read-only.
+- Added front/body/back matter mapping.
+- Added running headers generated from metadata and chapter structure.
+- Added header suppression rules for chapter openings and blank pages.
+- Added fresh-page back-matter starts.
 
-## 0.2.0
+## v0.3.0 — Tres Amigos Template
 
-- Added print structure engine, mirrored margins, right-page chapter starts and spread preview.
+- Added the initial Book 1 6×9 presentation profile.
+- Added page numbers and chapter-opening styling.
+- Added inline DOCX run formatting in preview.
+- Added post-pagination text-integrity verification.
 
-## 0.1.0
+## v0.2.0 — Print Structure
 
-- Added local DOCX import, chapter detection, Source Inspector and Story Lock fingerprinting.
+- Added mirrored page geometry, binding margins, odd/right chapter starts, intentional blank versos, and structural spread preview.
+
+## v0.1.0 — Story Lock Foundation
+
+- Added local DOCX import, chapter detection, read-only source inspector, IndexedDB projects, and SHA-256 Story Lock.

@@ -4,6 +4,9 @@ import { deleteProject, listProjects, loadProject, saveProject } from './lib/pro
 import { shortHash } from './lib/hash.js';
 import {
   applyTemplate,
+  BUILT_IN_PRINT_THEMES,
+  compareDesignToTemplate,
+  TRES_AMIGOS_TEMPLATE,
   contentBoxInches,
   fontStack,
   normalizePrintDesign,
@@ -12,8 +15,9 @@ import {
 } from './lib/print-model.js';
 import { analyzeMatter, chapterForBlockIndex, matterSectionForBlockIndex, runningHeaderText } from './lib/structure-model.js';
 import { adjacentChapter, buildPreviewNavigation, currentNavigationEntry, spreadIndexForPhysicalPage, spreadPageNumbers } from './lib/navigator-model.js';
+import { deleteCustomTheme, loadCustomThemes, parseThemeJson, saveCustomTheme, serializeTheme } from './lib/theme-store.js';
 
-const VERSION = '0.5.0';
+const VERSION = '0.6.0';
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
 
@@ -29,6 +33,8 @@ const state = {
   spreadIndex: 0,
   navigatorSearch: '',
   previewZoom: 58,
+  customThemes: [],
+  themeMessage: '',
 };
 
 const app = document.querySelector('#app');
@@ -75,7 +81,7 @@ function renderShell() {
         <div>
           <div class="eyebrow">Story-safe book production</div>
           <h1>Build the pages.<br>Protect every word.</h1>
-          <p>Version 0.5 turns long-book production into a navigable workspace: chapter/page navigator, spread scrubber, zoomable preview, and direct chapter jumps — while the source story remains untouchable.</p>
+          <p>Version 0.6 adds a reusable house-style system: built-in themes, private custom themes, import/export, and a Book 1 calibration inspector — while the source story remains untouchable.</p>
         </div>
         <div class="story-lock-pill"><span class="dot"></span> Story Lock is mandatory</div>
       </section>
@@ -92,7 +98,7 @@ function renderSidebar() {
   const hasProject = Boolean(state.project);
   return `
     <aside class="sidebar">
-      <div class="sidebar-head"><strong>Publish workspace</strong><span>0.5 makes 500+ page books fast to inspect without touching the Story-Locked manuscript.</span></div>
+      <div class="sidebar-head"><strong>Publish workspace</strong><span>0.6 saves and reapplies publishing house styles without ever copying manuscript prose into a theme.</span></div>
       <nav class="sidebar-nav">
         ${navButton('import', '＋', hasProject ? 'Project' : 'Import')}
         ${navButton('chapters', '☷', 'Contents', !hasProject)}
@@ -139,7 +145,7 @@ function renderImport() {
       </div>
     </article>
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">v0.5 capability</div><h2>Navigate the whole damn book</h2><p>Jump from chapter to chapter, scrub hundreds of physical pages, and zoom the spread preview without changing one manuscript character.</p></div></div>
+      <div class="panel-head"><div><div class="eyebrow">v0.6 capability</div><h2>Build the house style once</h2><p>Save, export, import, and reapply complete print themes. Themes contain presentation metadata only — never manuscript prose.</p></div></div>
       <div class="summary-grid six">
         <div class="stat"><b>✓</b><span>Read DOCX</span></div>
         <div class="stat"><b>✓</b><span>Story Lock</span></div>
@@ -183,7 +189,7 @@ function renderProject() {
       <div class="action-row"><button class="btn primary" data-go-view="design">Set print design</button><button class="btn secondary" data-go-view="print">Build print preview</button></div>
     </article>
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">0.5 production workspace</div><h2>Long-book inspection without manuscript surgery</h2><p>Publish can now identify the material before Chapter 1, the chapter body, and recognized back matter such as About the Authors or Join the Journey without reordering source blocks.</p></div></div>
+      <div class="panel-head"><div><div class="eyebrow">0.6 production workspace</div><h2>Reusable series design without manuscript surgery</h2><p>Publish can now identify the material before Chapter 1, the chapter body, and recognized back matter such as About the Authors or Join the Journey without reordering source blocks.</p></div></div>
       <div class="notice info"><strong>Story Lock still wins:</strong> inline bold/italic/underline styling is rendered from DOCX run metadata, but the exact manuscript characters are independently verified after pagination.</div>
     </article>`;
 }
@@ -286,16 +292,54 @@ function designNumberField(id, label, value, step = '0.05', min = '0', max = '3'
   return `<label class="design-field"><span>${label}</span><div class="number-wrap"><input type="number" id="${id}" value="${value}" step="${step}" min="${min}" max="${max}"><em>${suffix}</em></div></label>`;
 }
 
+function formatCalibrationValue(value, unit) {
+  if (typeof value === 'number') {
+    if (unit === 'pt') return `${Number(value.toFixed(2))} pt`;
+    if (unit === 'in') return `${Number(value.toFixed(3))}”`;
+    if (unit === 'x') return `${Number(value.toFixed(3))}×`;
+  }
+  return String(value);
+}
+
+function renderThemeCard(theme, builtIn = true) {
+  const design = normalizePrintDesign(theme.design || theme);
+  const activeId = currentDesign().templateId;
+  const id = builtIn ? design.templateId : theme.id;
+  const active = activeId === id;
+  return `<div class="theme-card ${active ? 'active' : ''}">
+    <div class="theme-card-top"><span class="badge ${builtIn ? 'good' : 'info'}">${builtIn ? 'BUILT IN' : 'PRIVATE'}</span>${active ? '<span class="theme-active">ACTIVE</span>' : ''}</div>
+    <h4>${escapeHtml(theme.name || design.name)}</h4>
+    <p>${escapeHtml(theme.description || design.description || 'Reusable publishing theme')}</p>
+    <div class="theme-spec"><span>${design.trimWidth}×${design.trimHeight}</span><span>${escapeHtml(design.bodyFont)} ${design.bodyFontSize}pt</span><span>${design.chapterStarts === 'right' ? 'Right chapters' : 'Next-page chapters'}</span></div>
+    <div class="theme-actions">
+      <button class="btn secondary" data-apply-theme="${escapeHtml(id)}" data-theme-kind="${builtIn ? 'built-in' : 'custom'}">Apply</button>
+      ${builtIn ? '' : `<button class="btn ghost" data-export-theme="${escapeHtml(id)}">Export</button><button class="btn danger subtle" data-delete-theme="${escapeHtml(id)}">Delete</button>`}
+    </div>
+  </div>`;
+}
+
 function renderDesign() {
   const d = currentDesign();
   const validation = validatePrintDesign(d);
+  const calibration = compareDesignToTemplate(d, TRES_AMIGOS_TEMPLATE);
+  const changedRows = calibration.rows.filter((row) => !row.match);
   return `
     <article class="panel">
-      <div class="panel-head"><div><span class="badge good">Story layer untouched</span><h2>Print design</h2><p>Choose the calibrated Tres Amigos template or adjust presentation settings. None of these controls can edit manuscript wording.</p></div><button class="btn primary" id="saveDesign">Save design</button></div>
-      <section class="template-banner">
-        <div><div class="eyebrow">Series template</div><h3>Tres Amigos Series · Book 1</h3><p>Calibrated from the published 6×9 paperback interior. Use this as the Book 2 starting point.</p></div>
-        <button class="btn secondary" id="applyTresTemplate">Apply Book 1 template</button>
+      <div class="panel-head"><div><span class="badge good">Story layer untouched</span><h2>Design studio</h2><p>Choose a reusable house style or tune the page system. Themes contain only presentation metadata; Story-Locked manuscript wording is never stored inside them.</p></div><button class="btn primary" id="saveDesign">Save design</button></div>
+      ${state.themeMessage ? `<div class="notice success">${escapeHtml(state.themeMessage)}</div>` : ''}
+      <section class="theme-library">
+        <div class="theme-library-head"><div><div class="eyebrow">Theme library</div><h3>Reusable book styles</h3><p>Apply a complete layout in one click. Save your own private themes for future books and series.</p></div><button class="btn secondary" id="importThemeButton">Import theme JSON</button><input type="file" id="themeFileInput" accept=".json,application/json" hidden></div>
+        <div class="theme-grid">
+          ${BUILT_IN_PRINT_THEMES.map((theme) => renderThemeCard(theme, true)).join('')}
+          ${state.customThemes.map((theme) => renderThemeCard(theme, false)).join('')}
+        </div>
+        <div class="save-theme-row"><input id="customThemeName" maxlength="80" placeholder="Name this house style…"><input id="customThemeDescription" maxlength="240" placeholder="Optional note, e.g. Book 3 / series paperback"><button class="btn secondary" id="saveCustomTheme">Save current as private theme</button></div>
       </section>
+      <section class="template-banner calibration-banner">
+        <div><div class="eyebrow">Book 1 calibration target</div><h3>Tres Amigos Series · Book 1</h3><p>This inspector compares the current presentation values against the locked Book 1 reference profile. It measures design metadata only.</p></div>
+        <div class="calibration-score ${calibration.exact ? 'perfect' : ''}"><b>${calibration.percent}%</b><span>${calibration.matches}/${calibration.total} settings match</span></div>
+      </section>
+      ${changedRows.length ? `<div class="calibration-diff"><div class="calibration-diff-head"><strong>${changedRows.length} setting${changedRows.length === 1 ? '' : 's'} differ from Book 1</strong><button class="btn ghost" id="applyTresTemplate">Restore exact Book 1 profile</button></div>${changedRows.map((row) => `<div class="calibration-row"><span>${escapeHtml(row.label)}</span><b>${escapeHtml(formatCalibrationValue(row.actual, row.unit))}</b><em>Book 1: ${escapeHtml(formatCalibrationValue(row.target, row.unit))}</em></div>`).join('')}</div>` : `<div class="notice success"><strong>Exact Book 1 design profile loaded.</strong> All ${calibration.total} tracked presentation settings match the saved Tres Amigos reference.</div>`}
       <div class="design-layout">
         <section class="design-card">
           <div class="eyebrow">Page geometry</div><h3>Paperback</h3>
@@ -312,8 +356,9 @@ function renderDesign() {
           <label class="design-field"><span>Chapter begins</span><select id="chapterStarts"><option value="right" ${d.chapterStarts === 'right' ? 'selected' : ''}>Right-hand page (odd)</option><option value="next" ${d.chapterStarts === 'next' ? 'selected' : ''}>Next available page</option></select></label>
         </section>
         <section class="design-card">
-          <div class="eyebrow">Book 1 typography</div><h3>Body + chapter rhythm</h3>
+          <div class="eyebrow">Typography</div><h3>Body + chapter rhythm</h3>
           <label class="design-field"><span>Body font</span><select id="bodyFont">${['Arial','Georgia','Garamond','Baskerville','Times New Roman'].map((name) => `<option ${d.bodyFont === name ? 'selected' : ''}>${name}</option>`).join('')}</select></label>
+          <label class="design-field"><span>Body alignment</span><select id="bodyAlignment"><option value="left" ${d.bodyAlignment === 'left' ? 'selected' : ''}>Left / ragged right</option><option value="justify" ${d.bodyAlignment === 'justify' ? 'selected' : ''}>Justified</option></select></label>
           <div class="field-grid two">
             ${designNumberField('bodyFontSize', 'Body size', d.bodyFontSize, '0.25', '7', '18', 'pt')}
             ${designNumberField('lineHeight', 'Line height', d.lineHeight, '0.01', '1', '2', '×')}
@@ -322,34 +367,33 @@ function renderDesign() {
             ${designNumberField('chapterTitleSize', 'Chapter title', d.chapterTitleSize, '0.25', '9', '28', 'pt')}
             ${designNumberField('chapterTopSpace', 'Chapter top space', d.chapterTopSpace, '0.01', '0', '2.5')}
             ${designNumberField('chapterAfterSpace', 'After chapter title', d.chapterAfterSpace, '0.01', '0', '1.5')}
-            ${designNumberField('pageNumberFontSize', 'Page number', d.pageNumberFontSize, '0.25', '7', '18', 'pt')}
+            <label class="design-field"><span>Chapter alignment</span><select id="chapterTitleAlignment"><option value="center" ${d.chapterTitleAlignment === 'center' ? 'selected' : ''}>Center</option><option value="left" ${d.chapterTitleAlignment === 'left' ? 'selected' : ''}>Left</option><option value="right" ${d.chapterTitleAlignment === 'right' ? 'selected' : ''}>Right</option></select></label>
           </div>
           <div class="design-readout"><span>Live text box</span><strong>${validation.content.width.toFixed(2)} × ${validation.content.height.toFixed(2)} in</strong></div>
         </section>
         <section class="design-card">
           <div class="eyebrow">Page furniture</div><h3>Folios + running headers</h3>
           <label class="design-field"><span>Page numbers</span><select id="pageNumbers"><option value="outside-bottom" ${d.pageNumbers === 'outside-bottom' ? 'selected' : ''}>Outside bottom</option><option value="none" ${d.pageNumbers === 'none' ? 'selected' : ''}>Off</option></select></label>
-          <label class="toggle-row"><input type="checkbox" id="runningHeaders" ${d.runningHeaders ? 'checked' : ''}><span><strong>Running headers</strong><small>Off by default for the Tres Amigos Book 1 template.</small></span></label>
+          <div class="field-grid two">
+            ${designNumberField('pageNumberFontSize', 'Page number', d.pageNumberFontSize, '0.25', '7', '18', 'pt')}
+            ${designNumberField('folioBottom', 'Folio from bottom', d.folioBottom, '0.01', '0.15', '1.5')}
+            ${designNumberField('folioOutsideInset', 'Folio outside inset', d.folioOutsideInset, '0.01', '0.1', '1.5')}
+          </div>
+          <label class="toggle-row"><input type="checkbox" id="runningHeaders" ${d.runningHeaders ? 'checked' : ''}><span><strong>Running headers</strong><small>Off in the Tres Amigos Book 1 reference.</small></span></label>
           <label class="design-field"><span>Running-header pattern</span><select id="runningHeaderMode"><option value="book-chapter" ${d.runningHeaderMode === 'book-chapter' ? 'selected' : ''}>Book title / chapter title</option><option value="author-book" ${d.runningHeaderMode === 'author-book' ? 'selected' : ''}>Author / book title</option><option value="book-author" ${d.runningHeaderMode === 'book-author' ? 'selected' : ''}>Book title / author</option></select></label>
           <div class="field-grid two">
             ${designNumberField('runningHeaderFontSize', 'Header size', d.runningHeaderFontSize, '0.25', '6', '14', 'pt')}
+            ${designNumberField('runningHeaderTop', 'Header from top', d.runningHeaderTop, '0.01', '0.1', '1.5')}
+            ${designNumberField('runningHeaderOutsideInset', 'Header outside inset', d.runningHeaderOutsideInset, '0.01', '0.1', '1.5')}
             <label class="toggle-row compact"><input type="checkbox" id="suppressHeaderOnChapterOpen" ${d.suppressHeaderOnChapterOpen ? 'checked' : ''}><span><strong>Hide on chapter openings</strong><small>Recommended.</small></span></label>
           </div>
-          <div class="notice info mini">Headers are generated from book metadata and chapter structure. They are not inserted into the Story-Locked manuscript.</div>
+          <div class="notice info mini">Folios and headers are generated from presentation metadata. They are never inserted into the Story-Locked manuscript.</div>
         </section>
       </div>
-      <div class="calibration-grid">
-        <div><b>6 × 9</b><span>published trim</span></div>
-        <div><b>Arial 12</b><span>body type</span></div>
-        <div><b>0.50”</b><span>paragraph indent</span></div>
-        <div><b>1.25”</b><span>inside margin</span></div>
-        <div><b>OUTSIDE</b><span>bottom folios</span></div>
-      </div>
-      ${validation.warnings.length ? `<div class="notice warning"><strong>Working warnings</strong><br>${validation.warnings.map(escapeHtml).join('<br>')}</div>` : `<div class="notice success"><strong>Book geometry is healthy.</strong> The calibrated template is a measured recreation of Book 1's core interior system; final PDF production still arrives in a later milestone.</div>`}
-      <div class="notice info">Changing any setting invalidates the old preview. Save, then rebuild Print Preview so chapter parity and printed folios are recalculated from the locked manuscript.</div>
+      ${validation.warnings.length ? `<div class="notice warning"><strong>Working warnings</strong><br>${validation.warnings.map(escapeHtml).join('<br>')}</div>` : `<div class="notice success"><strong>Book geometry is healthy.</strong> Save this design as a private theme if you want to reuse it in another book.</div>`}
+      <div class="notice info">Changing or applying a theme invalidates the old preview. Save/apply, then rebuild Print Preview so pagination is recalculated from the locked manuscript.</div>
     </article>`;
 }
-
 function renderPreviewNavigatorRail(preview) {
   const entries = buildPreviewNavigation(preview.pages);
   const currentPage = currentPhysicalPage();
@@ -469,11 +513,11 @@ function renderInlineRuns(fragment) {
   }).join('');
 }
 
-function renderChapterTitle(text) {
+function renderChapterTitle(text, design = currentDesign()) {
   const safe = escapeHtml(text);
   const match = safe.match(/^(Chapter\s+(?:\d+|[IVXLCDM]+):?)(\s*)(.*)$/i);
   if (!match) return safe;
-  return `<strong>${match[1]}</strong>${match[2]}${match[3]}`;
+  return `<span style="font-weight:${design.chapterLabelWeight}">${match[1]}</span>${match[2]}<span style="font-weight:${design.chapterNameWeight}">${match[3]}</span>`;
 }
 
 function renderBookPage(page, design) {
@@ -504,10 +548,11 @@ function renderBookPage(page, design) {
       let extra = '';
       let content = renderInlineRuns(fragment);
       if (fragment.kind === 'chapter-title') {
-        extra = `padding-top:${chapterTop}px;padding-bottom:${chapterAfter}px;font-size:${chapterSize}px;line-height:${design.chapterTitleLineHeight};`;
-        content = renderChapterTitle(fragment.text);
+        extra = `padding-top:${chapterTop}px;padding-bottom:${chapterAfter}px;font-size:${chapterSize}px;line-height:${design.chapterTitleLineHeight};text-align:${design.chapterTitleAlignment};`;
+        content = renderChapterTitle(fragment.text, design);
       }
       const shouldIndent = fragment.kind === 'body' && !fragment.continuation && !fragment.suppressIndent;
+      if (fragment.kind === 'body') extra += `text-align:${design.bodyAlignment};`;
       if (shouldIndent) extra += `text-indent:${indent}px;`;
       const gap = fragment.isFinalPiece && design.paragraphGap && !['chapter-title','blank'].includes(fragment.kind)
         ? design.paragraphGap * px : 0;
@@ -516,12 +561,12 @@ function renderBookPage(page, design) {
     }).join('');
 
   const folio = design.pageNumbers !== 'none' && page.bookPageNumber != null
-    ? `<div class="book-folio ${isLeft ? 'left' : 'right'}" style="font-size:${pageNumberSize}px">${page.bookPageNumber}</div>` : '';
+    ? `<div class="book-folio ${isLeft ? 'left' : 'right'}" style="font-size:${pageNumberSize}px;bottom:${design.folioBottom * px}px;${isLeft ? `left:${design.folioOutsideInset * px}px` : `right:${design.folioOutsideInset * px}px`}">${page.bookPageNumber}</div>` : '';
   const headerText = page.showRunningHeader
     ? runningHeaderText({ side: page.side, projectTitle: state.project?.title || '', author: state.project?.author || '', chapterTitle: page.chapterTitle || '', mode: design.runningHeaderMode })
     : '';
   const header = design.runningHeaders && headerText
-    ? `<div class="book-running-header ${isLeft ? 'left' : 'right'}" style="font-size:${runningHeaderSize}px">${escapeHtml(headerText)}</div>` : '';
+    ? `<div class="book-running-header ${isLeft ? 'left' : 'right'}" style="font-size:${runningHeaderSize}px;top:${design.runningHeaderTop * px}px;${isLeft ? `left:${design.runningHeaderOutsideInset * px}px` : `right:${design.runningHeaderOutsideInset * px}px`}">${escapeHtml(headerText)}</div>` : '';
   const sectionLabel = page.section === 'front' ? 'front matter' : page.section === 'back' ? 'back matter' : (page.chapterTitle || 'book body');
 
   return `<div class="book-page-wrap"><div class="book-page-label">${page.side.toUpperCase()} · physical ${page.number}${page.bookPageNumber != null ? ` · book ${page.bookPageNumber}` : ' · unnumbered'} · ${escapeHtml(sectionLabel)}</div><div class="book-page ${page.intentionalBlank ? 'is-blank' : ''}" style="width:${width}px;height:${height}px;padding:${padding};font-family:${fontStack(design.bodyFont)};font-size:${fontSize}px;line-height:${design.lineHeight};">${header}${fragments}${folio}</div></div>`;
@@ -550,7 +595,7 @@ function renderSource() {
 function renderLibrary() {
   return `
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">Local projects</div><h2>Library</h2><p>Projects live in this browser's IndexedDB. Older projects are migrated to the 0.5 navigation model without touching source blocks or Story Lock hashes.</p></div><button class="btn primary" id="libraryImport">New project</button></div>
+      <div class="panel-head"><div><div class="eyebrow">Local projects</div><h2>Library</h2><p>Projects live in this browser's IndexedDB. Older projects are migrated to the 0.6 theme model without touching source blocks or Story Lock hashes.</p></div><button class="btn primary" id="libraryImport">New project</button></div>
       ${state.projects.length ? `<div class="project-list">${state.projects.map((raw) => { const p = migrateProject(raw); return `
         <div class="project-row">
           <div><strong>${escapeHtml(p.title)}</strong><span>${escapeHtml(p.source.fileName)} · ${p.manuscript.stats.chapters} chapters · ${formatNumber(p.manuscript.stats.words)} words · Updated ${new Date(p.updatedAt).toLocaleString()}</span></div>
@@ -601,6 +646,12 @@ function bindDynamicEvents() {
   document.querySelector('#verifyLock')?.addEventListener('click', verifyLock);
   document.querySelector('#saveDesign')?.addEventListener('click', saveDesign);
   document.querySelector('#applyTresTemplate')?.addEventListener('click', applyTresAmigosTemplate);
+  document.querySelector('#saveCustomTheme')?.addEventListener('click', saveCurrentCustomTheme);
+  document.querySelector('#importThemeButton')?.addEventListener('click', () => document.querySelector('#themeFileInput')?.click());
+  document.querySelector('#themeFileInput')?.addEventListener('change', (event) => event.target.files?.[0] && importThemeFile(event.target.files[0]));
+  document.querySelectorAll('[data-apply-theme]').forEach((button) => button.addEventListener('click', () => applyThemeFromLibrary(button.dataset.applyTheme, button.dataset.themeKind)));
+  document.querySelectorAll('[data-export-theme]').forEach((button) => button.addEventListener('click', () => exportCustomTheme(button.dataset.exportTheme)));
+  document.querySelectorAll('[data-delete-theme]').forEach((button) => button.addEventListener('click', () => removeCustomTheme(button.dataset.deleteTheme)));
   document.querySelector('#buildPreview')?.addEventListener('click', buildPreview);
   document.querySelector('#rebuildPreview')?.addEventListener('click', buildPreview);
 
@@ -754,51 +805,136 @@ async function verifyLock(showAlert = true) {
 }
 
 
-async function applyTresAmigosTemplate() {
+function downloadTextFile(filename, text, type = 'application/json') {
+  const blob = new Blob([text], { type });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function applyThemeFromLibrary(id, kind = 'built-in') {
   if (!state.project) return;
-  state.project.design.print = applyTemplate('tres-amigos-book1');
-  state.project.design.template = 'Tres Amigos Series · Book 1';
+  let design = null;
+  let name = '';
+  if (kind === 'custom') {
+    const theme = state.customThemes.find((candidate) => candidate.id === id);
+    if (!theme) return;
+    design = normalizePrintDesign({ ...theme.design, templateId: theme.id, name: theme.name });
+    name = theme.name;
+  } else {
+    design = applyTemplate(id);
+    name = design.name;
+  }
+  state.project.design.print = design;
+  state.project.design.template = name;
   state.project.updatedAt = new Date().toISOString();
   state.preview = null;
   state.spreadIndex = 0;
+  state.themeMessage = `Applied “${name}”. Preview invalidated so pagination can be rebuilt safely.`;
   await saveProject(state.project);
   state.projects = await listProjects();
   updateMain();
 }
 
+async function saveCurrentCustomTheme() {
+  if (!state.project) return;
+  const name = document.querySelector('#customThemeName')?.value.trim();
+  const description = document.querySelector('#customThemeDescription')?.value.trim() || '';
+  if (!name) {
+    alert('Give the house style a name first.');
+    return;
+  }
+  const record = saveCustomTheme({ name, description, design: readDesignForm() });
+  state.customThemes = loadCustomThemes();
+  state.themeMessage = `Saved private theme “${record.name}”. It contains design metadata only — no manuscript text.`;
+  updateMain();
+}
+
+async function importThemeFile(file) {
+  try {
+    const text = await file.text();
+    const parsed = parseThemeJson(text);
+    const record = saveCustomTheme({ name: parsed.name, description: parsed.description, design: parsed.design });
+    state.customThemes = loadCustomThemes();
+    state.themeMessage = `Imported private theme “${record.name}”.`;
+    updateMain();
+  } catch (error) {
+    console.error(error);
+    alert(error?.message || 'Theme import failed safely.');
+  }
+}
+
+function exportCustomTheme(id) {
+  const theme = state.customThemes.find((candidate) => candidate.id === id);
+  if (!theme) return;
+  const safeName = theme.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'yasready-theme';
+  downloadTextFile(`${safeName}.yasready-theme.json`, serializeTheme(theme));
+}
+
+function removeCustomTheme(id) {
+  const theme = state.customThemes.find((candidate) => candidate.id === id);
+  if (!theme) return;
+  if (!confirm(`Delete private theme “${theme.name}”? This does not delete or change any book manuscript.`)) return;
+  state.customThemes = deleteCustomTheme(id);
+  state.themeMessage = `Deleted private theme “${theme.name}”.`;
+  updateMain();
+}
+
+async function applyTresAmigosTemplate() {
+  return applyThemeFromLibrary('tres-amigos-book1', 'built-in');
+}
+
+function readDesignForm() {
+  const value = (id) => document.querySelector(`#${id}`)?.value;
+  const base = currentDesign();
+  return normalizePrintDesign({
+    ...base,
+    trimWidth: value('trimWidth') ?? base.trimWidth,
+    trimHeight: value('trimHeight') ?? base.trimHeight,
+    insideMargin: value('insideMargin') ?? base.insideMargin,
+    outsideMargin: value('outsideMargin') ?? base.outsideMargin,
+    topMargin: value('topMargin') ?? base.topMargin,
+    bottomMargin: value('bottomMargin') ?? base.bottomMargin,
+    bodyFont: value('bodyFont') ?? base.bodyFont,
+    bodyAlignment: value('bodyAlignment') ?? base.bodyAlignment,
+    bodyFontSize: value('bodyFontSize') ?? base.bodyFontSize,
+    lineHeight: value('lineHeight') ?? base.lineHeight,
+    firstLineIndent: value('firstLineIndent') ?? base.firstLineIndent,
+    paragraphGap: value('paragraphGap') ?? base.paragraphGap,
+    chapterTitleSize: value('chapterTitleSize') ?? base.chapterTitleSize,
+    chapterTitleAlignment: value('chapterTitleAlignment') ?? base.chapterTitleAlignment,
+    chapterTopSpace: value('chapterTopSpace') ?? base.chapterTopSpace,
+    chapterAfterSpace: value('chapterAfterSpace') ?? base.chapterAfterSpace,
+    pageNumberFontSize: value('pageNumberFontSize') ?? base.pageNumberFontSize,
+    folioBottom: value('folioBottom') ?? base.folioBottom,
+    folioOutsideInset: value('folioOutsideInset') ?? base.folioOutsideInset,
+    pageNumbers: value('pageNumbers') ?? base.pageNumbers,
+    runningHeaders: document.querySelector('#runningHeaders') ? Boolean(document.querySelector('#runningHeaders')?.checked) : base.runningHeaders,
+    runningHeaderMode: value('runningHeaderMode') ?? base.runningHeaderMode,
+    runningHeaderFontSize: value('runningHeaderFontSize') ?? base.runningHeaderFontSize,
+    runningHeaderTop: value('runningHeaderTop') ?? base.runningHeaderTop,
+    runningHeaderOutsideInset: value('runningHeaderOutsideInset') ?? base.runningHeaderOutsideInset,
+    suppressHeaderOnChapterOpen: document.querySelector('#suppressHeaderOnChapterOpen') ? Boolean(document.querySelector('#suppressHeaderOnChapterOpen')?.checked) : base.suppressHeaderOnChapterOpen,
+    chapterStarts: value('chapterStarts') ?? base.chapterStarts,
+    templateId: 'custom',
+    name: 'Custom',
+    description: '',
+  });
+}
+
 async function saveDesign() {
   if (!state.project) return;
-  const value = (id) => document.querySelector(`#${id}`)?.value;
-  const raw = {
-    ...state.project.design.print,
-    trimWidth: value('trimWidth'),
-    trimHeight: value('trimHeight'),
-    insideMargin: value('insideMargin'),
-    outsideMargin: value('outsideMargin'),
-    topMargin: value('topMargin'),
-    bottomMargin: value('bottomMargin'),
-    bodyFont: value('bodyFont'),
-    bodyFontSize: value('bodyFontSize'),
-    lineHeight: value('lineHeight'),
-    firstLineIndent: value('firstLineIndent'),
-    paragraphGap: value('paragraphGap'),
-    chapterTitleSize: value('chapterTitleSize'),
-    chapterTopSpace: value('chapterTopSpace'),
-    chapterAfterSpace: value('chapterAfterSpace'),
-    pageNumberFontSize: value('pageNumberFontSize'),
-    pageNumbers: value('pageNumbers'),
-    runningHeaders: Boolean(document.querySelector('#runningHeaders')?.checked),
-    runningHeaderMode: value('runningHeaderMode'),
-    runningHeaderFontSize: value('runningHeaderFontSize'),
-    suppressHeaderOnChapterOpen: Boolean(document.querySelector('#suppressHeaderOnChapterOpen')?.checked),
-    chapterStarts: value('chapterStarts'),
-    templateId: 'custom',
-  };
-  state.project.design.print = normalizePrintDesign(raw);
-  state.project.design.template = state.project.design.print.templateId === 'tres-amigos-book1' ? 'Tres Amigos Series · Book 1' : 'Custom';
+  state.project.design.print = readDesignForm();
+  state.project.design.template = state.project.design.print.name || 'Custom';
   state.project.updatedAt = new Date().toISOString();
   state.preview = null;
   state.spreadIndex = 0;
+  state.themeMessage = 'Saved custom design. Preview invalidated so pagination can be rebuilt safely.';
   await saveProject(state.project);
   state.projects = await listProjects();
   updateMain();
@@ -1113,6 +1249,7 @@ async function buildPreview() {
 }
 
 async function init() {
+  try { state.customThemes = loadCustomThemes(); } catch (error) { console.warn('Theme library unavailable', error); }
   try { state.projects = await listProjects(); } catch (error) { console.warn('Project library unavailable', error); }
   renderShell();
 }

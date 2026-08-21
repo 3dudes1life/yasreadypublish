@@ -4,6 +4,8 @@ import {
   chapterNeedsBlankVerso,
   contentBoxInches,
   applyTemplate,
+  BUILT_IN_PRINT_THEMES,
+  compareDesignToTemplate,
   normalizePrintDesign,
   pageSide,
   validatePrintDesign,
@@ -61,4 +63,26 @@ test('page furniture defaults preserve the Book 1 look', () => {
   assert.equal(design.runningHeaders, false);
   assert.equal(design.runningHeaderMode, 'book-chapter');
   assert.equal(design.suppressHeaderOnChapterOpen, true);
+});
+
+
+test('0.6 ships multiple reusable built-in print themes', () => {
+  assert.ok(BUILT_IN_PRINT_THEMES.length >= 3);
+  assert.ok(BUILT_IN_PRINT_THEMES.some((theme) => theme.templateId === 'tres-amigos-book1'));
+  assert.ok(BUILT_IN_PRINT_THEMES.some((theme) => theme.templateId === 'classic-novel'));
+});
+
+test('Book 1 calibration reports an exact match for its own profile', () => {
+  const design = applyTemplate('tres-amigos-book1');
+  const result = compareDesignToTemplate(design);
+  assert.equal(result.exact, true);
+  assert.equal(result.percent, 100);
+});
+
+test('Book 1 calibration flags changed presentation metadata', () => {
+  const design = applyTemplate('tres-amigos-book1');
+  design.bodyFontSize = 11;
+  const result = compareDesignToTemplate(design);
+  assert.equal(result.exact, false);
+  assert.ok(result.rows.some((row) => row.key === 'bodyFontSize' && !row.match));
 });
