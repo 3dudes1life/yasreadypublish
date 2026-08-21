@@ -8,6 +8,7 @@ import {
   compareDesignToTemplate,
   normalizePrintDesign,
   pageSide,
+  tocNeedsLeadingBlank,
   validatePrintDesign,
 } from '../src/lib/print-model.js';
 
@@ -23,6 +24,13 @@ test('right-hand chapter starts require a blank when next page is even', () => {
   assert.equal(chapterNeedsBlankVerso(2, 'next'), false);
 });
 
+
+test('Tres Amigos Contents begins on a left page', () => {
+  assert.equal(tocNeedsLeadingBlank(7, 'left'), true);
+  assert.equal(tocNeedsLeadingBlank(8, 'left'), false);
+  assert.equal(tocNeedsLeadingBlank(7, 'next'), false);
+});
+
 test('6x9 default produces expected text box', () => {
   const box = contentBoxInches({});
   assert.equal(box.width, 4.25);
@@ -34,6 +42,8 @@ test('print design normalization clamps unsafe values without mutating story dat
   assert.equal(design.insideMargin, 0.25);
   assert.equal(design.bodyFontSize, 18);
   assert.equal(design.chapterStarts, 'right');
+  assert.equal(design.paragraphGap, 0);
+  assert.equal(design.tocStartSide, 'left');
 });
 
 test('validation warns below the long-book working gutter target', () => {

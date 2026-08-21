@@ -13,7 +13,7 @@ export const TRES_AMIGOS_TEMPLATE = Object.freeze({
   lineHeight: 1.10,
   bodyAlignment: 'left',
   firstLineIndent: 0.5,
-  paragraphGap: 0.333,
+  paragraphGap: 0,
   chapterStarts: 'right',
   chapterTopSpace: 0.82,
   chapterAfterSpace: 1.08,
@@ -41,6 +41,7 @@ export const TRES_AMIGOS_TEMPLATE = Object.freeze({
   tocLineHeight: 1.22,
   tocTopSpace: 0.05,
   tocAfterTitleSpace: 0.16,
+  tocStartSide: 'left',
 });
 
 export const CLASSIC_NOVEL_TEMPLATE = Object.freeze({
@@ -122,7 +123,7 @@ export function normalizePrintDesign(input = {}) {
   merged.bodyFontSize = number(merged.bodyFontSize, 12, 7, 18);
   merged.lineHeight = number(merged.lineHeight, 1.10, 1, 2);
   merged.firstLineIndent = number(merged.firstLineIndent, 0.5, 0, 1);
-  merged.paragraphGap = number(merged.paragraphGap, 0.333, 0, 0.75);
+  merged.paragraphGap = number(merged.paragraphGap, 0, 0, 0.75);
   merged.chapterTopSpace = number(merged.chapterTopSpace, 0.82, 0, 2.5);
   merged.chapterAfterSpace = number(merged.chapterAfterSpace, 1.08, 0, 1.5);
   merged.chapterTitleSize = number(merged.chapterTitleSize, 14, 9, 28);
@@ -152,6 +153,7 @@ export function normalizePrintDesign(input = {}) {
   merged.tocLineHeight = number(merged.tocLineHeight, 1.22, 1, 2);
   merged.tocTopSpace = number(merged.tocTopSpace, 0.05, 0, 1.5);
   merged.tocAfterTitleSpace = number(merged.tocAfterTitleSpace, 0.16, 0, 1.5);
+  merged.tocStartSide = merged.tocStartSide === 'next' ? 'next' : 'left';
   merged.templateId = merged.templateId || 'custom';
   merged.name = merged.name || (merged.templateId === 'custom' ? 'Custom' : 'Print Theme');
   merged.description = merged.description || '';
@@ -206,6 +208,10 @@ export function chapterNeedsBlankVerso(nextPageNumber, chapterStarts = 'right') 
   return chapterStarts === 'right' && !isRightPage(nextPageNumber);
 }
 
+export function tocNeedsLeadingBlank(nextPageNumber, tocStartSide = 'left') {
+  return tocStartSide === 'left' && pageSide(nextPageNumber) !== 'left';
+}
+
 const CALIBRATION_FIELDS = Object.freeze([
   ['trimWidth', 'Trim width', 'in'],
   ['trimHeight', 'Trim height', 'in'],
@@ -232,6 +238,7 @@ const CALIBRATION_FIELDS = Object.freeze([
   ['tocTitle', 'TOC title', 'text'],
   ['tocEntryFontSize', 'TOC entry size', 'pt'],
   ['tocIncludeBackMatter', 'TOC back matter', 'text'],
+  ['tocStartSide', 'TOC start side', 'text'],
 ]);
 
 export function compareDesignToTemplate(designInput, templateInput = TRES_AMIGOS_TEMPLATE) {

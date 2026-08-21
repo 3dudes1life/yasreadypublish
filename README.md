@@ -1,4 +1,4 @@
-# YasReady Publish v1.0.0
+# YasReady Publish v1.0.1
 
 Private, local-first manuscript-to-book production for YasReady.
 
@@ -15,14 +15,14 @@ Private, local-first manuscript-to-book production for YasReady.
 7. **Ebook / Kindle** builds a separate reflowable EPUB 3 with clickable navigation.
 8. **Final Check** verifies Story Lock + paperback + EPUB readiness together.
 
-## What makes 1.0 stable
+## What makes 1.0.1 stable
 
 - Guided Project Home with a clear manuscript → structure → design → proof → paperback → ebook path.
 - **Superman Ready Final Check** for one-button release readiness.
 - Portable **Project Backup / Restore**. Restore re-verifies Story Lock before saving anything.
 - Sidebar and workflow controls re-render when project state changes, eliminating stale/disabled navigation after import.
 - Full literal-button binding audit in `npm run verify`.
-- Project schema 10 / app version 1.0.0.
+- Project schema 11 / app version 1.0.1.
 - Story wording remains read-only throughout the publishing UI.
 
 ## Paperback engine
@@ -100,3 +100,8 @@ The app uses relative static paths and can run from a repository subpath such as
 The built-in no-bleed preflight follows the current KDP paperback thresholds used by the 1.0 release: single-page interiors, 7 pt minimum text, at least 0.25 in outside margin, and inside margins that increase with page count. For 501–700 pages the current KDP inside minimum is 0.75 in. Always re-check KDP requirements if Amazon changes its manufacturing specifications.
 
 See `KDP-PREFLIGHT.md`, `EPUB-PREFLIGHT.md`, `STORY-LOCK-SPEC.md`, and `RELEASE-QA.md`.
+
+
+## 1.0.1 Book 2 proof corrections
+
+The Tres Amigos template now uses no extra paragraph-after gap and begins generated print Contents on a left-hand page so the TOC reads as a facing spread before the blank verso and right-hand Chapter 1 opening. These are design-layer corrections only; Story Lock manuscript text is unchanged.

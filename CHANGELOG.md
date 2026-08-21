@@ -1,3 +1,11 @@
+## v1.0.1 — Book 2 Proof Hotfix
+
+- Corrected the Tres Amigos body paragraph gap from 0.333 in to 0 in. Paragraphs now use first-line indentation without the accidental oversized vertical gaps seen in the first full Book 2 proof.
+- Generated print Table of Contents now begins on a left-hand page so a two-page Contents appears as one facing spread.
+- Right-hand chapter-start logic then reserves the left page after the Contents spread when needed, keeping Chapter 1 on the following right-hand page.
+- Existing 1.0 saved Tres Amigos projects migrate automatically when they still contain the old 0.333 in default; deliberate custom paragraph gaps are preserved.
+- Story Lock source text remains untouched by the migration and pagination changes.
+
 # Changelog
 
 ## v1.0.0 — Stable Private Publishing Studio

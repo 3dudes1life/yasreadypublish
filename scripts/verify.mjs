@@ -19,12 +19,12 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
   throw new Error('index.html is not wired to the self-contained static runtime.');
 }
 const main = readFileSync('src/main.js', 'utf8');
-for (const marker of ["const VERSION = '1.0.0'", 'Run Final Check', 'Create Paperback PDF', 'Download Project Backup', 'Ebook / Kindle', 'Structure Repair', 'generated-toc-entry']) {
+for (const marker of ["const VERSION = '1.0.1'", 'Run Final Check', 'Create Paperback PDF', 'Download Project Backup', 'Ebook / Kindle', 'Structure Repair', 'generated-toc-entry']) {
   if (!main.includes(marker)) throw new Error(`1.0 production workspace is missing: ${marker}`);
 }
 const printModel = readFileSync('src/lib/print-model.js', 'utf8');
-if (!printModel.includes("tocTitle: 'Table of Contents'") || !printModel.includes('printToc: true')) {
-  throw new Error('Automatic print TOC defaults are missing.');
+if (!printModel.includes("tocTitle: 'Table of Contents'") || !printModel.includes('printToc: true') || !printModel.includes("tocStartSide: 'left'") || !printModel.includes('paragraphGap: 0,')) {
+  throw new Error('Book 1 print/TOC hotfix defaults are missing.');
 }
 const buttonIds = [...main.matchAll(/<button\b[^>]*\bid="([^"]+)"/g)].map((match) => match[1]);
 const boundIds = new Set([...main.matchAll(/querySelector\(['"]#([^'"]+)['"]\)/g)].map((match) => match[1]));
@@ -35,7 +35,7 @@ for (const dynamicBinding of ['[data-go-view]','[data-open-project]','[data-dele
 }
 
 const project = readFileSync('src/lib/project.js', 'utf8');
-if (!project.includes("appVersion: '1.0.0'") || !project.includes('version: 10')) {
-  throw new Error('Project schema was not migrated to 1.0.');
+if (!project.includes("appVersion: '1.0.1'") || !project.includes('version: 11')) {
+  throw new Error('Project schema was not migrated to 1.0.1.');
 }
-console.log('YasReady Publish v1.0.0 static verification passed.');
+console.log('YasReady Publish v1.0.1 static verification passed.');

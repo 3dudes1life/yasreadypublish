@@ -51,3 +51,10 @@ Before using a manuscript for a commercial release:
 `npm run verify` scans every literal `<button id="…">` in `src/main.js` and fails if that ID has no registered interaction handler. It also verifies the shared handlers for dynamic controls such as sidebar navigation, chapter/page navigation, structure overrides, themes, projects, and ebook sections.
 
 This does not prove that no future browser/runtime bug can ever exist; it is designed to make disconnected controls and common regressions release-blocking instead of discoverable by the author during deadline week.
+
+
+## 1.0.1 Book 2 proof hotfix
+
+- Tres Amigos paragraph gap regression: fixed to 0 in and migration tested.
+- Generated Contents parity: left-page start helper tested.
+- Existing 1.0 project migration preserves exact manuscript block text.

@@ -14,8 +14,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   return {
     id: crypto.randomUUID(),
-    version: 10,
-    appVersion: '1.0.0',
+    version: 11,
+    appVersion: '1.0.1',
     title: baseName,
     author: '',
     createdAt: now,
@@ -56,10 +56,16 @@ export function migrateProject(project) {
   ensurePrintDesign(project);
   ensureEbookDesign(project);
   ensureStructureOverrides(project);
-  // Existing projects retain any user-set 0.2 geometry. New projects receive the calibrated template.
+  // Existing projects retain user-set geometry. New projects receive the calibrated template.
   if (oldVersion < 2 && !project.design?.print?.templateId) project.design.print = { ...DEFAULT_PRINT_DESIGN };
-  project.version = Math.max(oldVersion, 10);
-  project.appVersion = '1.0.0';
+  // 1.0.1 fixes two Book 1 calibration mistakes without changing manuscript content:
+  // the old 0.333in paragraph gap was far too large, and generated Contents must begin on a left page.
+  if (oldVersion < 11 && project.design?.print?.templateId === 'tres-amigos-book1') {
+    if (Math.abs(Number(project.design.print.paragraphGap) - 0.333) < 0.0001) project.design.print.paragraphGap = 0;
+    if (!project.design.print.tocStartSide) project.design.print.tocStartSide = 'left';
+  }
+  project.version = Math.max(oldVersion, 11);
+  project.appVersion = '1.0.1';
   return project;
 }
 

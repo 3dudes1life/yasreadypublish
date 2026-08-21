@@ -11,6 +11,7 @@ import {
   fontStack,
   normalizePrintDesign,
   pageSide,
+  tocNeedsLeadingBlank,
   validatePrintDesign,
 } from './lib/print-model.js';
 import { analyzeMatter, chapterForBlockIndex, matterSectionForBlockIndex, runningHeaderText } from './lib/structure-model.js';
@@ -26,7 +27,7 @@ import { buildPrintTocEntries, printTocSignature, shouldGeneratePrintToc, verify
 import { serializeProjectBackup, parseProjectBackup } from './lib/project-backup.js';
 import { buildPublishReadiness } from './lib/readiness-model.js';
 
-const VERSION = '1.0.0';
+const VERSION = '1.0.1';
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
 
@@ -1722,6 +1723,13 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
     if (!tocEntries.length || tocInserted) return;
     if (!current) newPage();
     else if (current.fragments.length || current.intentionalBlank) newPage();
+    // Tres Amigos uses the Contents as a true two-page spread: begin on a left page.
+    // If the next physical page is right-hand, reserve it as an intentionally blank
+    // front-matter alignment page. This is presentation metadata only; Story Lock text is untouched.
+    if (tocNeedsLeadingBlank(current.number, design.tocStartSide)) {
+      current.intentionalBlank = true;
+      newPage();
+    }
     const titleBlock = { id: null };
     const titleHeight = measureFragment(rig, design, 'generated-toc-title', design.tocTitle, false, true, true);
     addFragment(titleBlock, design.tocTitle, 'generated-toc-title', false, titleHeight, { generated: true, suppressIndent: true });
