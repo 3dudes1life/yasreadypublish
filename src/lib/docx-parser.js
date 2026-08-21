@@ -167,6 +167,7 @@ export async function parseDocx(arrayBuffer) {
   }
 
   const documentFile = zip.file('word/document.xml');
+  const imageCount = Object.keys(zip.files).filter((name) => /^word\/media\/[^/]+$/i.test(name)).length;
   if (!documentFile) throw new Error('The DOCX is missing word/document.xml and cannot be imported safely.');
 
   const [documentXml, stylesXml, numberingXml] = await Promise.all([
@@ -234,6 +235,7 @@ export async function parseDocx(arrayBuffer) {
     metadata: {
       hasStyles: Boolean(stylesXml),
       hasNumbering: Boolean(numberingXml),
+      imageCount,
     },
   };
 }

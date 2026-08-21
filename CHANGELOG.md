@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.7.0 — KDP Production Gate
+
+- Added dedicated KDP Export workspace.
+- Added page-count-aware paperback preflight using the current KDP inside-margin bands.
+- Added checks for single-page interior output, page count, trim, no-bleed outside margin, minimum font size, right-hand chapter starts, Story Lock, and intentional blank-page furniture.
+- Added DOCX image-asset detection and blocks 0.7 export when images are present rather than silently dropping them.
+- Added fixed single-page Print Master HTML generation with CSS `@page` dimensions matching the selected trim size.
+- Added export-window production overflow detection; Print / Save as PDF stays disabled if any page exceeds its fixed page box.
+- Added Story Lock re-verification immediately before every print-master export.
+- Added downloadable Print Master HTML and KDP preflight JSON report.
+- Intentional blank versos now suppress both running headers and page-number folios.
+- Migrated projects to schema version 7 / app version 0.7.0 without changing Story Lock hashes.
+- Added KDP preflight and print-master tests.
+
 ## v0.6.0 — Reusable House Styles
 
 - Added a reusable Theme Library while preserving the Story-Locked manuscript layer.

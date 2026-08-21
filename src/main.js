@@ -16,8 +16,10 @@ import {
 import { analyzeMatter, chapterForBlockIndex, matterSectionForBlockIndex, runningHeaderText } from './lib/structure-model.js';
 import { adjacentChapter, buildPreviewNavigation, currentNavigationEntry, spreadIndexForPhysicalPage, spreadPageNumbers } from './lib/navigator-model.js';
 import { deleteCustomTheme, loadCustomThemes, parseThemeJson, saveCustomTheme, serializeTheme } from './lib/theme-store.js';
+import { runKdpPreflight } from './lib/preflight-model.js';
+import { buildPrintMasterHtml } from './lib/print-export.js';
 
-const VERSION = '0.6.0';
+const VERSION = '0.7.0';
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
 
@@ -81,7 +83,7 @@ function renderShell() {
         <div>
           <div class="eyebrow">Story-safe book production</div>
           <h1>Build the pages.<br>Protect every word.</h1>
-          <p>Version 0.6 adds a reusable house-style system: built-in themes, private custom themes, import/export, and a Book 1 calibration inspector — while the source story remains untouchable.</p>
+          <p>Version 0.7 adds the production gate: KDP preflight, single-page print-master export, and a browser PDF workflow that refuses to print when Story Lock or page overflow checks fail.</p>
         </div>
         <div class="story-lock-pill"><span class="dot"></span> Story Lock is mandatory</div>
       </section>
@@ -98,7 +100,7 @@ function renderSidebar() {
   const hasProject = Boolean(state.project);
   return `
     <aside class="sidebar">
-      <div class="sidebar-head"><strong>Publish workspace</strong><span>0.6 saves and reapplies publishing house styles without ever copying manuscript prose into a theme.</span></div>
+      <div class="sidebar-head"><strong>Publish workspace</strong><span>0.7 turns the locked preview into a KDP-ready production gate: preflight first, export second, story changes never.</span></div>
       <nav class="sidebar-nav">
         ${navButton('import', '＋', hasProject ? 'Project' : 'Import')}
         ${navButton('chapters', '☷', 'Contents', !hasProject)}
@@ -106,6 +108,7 @@ function renderSidebar() {
         ${navButton('navigator', '⌘', 'Navigator', !hasProject)}
         ${navButton('design', 'Aa', 'Design', !hasProject)}
         ${navButton('print', '▣', 'Print Preview', !hasProject)}
+        ${navButton('export', '⇩', 'KDP Export', !hasProject)}
         ${navButton('source', '≡', 'Source', !hasProject)}
         ${navButton('library', '▦', 'Library')}
       </nav>
@@ -126,6 +129,7 @@ function renderMain() {
   if (state.activeView === 'navigator') return renderNavigator();
   if (state.activeView === 'design') return renderDesign();
   if (state.activeView === 'print') return renderPrint();
+  if (state.activeView === 'export') return renderExport();
   if (state.activeView === 'source') return renderSource();
   return renderProject();
 }
@@ -145,7 +149,7 @@ function renderImport() {
       </div>
     </article>
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">v0.6 capability</div><h2>Build the house style once</h2><p>Save, export, import, and reapply complete print themes. Themes contain presentation metadata only — never manuscript prose.</p></div></div>
+      <div class="panel-head"><div><div class="eyebrow">v0.7 production gate</div><h2>Preflight before Amazon</h2><p>Build the page model, run KDP checks, then open a single-page print master whose own overflow guard must pass before Save as PDF is enabled.</p></div></div>
       <div class="summary-grid six">
         <div class="stat"><b>✓</b><span>Read DOCX</span></div>
         <div class="stat"><b>✓</b><span>Story Lock</span></div>
@@ -186,10 +190,10 @@ function renderProject() {
         <div class="stat"><b>${design.insideMargin.toFixed(2)}”</b><span>Inside margin</span></div>
       </div>
       ${s.chapters === 0 ? `<div class="notice error"><strong>No chapter titles were auto-detected.</strong> Publish will not guess where chapters begin. Inspect Source before using print pagination.</div>` : ''}
-      <div class="action-row"><button class="btn primary" data-go-view="design">Set print design</button><button class="btn secondary" data-go-view="print">Build print preview</button></div>
+      <div class="action-row"><button class="btn primary" data-go-view="design">Set print design</button><button class="btn secondary" data-go-view="print">Build print preview</button><button class="btn secondary" data-go-view="export">KDP preflight</button></div>
     </article>
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">0.6 production workspace</div><h2>Reusable series design without manuscript surgery</h2><p>Publish can now identify the material before Chapter 1, the chapter body, and recognized back matter such as About the Authors or Join the Journey without reordering source blocks.</p></div></div>
+      <div class="panel-head"><div><div class="eyebrow">0.7 production workspace</div><h2>Export is now a gated action</h2><p>Publish can now identify the material before Chapter 1, the chapter body, and recognized back matter such as About the Authors or Join the Journey without reordering source blocks.</p></div></div>
       <div class="notice info"><strong>Story Lock still wins:</strong> inline bold/italic/underline styling is rendered from DOCX run metadata, but the exact manuscript characters are independently verified after pagination.</div>
     </article>`;
 }
@@ -465,7 +469,7 @@ function renderPrint() {
           </div>
         </div>
       </div>
-      <div class="notice success preview-note"><strong>0.5 production navigator:</strong> direct chapter jumps, page scrubber, zoomable spreads, front/body/back destinations, and Story Lock pagination integrity are active.</div>
+      <div class="notice success preview-note"><strong>0.7 production path:</strong> this page map now feeds KDP Preflight and a fixed single-page print master. Intentional blank versos suppress both running headers and folios.</div>
     </article>`;
 }
 
@@ -560,7 +564,7 @@ function renderBookPage(page, design) {
       return `<div class="${classes}" style="${extra}">${content}</div>`;
     }).join('');
 
-  const folio = design.pageNumbers !== 'none' && page.bookPageNumber != null
+  const folio = !page.intentionalBlank && design.pageNumbers !== 'none' && page.bookPageNumber != null
     ? `<div class="book-folio ${isLeft ? 'left' : 'right'}" style="font-size:${pageNumberSize}px;bottom:${design.folioBottom * px}px;${isLeft ? `left:${design.folioOutsideInset * px}px` : `right:${design.folioOutsideInset * px}px`}">${page.bookPageNumber}</div>` : '';
   const headerText = page.showRunningHeader
     ? runningHeaderText({ side: page.side, projectTitle: state.project?.title || '', author: state.project?.author || '', chapterTitle: page.chapterTitle || '', mode: design.runningHeaderMode })
@@ -570,6 +574,51 @@ function renderBookPage(page, design) {
   const sectionLabel = page.section === 'front' ? 'front matter' : page.section === 'back' ? 'back matter' : (page.chapterTitle || 'book body');
 
   return `<div class="book-page-wrap"><div class="book-page-label">${page.side.toUpperCase()} · physical ${page.number}${page.bookPageNumber != null ? ` · book ${page.bookPageNumber}` : ' · unnumbered'} · ${escapeHtml(sectionLabel)}</div><div class="book-page ${page.intentionalBlank ? 'is-blank' : ''}" style="width:${width}px;height:${height}px;padding:${padding};font-family:${fontStack(design.bodyFont)};font-size:${fontSize}px;line-height:${design.lineHeight};">${header}${fragments}${folio}</div></div>`;
+}
+
+
+function currentPreflight(storyLockOk = true) {
+  if (!state.project || !state.preview) return null;
+  return runKdpPreflight({ project: state.project, preview: state.preview, storyLockOk });
+}
+
+function renderPreflightCheck(item) {
+  const icon = item.status === 'pass' ? '✓' : item.status === 'warning' ? '!' : '×';
+  return `<div class="preflight-row ${item.status}"><div class="preflight-icon">${icon}</div><div><strong>${escapeHtml(item.label)}</strong><p>${escapeHtml(item.message)}</p></div><span>${item.status.toUpperCase()}</span></div>`;
+}
+
+function renderExport() {
+  if (!state.preview) {
+    return `
+      <article class="panel">
+        <div class="panel-head"><div><span class="badge good">Story Lock required</span><h2>KDP export</h2><p>Production export cannot run from an unpaginated manuscript.</p></div></div>
+        <div class="preview-empty">
+          <div class="spread-icon"><span></span><span></span></div>
+          <h3>Build the book first</h3>
+          <p>Pagination must be frozen before KDP margin, chapter parity, blank-page, and page-count checks can be evaluated.</p>
+          <button class="btn primary" id="buildPreviewForExport">Build Print Preview</button>
+        </div>
+      </article>`;
+  }
+
+  const report = currentPreflight(state.project?.storyLock?.status === 'verified');
+  const readyClass = report.ready ? 'ready' : 'blocked';
+  return `
+    <article class="panel export-panel">
+      <div class="panel-head"><div><span class="badge ${report.ready ? 'good' : 'bad'}">${report.ready ? 'PRE-FLIGHT READY' : 'EXPORT BLOCKED'}</span><h2>KDP paperback preflight</h2><p>${report.pageCount} physical pages · ${report.design.trimWidth} × ${report.design.trimHeight} in · no-bleed interior</p></div><button class="btn secondary" id="buildPreviewForExport">Rebuild pages</button></div>
+      <div class="preflight-hero ${readyClass}">
+        <div class="preflight-ring"><b>${report.summary.passes}</b><span>passes</span></div>
+        <div><h3>${report.ready ? 'Layout gate passed.' : `${report.summary.errors} blocking issue${report.summary.errors === 1 ? '' : 's'} found.`}</h3><p>${report.ready ? 'You can open the print master. The export window performs one final production overflow check before enabling Print / Save as PDF.' : 'Fix the blocking checks below, rebuild pagination, and run preflight again. Manuscript wording remains untouched.'}</p></div>
+        <div class="preflight-counts"><span class="pass">${report.summary.passes} pass</span><span class="warning">${report.summary.warnings} warning</span><span class="error">${report.summary.errors} error</span></div>
+      </div>
+      <div class="preflight-list">${report.checks.map(renderPreflightCheck).join('')}</div>
+      <div class="export-actions">
+        <button class="btn primary" id="openPrintMaster" ${report.ready ? '' : 'disabled'}>Open PDF Print Master</button>
+        <button class="btn secondary" id="downloadPrintMaster" ${report.ready ? '' : 'disabled'}>Download Print Master HTML</button>
+        <button class="btn secondary" id="downloadPreflightReport">Download Preflight Report</button>
+      </div>
+      <div class="notice info"><strong>0.7 PDF workflow:</strong> the print master contains one fixed ${report.design.trimWidth} × ${report.design.trimHeight} in page per physical page. In the export window, click <strong>Print / Save as PDF</strong>. Keep scale at 100%, disable browser headers/footers, and save as PDF. Font embedding must still be confirmed in the resulting PDF before KDP upload.</div>
+    </article>`;
 }
 
 function renderSource() {
@@ -595,7 +644,7 @@ function renderSource() {
 function renderLibrary() {
   return `
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">Local projects</div><h2>Library</h2><p>Projects live in this browser's IndexedDB. Older projects are migrated to the 0.6 theme model without touching source blocks or Story Lock hashes.</p></div><button class="btn primary" id="libraryImport">New project</button></div>
+      <div class="panel-head"><div><div class="eyebrow">Local projects</div><h2>Library</h2><p>Projects live in this browser's IndexedDB. Older projects are migrated to the 0.7 production model without touching source blocks or Story Lock hashes.</p></div><button class="btn primary" id="libraryImport">New project</button></div>
       ${state.projects.length ? `<div class="project-list">${state.projects.map((raw) => { const p = migrateProject(raw); return `
         <div class="project-row">
           <div><strong>${escapeHtml(p.title)}</strong><span>${escapeHtml(p.source.fileName)} · ${p.manuscript.stats.chapters} chapters · ${formatNumber(p.manuscript.stats.words)} words · Updated ${new Date(p.updatedAt).toLocaleString()}</span></div>
@@ -654,6 +703,10 @@ function bindDynamicEvents() {
   document.querySelectorAll('[data-delete-theme]').forEach((button) => button.addEventListener('click', () => removeCustomTheme(button.dataset.deleteTheme)));
   document.querySelector('#buildPreview')?.addEventListener('click', buildPreview);
   document.querySelector('#rebuildPreview')?.addEventListener('click', buildPreview);
+  document.querySelector('#buildPreviewForExport')?.addEventListener('click', buildPreviewForExport);
+  document.querySelector('#openPrintMaster')?.addEventListener('click', openPrintMaster);
+  document.querySelector('#downloadPrintMaster')?.addEventListener('click', downloadPrintMaster);
+  document.querySelector('#downloadPreflightReport')?.addEventListener('click', downloadPreflightReport);
 
   document.querySelectorAll('[data-go-view]').forEach((button) => button.addEventListener('click', () => {
     state.activeView = button.dataset.goView;
@@ -815,6 +868,78 @@ function downloadTextFile(filename, text, type = 'application/json') {
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
+}
+
+
+async function ensureExportReady() {
+  if (!state.project || !state.preview) return { ok: false, report: null };
+  const lock = await verifyProjectStoryLock(state.project);
+  if (!lock.ok) {
+    state.project.storyLock.status = 'failed';
+    await saveProject(state.project);
+    return { ok: false, report: currentPreflight(false) };
+  }
+  state.project.storyLock.status = 'verified';
+  state.project.storyLock.verifiedAt = new Date().toISOString();
+  await saveProject(state.project);
+  const report = currentPreflight(true);
+  return { ok: Boolean(report?.ready), report };
+}
+
+function safeExportBaseName() {
+  return (state.project?.title || 'yasready-book').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'yasready-book';
+}
+
+async function buildPreviewForExport() {
+  await buildPreview();
+  state.activeView = 'export';
+  updateMain();
+}
+
+async function openPrintMaster() {
+  const popup = window.open('', '_blank');
+  const result = await ensureExportReady();
+  if (!result.ok) {
+    popup?.close();
+    alert('KDP export is blocked. Review the preflight checks first.');
+    state.activeView = 'export';
+    updateMain();
+    return;
+  }
+  const html = buildPrintMasterHtml({ project: state.project, preview: state.preview, manuscriptHash: state.project.source.manuscriptHash });
+  if (!popup) {
+    alert('Your browser blocked the print-master window. Allow popups for YasReady Publish and try again.');
+    return;
+  }
+  popup.document.open();
+  popup.document.write(html);
+  popup.document.close();
+}
+
+async function downloadPrintMaster() {
+  const result = await ensureExportReady();
+  if (!result.ok) {
+    alert('KDP export is blocked. Review the preflight checks first.');
+    state.activeView = 'export';
+    updateMain();
+    return;
+  }
+  const html = buildPrintMasterHtml({ project: state.project, preview: state.preview, manuscriptHash: state.project.source.manuscriptHash });
+  downloadTextFile(`${safeExportBaseName()}-print-master.html`, html, 'text/html;charset=utf-8');
+}
+
+function downloadPreflightReport() {
+  if (!state.project || !state.preview) return;
+  const report = currentPreflight(state.project.storyLock?.status === 'verified');
+  const payload = {
+    yasreadyPublishVersion: VERSION,
+    bookTitle: state.project.title,
+    author: state.project.author || '',
+    sourceFile: state.project.source.fileName,
+    manuscriptSha256: state.project.source.manuscriptHash,
+    ...report,
+  };
+  downloadTextFile(`${safeExportBaseName()}-kdp-preflight.json`, JSON.stringify(payload, null, 2));
 }
 
 async function applyThemeFromLibrary(id, kind = 'built-in') {
@@ -1056,6 +1181,7 @@ function attachPageStructure(project, pages, design) {
       page.section === 'body' &&
       !(design.suppressHeaderOnChapterOpen && page.hasChapterTitle)
     );
+    page.showFolio = Boolean(!page.intentionalBlank && design.pageNumbers !== 'none' && page.bookPageNumber != null);
   }
   return structure;
 }

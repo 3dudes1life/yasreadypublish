@@ -12,8 +12,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   return {
     id: crypto.randomUUID(),
-    version: 6,
-    appVersion: '0.6.0',
+    version: 7,
+    appVersion: '0.7.0',
     title: baseName,
     author: '',
     createdAt: now,
@@ -52,8 +52,8 @@ export function migrateProject(project) {
   ensurePrintDesign(project);
   // Existing projects retain any user-set 0.2 geometry. New projects receive the calibrated template.
   if (oldVersion < 2 && !project.design?.print?.templateId) project.design.print = { ...DEFAULT_PRINT_DESIGN };
-  project.version = Math.max(oldVersion, 6);
-  project.appVersion = '0.6.0';
+  project.version = Math.max(oldVersion, 7);
+  project.appVersion = '0.7.0';
   return project;
 }
 

@@ -18,6 +18,8 @@ The imported final DOCX is treated as the canonical manuscript source. On import
 - save/apply reusable print themes
 - export/import **theme metadata**
 - navigate and preview the resulting book
+- generate a print master from already-verified page fragments
+- export preflight metadata and reports
 
 ## Forbidden silent operations
 
@@ -44,3 +46,12 @@ After pagination, Publish reconstructs each source paragraph from its rendered p
 ## Failure behavior
 
 When Publish cannot safely interpret or verify content, it must stop and report the problem rather than inventing a correction.
+
+
+## Production export isolation (v0.7)
+
+KDP export is a presentation-only operation. Immediately before creating a print master, Publish re-verifies the current canonical manuscript against the original SHA-256 manuscript fingerprint.
+
+The print master is built from the same page fragments that passed post-pagination character-for-character reconstruction. Export may add HTML/PDF page containers, headers, folios, and print-only blank pages, but it may not create substitute prose or alter fragment text.
+
+If Story Lock fails, KDP export is blocked. If a fixed production page overflows in the print-master window, Print / Save as PDF remains disabled until the layout is corrected.
