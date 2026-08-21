@@ -12,8 +12,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   return {
     id: crypto.randomUUID(),
-    version: 2,
-    appVersion: '0.2.0',
+    version: 3,
+    appVersion: '0.3.0',
     title: baseName,
     author: '',
     createdAt: now,
@@ -40,7 +40,7 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
       metadata: parsed.metadata,
     },
     design: {
-      template: 'Novel 6×9 Draft',
+      template: 'Tres Amigos Series · Book 1',
       print: { ...DEFAULT_PRINT_DESIGN },
     },
   };
@@ -48,9 +48,12 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
 export function migrateProject(project) {
   if (!project) return project;
+  const oldVersion = Number(project.version) || 1;
   ensurePrintDesign(project);
-  project.version = Math.max(Number(project.version) || 1, 2);
-  project.appVersion = '0.2.0';
+  // Existing projects retain any user-set 0.2 geometry. New projects receive the calibrated template.
+  if (oldVersion < 2 && !project.design?.print?.templateId) project.design.print = { ...DEFAULT_PRINT_DESIGN };
+  project.version = Math.max(oldVersion, 3);
+  project.appVersion = '0.3.0';
   return project;
 }
 

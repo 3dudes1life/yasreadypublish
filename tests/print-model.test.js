@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   chapterNeedsBlankVerso,
   contentBoxInches,
+  applyTemplate,
   normalizePrintDesign,
   pageSide,
   validatePrintDesign,
@@ -22,8 +23,8 @@ test('right-hand chapter starts require a blank when next page is even', () => {
 
 test('6x9 default produces expected text box', () => {
   const box = contentBoxInches({});
-  assert.equal(box.width, 4.75);
-  assert.ok(Math.abs(box.height - 7.7) < 1e-9);
+  assert.equal(box.width, 4.25);
+  assert.ok(Math.abs(box.height - 7.75) < 1e-9);
 });
 
 test('print design normalization clamps unsafe values without mutating story data', () => {
@@ -37,4 +38,17 @@ test('validation warns below the long-book working gutter target', () => {
   const result = validatePrintDesign({ insideMargin: 0.5 });
   assert.equal(result.ok, false);
   assert.match(result.warnings.join(' '), /0\.75/);
+});
+
+
+test('Tres Amigos template matches Book 1 calibrated core values', () => {
+  const design = applyTemplate('tres-amigos-book1');
+  assert.equal(design.trimWidth, 6);
+  assert.equal(design.trimHeight, 9);
+  assert.equal(design.bodyFont, 'Arial');
+  assert.equal(design.bodyFontSize, 12);
+  assert.equal(design.firstLineIndent, 0.5);
+  assert.equal(design.insideMargin, 1.25);
+  assert.equal(design.outsideMargin, 0.5);
+  assert.equal(design.chapterStarts, 'right');
 });

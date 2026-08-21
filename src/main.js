@@ -3,6 +3,7 @@ import { createProjectFromImport, migrateProject, verifyProjectStoryLock } from 
 import { deleteProject, listProjects, loadProject, saveProject } from './lib/project-store.js';
 import { shortHash } from './lib/hash.js';
 import {
+  applyTemplate,
   contentBoxInches,
   fontStack,
   normalizePrintDesign,
@@ -10,7 +11,7 @@ import {
   validatePrintDesign,
 } from './lib/print-model.js';
 
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
 
@@ -70,7 +71,7 @@ function renderShell() {
         <div>
           <div class="eyebrow">Story-safe book production</div>
           <h1>Build the pages.<br>Protect every word.</h1>
-          <p>Version 0.2 adds the print structure engine: 6×9 trim, mirrored margins, gutter controls, right-hand chapter starts, automatic blank versos, and a live two-page structural preview.</p>
+          <p>Version 0.3 calibrates the first real series template from the published Book 1 interior: Arial typography, Book 1 margins and indents, chapter-opening rhythm, outside-bottom page numbers, and inline emphasis — without touching a word.</p>
         </div>
         <div class="story-lock-pill"><span class="dot"></span> Story Lock is mandatory</div>
       </section>
@@ -87,7 +88,7 @@ function renderSidebar() {
   const hasProject = Boolean(state.project);
   return `
     <aside class="sidebar">
-      <div class="sidebar-head"><strong>Publish workspace</strong><span>0.2 separates the locked manuscript from an editable print-design layer.</span></div>
+      <div class="sidebar-head"><strong>Publish workspace</strong><span>0.3 adds the first production-calibrated series template on top of Story Lock.</span></div>
       <nav class="sidebar-nav">
         ${navButton('import', '＋', hasProject ? 'Project' : 'Import')}
         ${navButton('chapters', '☷', 'Contents', !hasProject)}
@@ -130,14 +131,14 @@ function renderImport() {
       </div>
     </article>
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">v0.2 capability</div><h2>Now we can build the physical book</h2><p>After import, Design controls the page geometry while Print Preview creates the left/right book structure.</p></div></div>
+      <div class="panel-head"><div><div class="eyebrow">v0.3 capability</div><h2>Tres Amigos is now a real series template</h2><p>Book 1's published paperback is the calibration target. The design layer can now reproduce its core typography and page behavior.</p></div></div>
       <div class="summary-grid six">
         <div class="stat"><b>✓</b><span>Read DOCX</span></div>
         <div class="stat"><b>✓</b><span>Story Lock</span></div>
         <div class="stat"><b>6×9</b><span>Trim</span></div>
         <div class="stat"><b>↔</b><span>Mirror margins</span></div>
         <div class="stat"><b>ODD</b><span>Chapter starts</span></div>
-        <div class="stat"><b>Aa</b><span>Draft typesetting</span></div>
+        <div class="stat"><b>Arial</b><span>Book 1 type</span></div>
       </div>
     </article>`;
 }
@@ -170,8 +171,8 @@ function renderProject() {
       <div class="action-row"><button class="btn primary" data-go-view="design">Set print design</button><button class="btn secondary" data-go-view="print">Build print preview</button></div>
     </article>
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">0.2 print engine</div><h2>Structure before decoration</h2><p>This milestone establishes physical pages and chapter parity. Running headers, final series typography, and production PDF export come after this foundation survives Book 2.</p></div></div>
-      <div class="notice info"><strong>Important:</strong> the 0.2 preview is a structural pagination preview. It can split oversized paragraphs without changing their stored source text, but final production typography will still change page count in later builds.</div>
+      <div class="panel-head"><div><div class="eyebrow">0.3 series engine</div><h2>Book 1 becomes the visual rulebook</h2><p>The published paperback measured 6×9, Arial 12 pt body text, a 0.5 in first-line indent, wide binding margin, and outside-bottom folios. Those rules now live in the Tres Amigos template.</p></div></div>
+      <div class="notice info"><strong>Story Lock still wins:</strong> inline bold/italic/underline styling is rendered from DOCX run metadata, but the exact manuscript characters are independently verified after pagination.</div>
     </article>`;
 }
 
@@ -198,10 +199,14 @@ function renderDesign() {
   const validation = validatePrintDesign(d);
   return `
     <article class="panel">
-      <div class="panel-head"><div><span class="badge good">Story layer untouched</span><h2>Print design</h2><p>These controls only change presentation metadata. The manuscript hash does not change.</p></div><button class="btn primary" id="saveDesign">Save design</button></div>
+      <div class="panel-head"><div><span class="badge good">Story layer untouched</span><h2>Print design</h2><p>Choose the calibrated Tres Amigos template or adjust presentation settings. None of these controls can edit manuscript wording.</p></div><button class="btn primary" id="saveDesign">Save design</button></div>
+      <section class="template-banner">
+        <div><div class="eyebrow">Series template</div><h3>Tres Amigos Series · Book 1</h3><p>Calibrated from the published 6×9 paperback interior. Use this as the Book 2 starting point.</p></div>
+        <button class="btn secondary" id="applyTresTemplate">Apply Book 1 template</button>
+      </section>
       <div class="design-layout">
         <section class="design-card">
-          <div class="eyebrow">Page</div><h3>6 × 9 paperback</h3>
+          <div class="eyebrow">Page geometry</div><h3>Paperback</h3>
           <div class="field-grid two">
             ${designNumberField('trimWidth', 'Trim width', d.trimWidth, '0.1', '4', '12')}
             ${designNumberField('trimHeight', 'Trim height', d.trimHeight, '0.1', '5', '15')}
@@ -215,19 +220,30 @@ function renderDesign() {
           <label class="design-field"><span>Chapter begins</span><select id="chapterStarts"><option value="right" ${d.chapterStarts === 'right' ? 'selected' : ''}>Right-hand page (odd)</option><option value="next" ${d.chapterStarts === 'next' ? 'selected' : ''}>Next available page</option></select></label>
         </section>
         <section class="design-card">
-          <div class="eyebrow">Draft typography</div><h3>Body text</h3>
-          <label class="design-field"><span>Preview font</span><select id="bodyFont">${['Georgia','Garamond','Baskerville','Times New Roman'].map((name) => `<option ${d.bodyFont === name ? 'selected' : ''}>${name}</option>`).join('')}</select></label>
+          <div class="eyebrow">Book 1 typography</div><h3>Body + chapter rhythm</h3>
+          <label class="design-field"><span>Body font</span><select id="bodyFont">${['Arial','Georgia','Garamond','Baskerville','Times New Roman'].map((name) => `<option ${d.bodyFont === name ? 'selected' : ''}>${name}</option>`).join('')}</select></label>
           <div class="field-grid two">
-            ${designNumberField('bodyFontSize', 'Font size', d.bodyFontSize, '0.25', '7', '18', 'pt')}
+            ${designNumberField('bodyFontSize', 'Body size', d.bodyFontSize, '0.25', '7', '18', 'pt')}
             ${designNumberField('lineHeight', 'Line height', d.lineHeight, '0.01', '1', '2', '×')}
             ${designNumberField('firstLineIndent', 'First-line indent', d.firstLineIndent, '0.01', '0', '1')}
-            ${designNumberField('chapterTopSpace', 'Chapter top space', d.chapterTopSpace, '0.05', '0', '2.5')}
+            ${designNumberField('paragraphGap', 'Paragraph gap', d.paragraphGap, '0.01', '0', '0.75')}
+            ${designNumberField('chapterTitleSize', 'Chapter title', d.chapterTitleSize, '0.25', '9', '28', 'pt')}
+            ${designNumberField('chapterTopSpace', 'Chapter top space', d.chapterTopSpace, '0.01', '0', '2.5')}
+            ${designNumberField('chapterAfterSpace', 'After chapter title', d.chapterAfterSpace, '0.01', '0', '1.5')}
+            ${designNumberField('pageNumberFontSize', 'Page number', d.pageNumberFontSize, '0.25', '7', '18', 'pt')}
           </div>
           <div class="design-readout"><span>Live text box</span><strong>${validation.content.width.toFixed(2)} × ${validation.content.height.toFixed(2)} in</strong></div>
         </section>
       </div>
-      ${validation.warnings.length ? `<div class="notice warning"><strong>Working warnings</strong><br>${validation.warnings.map(escapeHtml).join('<br>')}</div>` : `<div class="notice success"><strong>Geometry looks healthy for the 0.2 working model.</strong> We will calibrate exact Book 1 values in the series-template milestone.</div>`}
-      <div class="notice info">Changing any setting invalidates the old preview by design. Save, then rebuild Print Preview so page parity is recalculated from the locked manuscript.</div>
+      <div class="calibration-grid">
+        <div><b>6 × 9</b><span>published trim</span></div>
+        <div><b>Arial 12</b><span>body type</span></div>
+        <div><b>0.50”</b><span>paragraph indent</span></div>
+        <div><b>1.25”</b><span>inside margin</span></div>
+        <div><b>OUTSIDE</b><span>bottom folios</span></div>
+      </div>
+      ${validation.warnings.length ? `<div class="notice warning"><strong>Working warnings</strong><br>${validation.warnings.map(escapeHtml).join('<br>')}</div>` : `<div class="notice success"><strong>Book geometry is healthy.</strong> The calibrated template is a measured recreation of Book 1's core interior system; final PDF production still arrives in a later milestone.</div>`}
+      <div class="notice info">Changing any setting invalidates the old preview. Save, then rebuild Print Preview so chapter parity and printed folios are recalculated from the locked manuscript.</div>
     </article>`;
 }
 
@@ -267,7 +283,7 @@ function renderPrint() {
         ${spread.left ? renderBookPage(spread.left, preview.design) : '<div class="book-page-placeholder"><span>Front</span></div>'}
         ${spread.right ? renderBookPage(spread.right, preview.design) : '<div class="book-page-placeholder"><span>End</span></div>'}
       </div>
-      <div class="notice info preview-note"><strong>0.2 structural preview:</strong> physical page parity and margin geometry are active. Final production fonts, headers/footers, widow/orphan controls, and PDF export are intentionally not claimed yet.</div>
+      <div class="notice success preview-note"><strong>0.3 Story-safe typesetting:</strong> Book 1 typography, paragraph rhythm, right-page chapters, front-matter folio suppression, outside-bottom page numbers, and inline emphasis are active. Pagination integrity re-checks every source paragraph after layout.</div>
     </article>`;
 }
 
@@ -277,6 +293,49 @@ function getSpread(pages, spreadIndex) {
     left: pages[(spreadIndex * 2) - 1] || null,
     right: pages[spreadIndex * 2] || null,
   };
+}
+
+function sliceRunsForFragment(block, startOffset = 0, endOffset = null) {
+  if (!block?.runs?.length) return [];
+  const end = endOffset == null ? block.text.length : endOffset;
+  const out = [];
+  let cursor = 0;
+  for (const run of block.runs) {
+    const runStart = cursor;
+    const runEnd = cursor + run.text.length;
+    cursor = runEnd;
+    const overlapStart = Math.max(startOffset, runStart);
+    const overlapEnd = Math.min(end, runEnd);
+    if (overlapStart >= overlapEnd) continue;
+    out.push({
+      ...run,
+      text: run.text.slice(overlapStart - runStart, overlapEnd - runStart),
+    });
+  }
+  return out;
+}
+
+function renderInlineRuns(fragment) {
+  const block = state.project?.manuscript?.blocks?.find((candidate) => candidate.id === fragment.sourceBlockId);
+  if (!block) return escapeHtml(fragment.text);
+  const runs = sliceRunsForFragment(block, fragment.startOffset || 0, fragment.endOffset ?? block.text.length);
+  if (!runs.length || runs.map((run) => run.text).join('') !== fragment.text) return escapeHtml(fragment.text);
+  return runs.map((run) => {
+    const styles = [];
+    if (run.bold) styles.push('font-weight:700');
+    if (run.italic) styles.push('font-style:italic');
+    const decorations = [run.underline ? 'underline' : '', run.strike ? 'line-through' : ''].filter(Boolean).join(' ');
+    if (decorations) styles.push(`text-decoration:${decorations}`);
+    if (run.smallCaps) styles.push('font-variant:small-caps');
+    return `<span${styles.length ? ` style="${styles.join(';')}"` : ''}>${escapeHtml(run.text)}</span>`;
+  }).join('');
+}
+
+function renderChapterTitle(text) {
+  const safe = escapeHtml(text);
+  const match = safe.match(/^(Chapter\s+(?:\d+|[IVXLCDM]+):?)(\s*)(.*)$/i);
+  if (!match) return safe;
+  return `<strong>${match[1]}</strong>${match[2]}${match[3]}`;
 }
 
 function renderBookPage(page, design) {
@@ -295,20 +354,32 @@ function renderBookPage(page, design) {
   const indent = design.firstLineIndent * px;
   const chapterTop = design.chapterTopSpace * px;
   const chapterAfter = design.chapterAfterSpace * px;
+  const chapterSize = design.chapterTitleSize * (96 / 72) * (px / 96);
+  const pageNumberSize = design.pageNumberFontSize * (96 / 72) * (px / 96);
 
   const fragments = page.intentionalBlank
-    ? `<div class="intentional-blank">Intentional blank verso<br><small>Inserted to keep the next chapter on a right-hand page.</small></div>`
+    ? `<div class="intentional-blank">Intentional blank verso<br><small>Kept blank so the next chapter opens on the right.</small></div>`
     : page.fragments.map((fragment) => {
       if (fragment.kind === 'blank') return `<div class="print-fragment blank-space" style="height:${fragment.previewHeight || 6}px"></div>`;
       const classes = `print-fragment ${escapeHtml(fragment.kind)} ${fragment.continuation ? 'continuation' : ''}`;
       let extra = '';
-      if (fragment.kind === 'chapter-title') extra = `padding-top:${chapterTop}px;padding-bottom:${chapterAfter}px;`;
-      const shouldIndent = ['body'].includes(fragment.kind) && !fragment.continuation;
+      let content = renderInlineRuns(fragment);
+      if (fragment.kind === 'chapter-title') {
+        extra = `padding-top:${chapterTop}px;padding-bottom:${chapterAfter}px;font-size:${chapterSize}px;line-height:${design.chapterTitleLineHeight};`;
+        content = renderChapterTitle(fragment.text);
+      }
+      const shouldIndent = fragment.kind === 'body' && !fragment.continuation && !fragment.suppressIndent;
       if (shouldIndent) extra += `text-indent:${indent}px;`;
-      return `<div class="${classes}" style="${extra}">${escapeHtml(fragment.text)}</div>`;
+      const gap = fragment.isFinalPiece && design.paragraphGap && !['chapter-title','blank'].includes(fragment.kind)
+        ? design.paragraphGap * px : 0;
+      if (gap) extra += `padding-bottom:${gap}px;`;
+      return `<div class="${classes}" style="${extra}">${content}</div>`;
     }).join('');
 
-  return `<div class="book-page-wrap"><div class="book-page-label">${page.side.toUpperCase()} · ${page.number}</div><div class="book-page ${page.intentionalBlank ? 'is-blank' : ''}" style="width:${width}px;height:${height}px;padding:${padding};font-family:${fontStack(design.bodyFont)};font-size:${fontSize}px;line-height:${design.lineHeight};">${fragments}</div><div class="physical-page-number">${page.number}</div></div>`;
+  const folio = design.pageNumbers !== 'none' && page.bookPageNumber != null
+    ? `<div class="book-folio ${isLeft ? 'left' : 'right'}" style="font-size:${pageNumberSize}px">${page.bookPageNumber}</div>` : '';
+
+  return `<div class="book-page-wrap"><div class="book-page-label">${page.side.toUpperCase()} · physical ${page.number}${page.bookPageNumber != null ? ` · book ${page.bookPageNumber}` : ' · front matter'}</div><div class="book-page ${page.intentionalBlank ? 'is-blank' : ''}" style="width:${width}px;height:${height}px;padding:${padding};font-family:${fontStack(design.bodyFont)};font-size:${fontSize}px;line-height:${design.lineHeight};">${fragments}${folio}</div></div>`;
 }
 
 function renderSource() {
@@ -334,7 +405,7 @@ function renderSource() {
 function renderLibrary() {
   return `
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">Local projects</div><h2>Library</h2><p>Projects live in this browser's IndexedDB. Existing v0.1 projects are migrated to the 0.2 design model without touching source blocks.</p></div><button class="btn primary" id="libraryImport">New project</button></div>
+      <div class="panel-head"><div><div class="eyebrow">Local projects</div><h2>Library</h2><p>Projects live in this browser's IndexedDB. Older projects are migrated to the 0.3 design model without touching source blocks or Story Lock hashes.</p></div><button class="btn primary" id="libraryImport">New project</button></div>
       ${state.projects.length ? `<div class="project-list">${state.projects.map((raw) => { const p = migrateProject(raw); return `
         <div class="project-row">
           <div><strong>${escapeHtml(p.title)}</strong><span>${escapeHtml(p.source.fileName)} · ${p.manuscript.stats.chapters} chapters · ${formatNumber(p.manuscript.stats.words)} words · Updated ${new Date(p.updatedAt).toLocaleString()}</span></div>
@@ -384,6 +455,7 @@ function bindDynamicEvents() {
   document.querySelector('#saveTitle')?.addEventListener('click', saveProjectTitle);
   document.querySelector('#verifyLock')?.addEventListener('click', verifyLock);
   document.querySelector('#saveDesign')?.addEventListener('click', saveDesign);
+  document.querySelector('#applyTresTemplate')?.addEventListener('click', applyTresAmigosTemplate);
   document.querySelector('#buildPreview')?.addEventListener('click', buildPreview);
   document.querySelector('#rebuildPreview')?.addEventListener('click', buildPreview);
 
@@ -494,6 +566,19 @@ async function verifyLock(showAlert = true) {
   return false;
 }
 
+
+async function applyTresAmigosTemplate() {
+  if (!state.project) return;
+  state.project.design.print = applyTemplate('tres-amigos-book1');
+  state.project.design.template = 'Tres Amigos Series · Book 1';
+  state.project.updatedAt = new Date().toISOString();
+  state.preview = null;
+  state.spreadIndex = 0;
+  await saveProject(state.project);
+  state.projects = await listProjects();
+  updateMain();
+}
+
 async function saveDesign() {
   if (!state.project) return;
   const value = (id) => document.querySelector(`#${id}`)?.value;
@@ -509,11 +594,16 @@ async function saveDesign() {
     bodyFontSize: value('bodyFontSize'),
     lineHeight: value('lineHeight'),
     firstLineIndent: value('firstLineIndent'),
+    paragraphGap: value('paragraphGap'),
+    chapterTitleSize: value('chapterTitleSize'),
     chapterTopSpace: value('chapterTopSpace'),
+    chapterAfterSpace: value('chapterAfterSpace'),
+    pageNumberFontSize: value('pageNumberFontSize'),
     chapterStarts: value('chapterStarts'),
+    templateId: 'custom',
   };
   state.project.design.print = normalizePrintDesign(raw);
-  state.project.design.template = 'Novel 6×9 Draft';
+  state.project.design.template = state.project.design.print.templateId === 'tres-amigos-book1' ? 'Tres Amigos Series · Book 1' : 'Custom';
   state.project.updatedAt = new Date().toISOString();
   state.preview = null;
   state.spreadIndex = 0;
@@ -543,7 +633,7 @@ function createMeasureRig(design) {
   return { root, content, pageHeightPx: content.height * CSS_PX_PER_INCH };
 }
 
-function measureFragment(rig, design, kind, text, continuation = false) {
+function measureFragment(rig, design, kind, text, continuation = false, isFinalPiece = true, suppressIndent = false) {
   const wrapper = document.createElement('div');
   wrapper.style.boxSizing = 'border-box';
   const paragraph = document.createElement('div');
@@ -556,9 +646,9 @@ function measureFragment(rig, design, kind, text, continuation = false) {
   if (kind === 'chapter-title') {
     wrapper.style.paddingTop = `${design.chapterTopSpace}in`;
     wrapper.style.paddingBottom = `${design.chapterAfterSpace}in`;
-    paragraph.style.fontSize = '1.55em';
-    paragraph.style.lineHeight = '1.12';
-    paragraph.style.fontWeight = '700';
+    paragraph.style.fontSize = `${design.chapterTitleSize}pt`;
+    paragraph.style.lineHeight = String(design.chapterTitleLineHeight);
+    paragraph.style.fontWeight = '400';
     paragraph.style.textAlign = 'center';
   } else if (kind === 'scene-break') {
     wrapper.style.paddingTop = '0.12in';
@@ -571,24 +661,26 @@ function measureFragment(rig, design, kind, text, continuation = false) {
     paragraph.style.fontSize = '1.15em';
   } else if (kind === 'blank') {
     wrapper.style.height = '0.12in';
-  } else if (kind === 'body' && !continuation) {
+  } else if (kind === 'body' && !continuation && !suppressIndent) {
     paragraph.style.textIndent = `${design.firstLineIndent}in`;
   }
 
-  if (design.paragraphGap && !['chapter-title','blank'].includes(kind)) wrapper.style.paddingBottom = `${design.paragraphGap}in`;
+  if (isFinalPiece && design.paragraphGap && !['chapter-title','blank'].includes(kind)) {
+    wrapper.style.paddingBottom = `${design.paragraphGap}in`;
+  }
   wrapper.appendChild(paragraph);
   rig.root.replaceChildren(wrapper);
   return wrapper.getBoundingClientRect().height;
 }
 
-function findFittingCut(rig, design, kind, text, continuation, maxHeight) {
+function findFittingCut(rig, design, kind, text, continuation, maxHeight, suppressIndent = false) {
   if (!text || maxHeight <= 0) return 0;
   let low = 1;
   let high = text.length;
   let best = 0;
   while (low <= high) {
     const mid = Math.floor((low + high) / 2);
-    const height = measureFragment(rig, design, kind, text.slice(0, mid), continuation);
+    const height = measureFragment(rig, design, kind, text.slice(0, mid), continuation, false, suppressIndent);
     if (height <= maxHeight) {
       best = mid;
       low = mid + 1;
@@ -604,6 +696,21 @@ function findFittingCut(rig, design, kind, text, continuation, maxHeight) {
   return best;
 }
 
+function verifyPaginatedText(project, pages) {
+  const collected = new Map(project.manuscript.blocks.map((block) => [block.id, '']));
+  for (const page of pages) {
+    for (const fragment of page.fragments || []) {
+      if (!collected.has(fragment.sourceBlockId)) continue;
+      collected.set(fragment.sourceBlockId, collected.get(fragment.sourceBlockId) + fragment.text);
+    }
+  }
+  const mismatches = [];
+  for (const block of project.manuscript.blocks) {
+    if ((collected.get(block.id) ?? '') !== block.text) mismatches.push(block.id);
+  }
+  return { ok: mismatches.length === 0, mismatches };
+}
+
 async function paginateProject(project) {
   const design = currentDesign();
   const lock = await verifyProjectStoryLock(project);
@@ -615,10 +722,12 @@ async function paginateProject(project) {
   let blankVersos = 0;
   let chapterStarts = 0;
   let chaptersOnRight = 0;
+  let firstChapterPhysicalPage = null;
+  let previousNonEmptyKind = null;
 
   const newPage = ({ intentionalBlank = false } = {}) => {
     const number = pages.length + 1;
-    current = { number, side: pageSide(number), fragments: [], usedPx: 0, intentionalBlank };
+    current = { number, side: pageSide(number), fragments: [], usedPx: 0, intentionalBlank, bookPageNumber: null };
     pages.push(current);
     if (intentionalBlank) blankVersos += 1;
     return current;
@@ -627,9 +736,9 @@ async function paginateProject(project) {
   const ensurePage = () => current || newPage();
   const remaining = () => rig.pageHeightPx - (current?.usedPx || 0);
 
-  const addFragment = (block, text, kind, continuation = false, measuredHeight = null) => {
+  const addFragment = (block, text, kind, continuation = false, measuredHeight = null, meta = {}) => {
     ensurePage();
-    const height = measuredHeight ?? measureFragment(rig, design, kind, text, continuation);
+    const height = measuredHeight ?? measureFragment(rig, design, kind, text, continuation, meta.isFinalPiece !== false, meta.suppressIndent);
     current.fragments.push({
       sourceBlockId: block.id,
       kind,
@@ -637,6 +746,10 @@ async function paginateProject(project) {
       continuation,
       measuredHeight: height,
       previewHeight: kind === 'blank' ? height * (PREVIEW_PX_PER_INCH / CSS_PX_PER_INCH) : null,
+      startOffset: meta.startOffset ?? 0,
+      endOffset: meta.endOffset ?? text.length,
+      isFinalPiece: meta.isFinalPiece !== false,
+      suppressIndent: Boolean(meta.suppressIndent),
     });
     current.usedPx += height;
   };
@@ -644,21 +757,29 @@ async function paginateProject(project) {
   const placeTextBlock = (block) => {
     const kind = block.kind;
     const text = block.text;
+    const suppressIndent = kind === 'chapter-opening' || previousNonEmptyKind === 'scene-break';
     if (kind === 'blank') {
       ensurePage();
-      const height = measureFragment(rig, design, kind, '', false);
+      const height = measureFragment(rig, design, kind, '', false, true, true);
       if (height > remaining() && current.fragments.length) newPage();
-      addFragment(block, '', kind, false, height);
+      addFragment(block, '', kind, false, height, { startOffset: 0, endOffset: 0, isFinalPiece: true, suppressIndent: true });
       return;
     }
 
+    let offset = 0;
     let rest = text;
     let continuation = false;
     while (rest.length) {
       ensurePage();
-      const fullHeight = measureFragment(rig, design, kind, rest, continuation);
+      const fullHeight = measureFragment(rig, design, kind, rest, continuation, true, suppressIndent);
       if (fullHeight <= remaining()) {
-        addFragment(block, rest, kind, continuation, fullHeight);
+        addFragment(block, rest, kind, continuation, fullHeight, {
+          startOffset: offset,
+          endOffset: offset + rest.length,
+          isFinalPiece: true,
+          suppressIndent,
+        });
+        offset += rest.length;
         rest = '';
         break;
       }
@@ -673,17 +794,28 @@ async function paginateProject(project) {
         continue;
       }
 
-      const cut = findFittingCut(rig, design, kind, rest, continuation, remaining());
+      const cut = findFittingCut(rig, design, kind, rest, continuation, remaining(), suppressIndent);
       if (!cut) {
         if (current.fragments.length) { newPage(); continue; }
-        // Extreme fallback: preserve the text even if one unbreakable token is taller than a page.
-        addFragment(block, rest, kind, continuation, Math.min(fullHeight, rig.pageHeightPx));
+        addFragment(block, rest, kind, continuation, Math.min(fullHeight, rig.pageHeightPx), {
+          startOffset: offset,
+          endOffset: offset + rest.length,
+          isFinalPiece: true,
+          suppressIndent,
+        });
+        offset += rest.length;
         rest = '';
         break;
       }
       const piece = rest.slice(0, cut);
-      const height = measureFragment(rig, design, kind, piece, continuation);
-      addFragment(block, piece, kind, continuation, height);
+      const height = measureFragment(rig, design, kind, piece, continuation, false, suppressIndent);
+      addFragment(block, piece, kind, continuation, height, {
+        startOffset: offset,
+        endOffset: offset + piece.length,
+        isFinalPiece: false,
+        suppressIndent,
+      });
+      offset += piece.length;
       rest = rest.slice(cut);
       continuation = true;
       if (rest.length) newPage();
@@ -702,13 +834,28 @@ async function paginateProject(project) {
           blankVersos += 1;
           newPage();
         }
+        if (firstChapterPhysicalPage == null) firstChapterPhysicalPage = current.number;
         if (current.side === 'right') chaptersOnRight += 1;
       }
       placeTextBlock(block);
+      if (block.kind !== 'blank') previousNonEmptyKind = block.kind;
       if (i && i % 250 === 0) await new Promise((resolve) => requestAnimationFrame(resolve));
     }
   } finally {
     rig.root.remove();
+  }
+
+  if (firstChapterPhysicalPage != null && design.numberFromFirstChapter) {
+    for (const page of pages) {
+      if (page.number >= firstChapterPhysicalPage) page.bookPageNumber = page.number - firstChapterPhysicalPage + 1;
+    }
+  } else {
+    for (const page of pages) page.bookPageNumber = page.number;
+  }
+
+  const integrity = verifyPaginatedText(project, pages);
+  if (!integrity.ok) {
+    throw new Error(`Story Lock pagination integrity failed for ${integrity.mismatches.length} source paragraph(s). Preview was blocked.`);
   }
 
   return {
@@ -718,6 +865,8 @@ async function paginateProject(project) {
     blankVersos,
     chapterStarts,
     chaptersOnRight,
+    firstChapterPhysicalPage,
+    integrity: { ok: true, checkedBlocks: project.manuscript.blocks.length },
   };
 }
 

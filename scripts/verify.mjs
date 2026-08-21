@@ -27,4 +27,4 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
   throw new Error('index.html is not wired to the self-contained runtime.');
 }
 
-console.log('YasReady Publish v0.2.0 static verification passed.');
+console.log('YasReady Publish v0.3.0 static verification passed.');

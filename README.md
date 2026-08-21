@@ -1,24 +1,38 @@
-# YasReady Publish v0.2.0
+# YasReady Publish v0.3.0
 
-Private-alpha publishing system focused on one permanent rule: **format the book without rewriting the story.**
+Private manuscript-to-book production software.
 
-## What 0.2 adds
+## Current milestone
 
-- Local DOCX import and SHA-256 Story Lock from 0.1
-- 6×9 working paperback model
-- Mirrored inside/outside margins
-- Adjustable gutter, top, bottom, and outside margins
-- Draft typography controls
-- Right-hand (odd-page) chapter starts
-- Automatic intentional blank verso insertion
-- Two-page structural book preview with page jumping
-- Safe migration of local 0.1 projects into the 0.2 design layer
+v0.3 adds the first production-calibrated design preset: **Tres Amigos Series · Book 1**. It is based on measurements from the published Book 1 paperback and sits entirely outside the locked manuscript content layer.
 
-## Important quality boundary
+### Active in v0.3
 
-0.2 is the **print-structure milestone**, not the final KDP exporter. It establishes page geometry and chapter parity. Production font calibration, running headers/footers, final widow/orphan behavior, preflight, and PDF export come in later milestones.
+- Local DOCX import
+- SHA-256 Story Lock
+- Chapter detection
+- Read-only source inspector
+- 6×9 mirrored page model
+- Right-hand/odd chapter starts
+- Automatic blank versos
+- Book 1-calibrated page geometry and typography
+- Inline bold/italic/underline/strike/small-caps rendering
+- Printed page numbers beginning at Chapter 1, with front matter unnumbered
+- Outside-bottom folios matching Book 1's placement logic
+- Two-page preview
+- Post-pagination manuscript integrity verification
 
-The source manuscript remains read-only. Design metadata is stored separately and Story Lock is verified before pagination.
+### Not claimed yet
+
+- Production PDF export
+- EPUB/Kindle export
+- Automated TOC generation
+- Production widow/orphan controls
+- Embedded-font packaging
+
+## Story Lock
+
+Formatting is allowed to change presentation only. Manuscript wording cannot be edited by YasReady Publish. Pagination is blocked if source integrity verification fails.
 
 ## Run locally
 
@@ -27,6 +41,4 @@ npm run verify
 npm run dev
 ```
 
-Open `http://localhost:4173`.
-
-GitHub Pages works as a static deployment; no bundler is required.
+Then open `http://localhost:4173`.
