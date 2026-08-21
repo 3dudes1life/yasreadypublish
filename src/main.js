@@ -1,4 +1,3 @@
-import './styles/app.css';
 import { parseDocx } from './lib/docx-parser.js';
 import { createProjectFromImport, verifyProjectStoryLock } from './lib/project.js';
 import { deleteProject, listProjects, loadProject, saveProject } from './lib/project-store.js';
