@@ -1,4 +1,5 @@
 import { sha256Hex } from './hash.js';
+import { DEFAULT_PRINT_DESIGN, ensurePrintDesign } from './print-model.js';
 
 export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
   const [sourceFileHash, manuscriptHash] = await Promise.all([
@@ -11,8 +12,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   return {
     id: crypto.randomUUID(),
-    version: 1,
-    appVersion: '0.1.0',
+    version: 2,
+    appVersion: '0.2.0',
     title: baseName,
     author: '',
     createdAt: now,
@@ -39,9 +40,18 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
       metadata: parsed.metadata,
     },
     design: {
-      template: 'Unformatted / Source View',
+      template: 'Novel 6×9 Draft',
+      print: { ...DEFAULT_PRINT_DESIGN },
     },
   };
+}
+
+export function migrateProject(project) {
+  if (!project) return project;
+  ensurePrintDesign(project);
+  project.version = Math.max(Number(project.version) || 1, 2);
+  project.appVersion = '0.2.0';
+  return project;
 }
 
 export async function verifyProjectStoryLock(project) {
