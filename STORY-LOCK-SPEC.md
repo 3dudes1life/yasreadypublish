@@ -58,3 +58,7 @@ Without a deliberate source-manuscript update, Publish may never silently:
 - reorder story paragraphs
 
 If the software cannot safely classify source content, it must preserve it and flag the structure rather than guessing.
+
+## v0.5 navigation rule
+
+The Navigator may index physical page numbers, printed page numbers, spreads, chapter titles already present in the manuscript, and generated book-section labels. It must never store or generate rewritten story prose. Navigation destinations are disposable presentation metadata and are rebuilt whenever pagination changes.

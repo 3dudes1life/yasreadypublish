@@ -11,8 +11,9 @@ import {
   validatePrintDesign,
 } from './lib/print-model.js';
 import { analyzeMatter, chapterForBlockIndex, matterSectionForBlockIndex, runningHeaderText } from './lib/structure-model.js';
+import { adjacentChapter, buildPreviewNavigation, currentNavigationEntry, spreadIndexForPhysicalPage, spreadPageNumbers } from './lib/navigator-model.js';
 
-const VERSION = '0.4.0';
+const VERSION = '0.5.0';
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
 
@@ -26,6 +27,8 @@ const state = {
   error: '',
   preview: null,
   spreadIndex: 0,
+  navigatorSearch: '',
+  previewZoom: 58,
 };
 
 const app = document.querySelector('#app');
@@ -72,7 +75,7 @@ function renderShell() {
         <div>
           <div class="eyebrow">Story-safe book production</div>
           <h1>Build the pages.<br>Protect every word.</h1>
-          <p>Version 0.4 adds book-level structure around the locked manuscript: front matter, chapter body, back matter, optional running headers, and book metadata — while the source story remains untouchable.</p>
+          <p>Version 0.5 turns long-book production into a navigable workspace: chapter/page navigator, spread scrubber, zoomable preview, and direct chapter jumps — while the source story remains untouchable.</p>
         </div>
         <div class="story-lock-pill"><span class="dot"></span> Story Lock is mandatory</div>
       </section>
@@ -89,11 +92,12 @@ function renderSidebar() {
   const hasProject = Boolean(state.project);
   return `
     <aside class="sidebar">
-      <div class="sidebar-head"><strong>Publish workspace</strong><span>0.4 understands the whole book around the Story-Locked manuscript.</span></div>
+      <div class="sidebar-head"><strong>Publish workspace</strong><span>0.5 makes 500+ page books fast to inspect without touching the Story-Locked manuscript.</span></div>
       <nav class="sidebar-nav">
         ${navButton('import', '＋', hasProject ? 'Project' : 'Import')}
         ${navButton('chapters', '☷', 'Contents', !hasProject)}
         ${navButton('matter', '§', 'Book Matter', !hasProject)}
+        ${navButton('navigator', '⌘', 'Navigator', !hasProject)}
         ${navButton('design', 'Aa', 'Design', !hasProject)}
         ${navButton('print', '▣', 'Print Preview', !hasProject)}
         ${navButton('source', '≡', 'Source', !hasProject)}
@@ -113,6 +117,7 @@ function renderMain() {
   if (!state.project) return renderImport();
   if (state.activeView === 'chapters') return renderChapters();
   if (state.activeView === 'matter') return renderMatter();
+  if (state.activeView === 'navigator') return renderNavigator();
   if (state.activeView === 'design') return renderDesign();
   if (state.activeView === 'print') return renderPrint();
   if (state.activeView === 'source') return renderSource();
@@ -134,7 +139,7 @@ function renderImport() {
       </div>
     </article>
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">v0.4 capability</div><h2>Publish now understands the whole book</h2><p>Front matter, the chapter body, and recognized back matter are mapped without moving or rewriting a single source paragraph.</p></div></div>
+      <div class="panel-head"><div><div class="eyebrow">v0.5 capability</div><h2>Navigate the whole damn book</h2><p>Jump from chapter to chapter, scrub hundreds of physical pages, and zoom the spread preview without changing one manuscript character.</p></div></div>
       <div class="summary-grid six">
         <div class="stat"><b>✓</b><span>Read DOCX</span></div>
         <div class="stat"><b>✓</b><span>Story Lock</span></div>
@@ -178,7 +183,7 @@ function renderProject() {
       <div class="action-row"><button class="btn primary" data-go-view="design">Set print design</button><button class="btn secondary" data-go-view="print">Build print preview</button></div>
     </article>
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">0.4 book engine</div><h2>Structure without manuscript surgery</h2><p>Publish can now identify the material before Chapter 1, the chapter body, and recognized back matter such as About the Authors or Join the Journey without reordering source blocks.</p></div></div>
+      <div class="panel-head"><div><div class="eyebrow">0.5 production workspace</div><h2>Long-book inspection without manuscript surgery</h2><p>Publish can now identify the material before Chapter 1, the chapter body, and recognized back matter such as About the Authors or Join the Journey without reordering source blocks.</p></div></div>
       <div class="notice info"><strong>Story Lock still wins:</strong> inline bold/italic/underline styling is rendered from DOCX run metadata, but the exact manuscript characters are independently verified after pagination.</div>
     </article>`;
 }
@@ -219,6 +224,61 @@ function renderMatter() {
         <section class="design-card"><div class="eyebrow">After the story</div><h3>Back matter</h3><p class="matter-copy">Recognized post-story headings begin a back-matter section while normal book numbering continues.</p>${headingRows(back, 'No recognized back-matter heading was detected yet. Nothing was guessed.')}</section>
       </div>
       <div class="notice info"><strong>Safety behavior:</strong> if Publish cannot confidently identify back matter, it leaves those paragraphs in the chapter body rather than guessing. That can affect layout, but never the story text.</div>
+    </article>`;
+}
+
+
+function currentPhysicalPage() {
+  if (!state.preview?.pages?.length) return 1;
+  const visible = spreadPageNumbers(state.spreadIndex);
+  const candidate = visible.right && visible.right <= state.preview.pages.length ? visible.right : visible.left;
+  return Math.max(1, Math.min(state.preview.pages.length, candidate || 1));
+}
+
+function previewNavigation() {
+  return state.preview ? buildPreviewNavigation(state.preview.pages) : [];
+}
+
+function renderNavigator() {
+  const query = state.navigatorSearch.trim().toLowerCase();
+  const sourceChapters = state.project.manuscript.chapters || [];
+
+  if (!state.preview) {
+    const chapters = sourceChapters.filter((chapter) => !query || chapter.title.toLowerCase().includes(query));
+    return `
+      <article class="panel">
+        <div class="panel-head"><div><span class="badge good">Read-only navigator</span><h2>Manuscript navigator</h2><p>All ${formatNumber(sourceChapters.length)} detected chapters are mapped from the locked source. Build Print Preview to add physical and printed page numbers.</p></div><button class="btn primary" id="buildPreviewFromNavigator">Build page map</button></div>
+        <div class="navigator-toolbar"><input id="navigatorSearch" placeholder="Find a chapter…" value="${escapeHtml(state.navigatorSearch)}"><span>${formatNumber(chapters.length)} shown</span></div>
+        <div class="navigator-list source-only">${chapters.map((chapter) => `
+          <div class="navigator-row">
+            <span class="navigator-kind">CH</span>
+            <div><strong>${escapeHtml(chapter.title)}</strong><small>Source paragraph ${chapter.startIndex + 1} · ${formatNumber(chapter.wordCount)} words</small></div>
+            <span class="navigator-page">—</span>
+          </div>`).join('')}</div>
+        <div class="notice info"><strong>No page numbers guessed.</strong> Page locations only appear after the current design is actually paginated and Story Lock passes.</div>
+      </article>`;
+  }
+
+  const allEntries = previewNavigation();
+  const entries = allEntries.filter((entry) => !query || entry.title.toLowerCase().includes(query) || entry.type.includes(query));
+  const current = currentNavigationEntry(allEntries, currentPhysicalPage());
+  const chapterEntries = allEntries.filter((entry) => entry.type === 'chapter');
+  return `
+    <article class="panel navigator-panel">
+      <div class="panel-head"><div><span class="badge good">Page map built</span><h2>Manuscript navigator</h2><p>Jump through the paginated book without scrolling hundreds of pages. Page mapping is generated from presentation data only.</p></div><button class="btn secondary" id="rebuildPreviewFromNavigator">Rebuild page map</button></div>
+      <div class="navigator-summary">
+        <div><b>${formatNumber(chapterEntries.length)}</b><span>chapters mapped</span></div>
+        <div><b>${formatNumber(state.preview.pages.length)}</b><span>physical pages</span></div>
+        <div><b>${current?.type === 'chapter' ? escapeHtml(current.title.replace(/^Chapter\s+/i,'')) : escapeHtml(current?.title || 'Front')}</b><span>current location</span></div>
+      </div>
+      <div class="navigator-toolbar"><input id="navigatorSearch" placeholder="Find chapter or section…" value="${escapeHtml(state.navigatorSearch)}"><span>${formatNumber(entries.length)} destinations</span></div>
+      <div class="navigator-list">${entries.map((entry) => `
+        <button class="navigator-row ${current?.id === entry.id ? 'active' : ''}" data-nav-page="${entry.physicalPage}">
+          <span class="navigator-kind">${entry.type === 'chapter' ? 'CH' : entry.type === 'front' ? 'FM' : 'BM'}</span>
+          <div><strong>${escapeHtml(entry.title)}</strong><small>Physical ${entry.physicalPage}${entry.bookPageNumber != null ? ` · printed ${entry.bookPageNumber}` : ' · unnumbered'} · spread ${entry.spreadIndex + 1}</small></div>
+          <span class="navigator-page">${entry.bookPageNumber ?? '—'}</span>
+        </button>`).join('')}</div>
+      <div class="notice success"><strong>Navigator is non-destructive.</strong> It stores no alternate copy of the prose; every destination points back to pages generated from the Story-Locked source.</div>
     </article>`;
 }
 
@@ -290,6 +350,24 @@ function renderDesign() {
     </article>`;
 }
 
+function renderPreviewNavigatorRail(preview) {
+  const entries = buildPreviewNavigation(preview.pages);
+  const currentPage = currentPhysicalPage();
+  const current = currentNavigationEntry(entries, currentPage);
+  const query = state.navigatorSearch.trim().toLowerCase();
+  const filtered = entries.filter((entry) => !query || entry.title.toLowerCase().includes(query) || entry.type.includes(query));
+  return `
+    <aside class="preview-rail">
+      <div class="preview-rail-head"><strong>Navigator</strong><span>${formatNumber(entries.filter((entry) => entry.type === 'chapter').length)} chapters</span></div>
+      <input id="previewNavigatorSearch" class="preview-rail-search" placeholder="Find chapter…" value="${escapeHtml(state.navigatorSearch)}">
+      <div class="preview-rail-list">${filtered.map((entry) => `
+        <button class="preview-rail-row ${current?.id === entry.id ? 'active' : ''}" data-nav-page="${entry.physicalPage}">
+          <span>${entry.type === 'chapter' ? 'CH' : entry.type === 'front' ? 'FM' : 'BM'}</span>
+          <div><strong>${escapeHtml(entry.title)}</strong><small>${entry.bookPageNumber != null ? `p. ${entry.bookPageNumber}` : `physical ${entry.physicalPage}`}</small></div>
+        </button>`).join('')}</div>
+    </aside>`;
+}
+
 function renderPrint() {
   if (!state.preview) {
     return `
@@ -298,7 +376,7 @@ function renderPrint() {
         <div class="preview-empty">
           <div class="spread-icon"><span></span><span></span></div>
           <h3>Ready to paginate</h3>
-          <p>Publish will create mirrored left/right pages, force chapters to right-hand odd pages when selected, and insert intentional blank versos automatically.</p>
+          <p>Publish will create mirrored left/right pages, force chapters to right-hand odd pages when selected, insert intentional blank versos automatically, and build a chapter/page navigator.</p>
           <button class="btn primary" id="buildPreview">Build 6×9 preview</button>
         </div>
       </article>`;
@@ -306,10 +384,16 @@ function renderPrint() {
 
   const preview = state.preview;
   const maxSpread = Math.ceil(Math.max(0, preview.pages.length - 1) / 2);
+  state.spreadIndex = Math.max(0, Math.min(maxSpread, state.spreadIndex));
   const spread = getSpread(preview.pages, state.spreadIndex);
+  const entries = buildPreviewNavigation(preview.pages);
+  const currentPage = currentPhysicalPage();
+  const current = currentNavigationEntry(entries, currentPage);
+  const previousChapter = adjacentChapter(entries, currentPage, -1);
+  const nextChapter = adjacentChapter(entries, currentPage, 1);
   return `
     <article class="panel preview-panel">
-      <div class="panel-head"><div><span class="badge good">Story Lock verified before pagination</span><h2>Print preview</h2><p>Structural preview · ${preview.design.trimWidth} × ${preview.design.trimHeight} in · ${preview.design.chapterStarts === 'right' ? 'chapters on right' : 'chapters on next page'}</p></div><button class="btn secondary" id="rebuildPreview">Rebuild</button></div>
+      <div class="panel-head"><div><span class="badge good">Story Lock verified before pagination</span><h2>Print preview</h2><p>Production workbench · ${preview.design.trimWidth} × ${preview.design.trimHeight} in · ${preview.design.chapterStarts === 'right' ? 'chapters on right' : 'chapters on next page'}</p></div><button class="btn secondary" id="rebuildPreview">Rebuild</button></div>
       <div class="preview-stats six">
         <div><b>${formatNumber(preview.pages.length)}</b><span>physical pages</span></div>
         <div><b>${formatNumber(preview.blankVersos)}</b><span>blank versos inserted</span></div>
@@ -318,17 +402,26 @@ function renderPrint() {
         <div><b>${formatNumber(preview.structure?.frontMatterBlocks || 0)}</b><span>front matter ¶</span></div>
         <div><b>${formatNumber(preview.structure?.backMatterBlocks || 0)}</b><span>back matter ¶</span></div>
       </div>
-      <div class="spread-toolbar">
-        <button class="btn secondary small" id="prevSpread" ${state.spreadIndex <= 0 ? 'disabled' : ''}>← Previous</button>
-        <span>Spread ${state.spreadIndex + 1} of ${maxSpread + 1}</span>
-        <div class="jump-wrap"><label for="jumpPage">Go to page</label><input id="jumpPage" type="number" min="1" max="${preview.pages.length}" value="${spread.right?.number || spread.left?.number || 1}"><button class="btn secondary small" id="jumpPageBtn">Go</button></div>
-        <button class="btn secondary small" id="nextSpread" ${state.spreadIndex >= maxSpread ? 'disabled' : ''}>Next →</button>
+      <div class="preview-commandbar">
+        <button class="btn secondary small" id="prevChapter" ${!previousChapter || previousChapter.physicalPage >= currentPage ? 'disabled' : ''}>⇤ Chapter</button>
+        <button class="btn secondary small" id="prevSpread" ${state.spreadIndex <= 0 ? 'disabled' : ''}>← Spread</button>
+        <div class="preview-location"><strong>${escapeHtml(current?.title || 'Front Matter')}</strong><span>Spread ${state.spreadIndex + 1} / ${maxSpread + 1} · physical ${spread.left?.number ? `${spread.left.number}–` : ''}${spread.right?.number || spread.left?.number || 1}</span></div>
+        <div class="zoom-wrap"><label>Zoom</label><select id="previewZoom">${[46,58,70,82].map((value) => `<option value="${value}" ${state.previewZoom === value ? 'selected' : ''}>${Math.round(value / 58 * 100)}%</option>`).join('')}</select></div>
+        <div class="jump-wrap"><label for="jumpPage">Page</label><input id="jumpPage" type="number" min="1" max="${preview.pages.length}" value="${currentPage}"><button class="btn secondary small" id="jumpPageBtn">Go</button></div>
+        <button class="btn secondary small" id="nextSpread" ${state.spreadIndex >= maxSpread ? 'disabled' : ''}>Spread →</button>
+        <button class="btn secondary small" id="nextChapter" ${!nextChapter || nextChapter.physicalPage <= currentPage ? 'disabled' : ''}>Chapter ⇥</button>
       </div>
-      <div class="book-spread">
-        ${spread.left ? renderBookPage(spread.left, preview.design) : '<div class="book-page-placeholder"><span>Front</span></div>'}
-        ${spread.right ? renderBookPage(spread.right, preview.design) : '<div class="book-page-placeholder"><span>End</span></div>'}
+      <div class="page-scrubber-wrap"><span>1</span><input id="pageScrubber" type="range" min="1" max="${preview.pages.length}" value="${currentPage}" step="1"><span>${preview.pages.length}</span></div>
+      <div class="preview-workbench">
+        ${renderPreviewNavigatorRail(preview)}
+        <div class="preview-stage">
+          <div class="book-spread">
+            ${spread.left ? renderBookPage(spread.left, preview.design) : '<div class="book-page-placeholder"><span>Front</span></div>'}
+            ${spread.right ? renderBookPage(spread.right, preview.design) : '<div class="book-page-placeholder"><span>End</span></div>'}
+          </div>
+        </div>
       </div>
-      <div class="notice success preview-note"><strong>0.4 whole-book typesetting:</strong> front/body/back matter mapping, optional running headers, page furniture, Book 1 typography, right-page chapters, and Story Lock pagination integrity are active.</div>
+      <div class="notice success preview-note"><strong>0.5 production navigator:</strong> direct chapter jumps, page scrubber, zoomable spreads, front/body/back destinations, and Story Lock pagination integrity are active.</div>
     </article>`;
 }
 
@@ -384,7 +477,7 @@ function renderChapterTitle(text) {
 }
 
 function renderBookPage(page, design) {
-  const px = PREVIEW_PX_PER_INCH;
+  const px = state.previewZoom || PREVIEW_PX_PER_INCH;
   const width = design.trimWidth * px;
   const height = design.trimHeight * px;
   const top = design.topMargin * px;
@@ -406,7 +499,7 @@ function renderBookPage(page, design) {
   const fragments = page.intentionalBlank
     ? `<div class="intentional-blank">Intentional blank verso<br><small>Kept blank so the next chapter opens on the right.</small></div>`
     : page.fragments.map((fragment) => {
-      if (fragment.kind === 'blank') return `<div class="print-fragment blank-space" style="height:${fragment.previewHeight || 6}px"></div>`;
+      if (fragment.kind === 'blank') return `<div class="print-fragment blank-space" style="height:${(fragment.previewHeight || 6) * (px / PREVIEW_PX_PER_INCH)}px"></div>`;
       const classes = `print-fragment ${escapeHtml(fragment.kind)} ${fragment.continuation ? 'continuation' : ''}`;
       let extra = '';
       let content = renderInlineRuns(fragment);
@@ -457,7 +550,7 @@ function renderSource() {
 function renderLibrary() {
   return `
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">Local projects</div><h2>Library</h2><p>Projects live in this browser's IndexedDB. Older projects are migrated to the 0.4 book-structure model without touching source blocks or Story Lock hashes.</p></div><button class="btn primary" id="libraryImport">New project</button></div>
+      <div class="panel-head"><div><div class="eyebrow">Local projects</div><h2>Library</h2><p>Projects live in this browser's IndexedDB. Older projects are migrated to the 0.5 navigation model without touching source blocks or Story Lock hashes.</p></div><button class="btn primary" id="libraryImport">New project</button></div>
       ${state.projects.length ? `<div class="project-list">${state.projects.map((raw) => { const p = migrateProject(raw); return `
         <div class="project-row">
           <div><strong>${escapeHtml(p.title)}</strong><span>${escapeHtml(p.source.fileName)} · ${p.manuscript.stats.chapters} chapters · ${formatNumber(p.manuscript.stats.words)} words · Updated ${new Date(p.updatedAt).toLocaleString()}</span></div>
@@ -523,6 +616,27 @@ function bindDynamicEvents() {
     search._timer = setTimeout(updateMain, 180);
   });
 
+  const navigatorSearch = document.querySelector('#navigatorSearch');
+  navigatorSearch?.addEventListener('input', (event) => {
+    state.navigatorSearch = event.target.value;
+    clearTimeout(navigatorSearch._timer);
+    navigatorSearch._timer = setTimeout(updateMain, 140);
+  });
+  const previewNavigatorSearch = document.querySelector('#previewNavigatorSearch');
+  previewNavigatorSearch?.addEventListener('input', (event) => {
+    state.navigatorSearch = event.target.value;
+    clearTimeout(previewNavigatorSearch._timer);
+    previewNavigatorSearch._timer = setTimeout(updateMain, 140);
+  });
+
+  document.querySelector('#buildPreviewFromNavigator')?.addEventListener('click', buildPreview);
+  document.querySelector('#rebuildPreviewFromNavigator')?.addEventListener('click', buildPreview);
+  document.querySelectorAll('[data-nav-page]').forEach((button) => button.addEventListener('click', () => {
+    jumpToPhysicalPage(Number(button.dataset.navPage));
+    if (state.activeView === 'navigator') state.activeView = 'print';
+    updateMain();
+  }));
+
   document.querySelector('#prevSpread')?.addEventListener('click', () => { state.spreadIndex = Math.max(0, state.spreadIndex - 1); updateMain(); });
   document.querySelector('#nextSpread')?.addEventListener('click', () => {
     if (!state.preview) return;
@@ -532,6 +646,13 @@ function bindDynamicEvents() {
   });
   document.querySelector('#jumpPageBtn')?.addEventListener('click', jumpToPage);
   document.querySelector('#jumpPage')?.addEventListener('keydown', (event) => { if (event.key === 'Enter') jumpToPage(); });
+  document.querySelector('#pageScrubber')?.addEventListener('change', (event) => jumpToPhysicalPage(Number(event.target.value), true));
+  document.querySelector('#previewZoom')?.addEventListener('change', (event) => {
+    state.previewZoom = Number(event.target.value) || PREVIEW_PX_PER_INCH;
+    updateMain();
+  });
+  document.querySelector('#prevChapter')?.addEventListener('click', () => jumpAdjacentChapter(-1));
+  document.querySelector('#nextChapter')?.addEventListener('click', () => jumpAdjacentChapter(1));
 
   document.querySelectorAll('[data-open-project]').forEach((button) => button.addEventListener('click', async () => {
     const loaded = await loadProject(button.dataset.openProject);
@@ -551,12 +672,24 @@ function bindDynamicEvents() {
   }));
 }
 
-function jumpToPage() {
+function jumpToPhysicalPage(value, rerender = true) {
   if (!state.preview) return;
+  const page = Math.max(1, Math.min(state.preview.pages.length, Math.round(Number(value) || 1)));
+  state.spreadIndex = spreadIndexForPhysicalPage(page);
+  if (rerender) updateMain();
+}
+
+function jumpToPage() {
   const value = Number(document.querySelector('#jumpPage')?.value || 1);
-  const page = Math.max(1, Math.min(state.preview.pages.length, Math.round(value)));
-  state.spreadIndex = page === 1 ? 0 : Math.ceil((page - 1) / 2);
-  updateMain();
+  jumpToPhysicalPage(value, true);
+}
+
+function jumpAdjacentChapter(direction) {
+  if (!state.preview) return;
+  const entries = buildPreviewNavigation(state.preview.pages);
+  const target = adjacentChapter(entries, currentPhysicalPage(), direction);
+  if (!target) return;
+  jumpToPhysicalPage(target.physicalPage, true);
 }
 
 async function importFile(file) {

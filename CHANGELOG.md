@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.0 — Long-book navigator + production workbench
+
+- Added a dedicated Manuscript Navigator view for fast chapter inspection.
+- Added page-map generation after safe pagination; no page numbers are guessed before layout exists.
+- Added direct jumps to front matter, every detected chapter, and recognized back matter.
+- Added previous/next chapter navigation in Print Preview.
+- Added a full-book physical-page scrubber for large manuscripts.
+- Added searchable navigator rail beside the two-page spread.
+- Added four preview zoom levels without changing pagination or manuscript content.
+- Added current chapter/location highlighting and physical/printed page readouts.
+- Added tested physical-page ↔ spread mapping helpers.
+- Story Lock and post-pagination paragraph reconstruction remain mandatory.
+
 ## 0.4.0 — Whole-book structure + page furniture
 
 - Added read-only Book Matter view that maps front matter, chapter body, and recognized back matter without moving source paragraphs.

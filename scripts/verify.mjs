@@ -11,6 +11,7 @@ const required = [
   'src/lib/project-store.js',
   'src/lib/print-model.js',
   'src/lib/structure-model.js',
+  'src/lib/navigator-model.js',
   'public/vendor/jszip.min.js',
   'STORY-LOCK-SPEC.md',
 ];
@@ -19,7 +20,7 @@ for (const file of required) {
   if (!existsSync(file)) throw new Error(`Missing required file: ${file}`);
 }
 
-for (const file of ['src/main.js', 'src/lib/docx-parser.js', 'src/lib/hash.js', 'src/lib/project.js', 'src/lib/project-store.js', 'src/lib/print-model.js', 'src/lib/structure-model.js']) {
+for (const file of ['src/main.js', 'src/lib/docx-parser.js', 'src/lib/hash.js', 'src/lib/project.js', 'src/lib/project-store.js', 'src/lib/print-model.js', 'src/lib/structure-model.js', 'src/lib/navigator-model.js']) {
   execFileSync(process.execPath, ['--check', file], { stdio: 'inherit' });
 }
 
@@ -28,4 +29,4 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
   throw new Error('index.html is not wired to the self-contained runtime.');
 }
 
-console.log('YasReady Publish v0.4.0 static verification passed.');
+console.log('YasReady Publish v0.5.0 static verification passed.');

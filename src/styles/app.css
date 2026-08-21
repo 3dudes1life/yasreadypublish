@@ -237,7 +237,7 @@ button { cursor: pointer; }
   .jump-wrap { grid-column:1 / -1; order:2; }
 }
 @media (max-width: 1050px) {
-  .sidebar-nav { grid-template-columns:repeat(7,1fr); }
+  .sidebar-nav { grid-template-columns:repeat(8,1fr); }
 }
 @media (max-width: 760px) {
   .summary-grid.six,.preview-stats { grid-template-columns:repeat(2,1fr); }
@@ -307,4 +307,71 @@ button { cursor: pointer; }
 @media (max-width:700px) {
   .matter-summary,.preview-stats.six { grid-template-columns:repeat(2,1fr); }
   .matter-flow { flex-wrap:wrap; }
+}
+
+/* v0.5 long-book navigator + production workbench */
+.navigator-toolbar { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+.navigator-toolbar input { flex:1; min-height:42px; border:1px solid var(--line-strong); border-radius:11px; padding:9px 11px; background:#fff; color:var(--text); }
+.navigator-toolbar > span { color:var(--muted); font-size:10px; font-weight:800; white-space:nowrap; }
+.navigator-summary { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px; }
+.navigator-summary > div { min-width:0; padding:14px; border:1px solid var(--line); border-radius:14px; background:#fafafa; }
+.navigator-summary b { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:19px; letter-spacing:-.03em; }
+.navigator-summary span { display:block; margin-top:3px; color:var(--muted); font-size:9px; font-weight:850; text-transform:uppercase; letter-spacing:.045em; }
+.navigator-list { display:grid; gap:7px; max-height:610px; overflow:auto; padding-right:3px; margin-bottom:14px; }
+.navigator-row { width:100%; display:grid; grid-template-columns:36px minmax(0,1fr) 54px; align-items:center; gap:10px; padding:10px 11px; border:1px solid var(--line); border-radius:12px; background:#fff; color:var(--text); text-align:left; font:inherit; }
+button.navigator-row { cursor:pointer; }
+button.navigator-row:hover { border-color:#c8c4e8; background:#faf9ff; }
+.navigator-row.active { border-color:#9d91f5; background:#f4f1ff; box-shadow:0 0 0 1px rgba(125,109,233,.08); }
+.navigator-kind { width:32px; height:32px; display:grid; place-items:center; border-radius:9px; background:#f0f0f3; color:#77777d; font-size:9px; font-weight:900; letter-spacing:.04em; }
+.navigator-row.active .navigator-kind { background:#e5dfff; color:#5e50bb; }
+.navigator-row strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; }
+.navigator-row small { display:block; margin-top:2px; color:var(--muted); font-size:9px; }
+.navigator-page { text-align:right; color:#4f4f54; font-size:13px; font-weight:850; }
+
+.preview-commandbar { display:grid; grid-template-columns:auto auto minmax(180px,1fr) auto auto auto auto; align-items:center; gap:8px; margin-bottom:9px; padding:9px; border:1px solid var(--line); border-radius:14px; background:#fafafa; }
+.preview-location { min-width:0; padding:0 5px; }
+.preview-location strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; }
+.preview-location span { display:block; margin-top:2px; color:var(--muted); font-size:9px; }
+.zoom-wrap { display:flex; align-items:center; gap:6px; }
+.zoom-wrap label { color:var(--muted); font-size:9px; font-weight:800; }
+.zoom-wrap select { min-height:36px; border:1px solid var(--line-strong); border-radius:9px; padding:6px 8px; background:#fff; color:var(--text); font-size:10px; font-weight:750; }
+.page-scrubber-wrap { display:grid; grid-template-columns:22px 1fr 36px; align-items:center; gap:8px; margin:0 4px 12px; color:var(--muted); font-size:9px; font-weight:800; }
+.page-scrubber-wrap span:last-child { text-align:right; }
+.page-scrubber-wrap input[type="range"] { width:100%; accent-color:#6f61dc; }
+.preview-workbench { display:grid; grid-template-columns:250px minmax(0,1fr); gap:12px; min-height:610px; }
+.preview-rail { min-width:0; display:flex; flex-direction:column; border:1px solid var(--line); border-radius:16px; background:#fff; overflow:hidden; }
+.preview-rail-head { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:13px 13px 9px; }
+.preview-rail-head strong { font-size:12px; }
+.preview-rail-head span { color:var(--muted); font-size:9px; font-weight:800; }
+.preview-rail-search { margin:0 10px 9px; min-height:36px; border:1px solid var(--line-strong); border-radius:9px; padding:7px 9px; font-size:10px; }
+.preview-rail-list { overflow:auto; padding:0 7px 9px; }
+.preview-rail-row { width:100%; display:grid; grid-template-columns:28px minmax(0,1fr); align-items:center; gap:7px; padding:8px 7px; border:0; border-radius:9px; background:transparent; color:var(--text); text-align:left; cursor:pointer; }
+.preview-rail-row:hover { background:#f6f5fb; }
+.preview-rail-row.active { background:#ede9ff; }
+.preview-rail-row > span { width:25px; height:25px; display:grid; place-items:center; border-radius:7px; background:#efeff2; color:#77777d; font-size:8px; font-weight:900; }
+.preview-rail-row.active > span { background:#dcd4ff; color:#594aa9; }
+.preview-rail-row strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:9px; }
+.preview-rail-row small { display:block; margin-top:1px; color:var(--muted); font-size:8px; }
+.preview-stage { min-width:0; overflow:hidden; }
+.preview-stage .book-spread { height:100%; min-height:610px; }
+
+@media (max-width:1180px) {
+  .preview-commandbar { grid-template-columns:auto auto 1fr auto auto; }
+  .preview-commandbar .jump-wrap { grid-column:auto; order:initial; }
+  #nextSpread,#nextChapter { grid-row:2; }
+  .preview-workbench { grid-template-columns:210px minmax(0,1fr); }
+}
+@media (max-width:980px) {
+  .preview-workbench { grid-template-columns:1fr; }
+  .preview-rail { max-height:270px; }
+  .preview-commandbar { grid-template-columns:repeat(2,1fr); }
+  .preview-location { grid-column:1 / -1; grid-row:1; }
+  .zoom-wrap,.jump-wrap { justify-content:center; }
+}
+@media (max-width:760px) {
+  .navigator-summary { grid-template-columns:1fr; }
+  .navigator-toolbar { align-items:stretch; flex-direction:column; }
+  .preview-commandbar { grid-template-columns:1fr 1fr; }
+  .preview-commandbar .btn { width:100%; }
+  .preview-location { text-align:center; }
 }
