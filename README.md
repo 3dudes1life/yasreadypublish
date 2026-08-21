@@ -1,26 +1,29 @@
-# YasReady Publish v0.3.0
+# YasReady Publish v0.4.0
 
 Private manuscript-to-book production software.
 
 ## Current milestone
 
-v0.3 adds the first production-calibrated design preset: **Tres Amigos Series · Book 1**. It is based on measurements from the published Book 1 paperback and sits entirely outside the locked manuscript content layer.
+v0.4 adds **whole-book structure and page furniture** around the Story-Locked manuscript. Publish now distinguishes front matter, chapter body, and recognized back matter; stores book title/author as metadata; and can render optional running headers without inserting anything into the manuscript.
 
-### Active in v0.3
+### Active in v0.4
 
 - Local DOCX import
 - SHA-256 Story Lock
+- Read-only Source Inspector
 - Chapter detection
-- Read-only source inspector
+- Front matter mapping before Chapter 1
+- Conservative back matter detection (About the Authors, Join the Journey, acknowledgments, etc.)
+- Book title + author metadata stored outside manuscript text
 - 6×9 mirrored page model
-- Right-hand/odd chapter starts
-- Automatic blank versos
-- Book 1-calibrated page geometry and typography
-- Inline bold/italic/underline/strike/small-caps rendering
-- Printed page numbers beginning at Chapter 1, with front matter unnumbered
-- Outside-bottom folios matching Book 1's placement logic
-- Two-page preview
-- Post-pagination manuscript integrity verification
+- Right-hand/odd chapter starts and automatic blank versos
+- Tres Amigos Series · Book 1 typography and margins
+- Printed folios beginning at Chapter 1
+- Optional running headers with three metadata patterns
+- Automatic running-header suppression on front matter, back matter and chapter openings
+- Back matter begins on a fresh physical page when confidently detected
+- Two-page spread preview with section labels
+- Post-pagination source-text integrity verification
 
 ### Not claimed yet
 
@@ -32,7 +35,7 @@ v0.3 adds the first production-calibrated design preset: **Tres Amigos Series ·
 
 ## Story Lock
 
-Formatting is allowed to change presentation only. Manuscript wording cannot be edited by YasReady Publish. Pagination is blocked if source integrity verification fails.
+Formatting is presentation metadata only. Matter detection never reorders source blocks. Running headers are generated from project metadata and chapter structure, never inserted into manuscript text. If Story Lock fails, pagination remains blocked.
 
 ## Run locally
 

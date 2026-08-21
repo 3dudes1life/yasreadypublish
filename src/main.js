@@ -10,8 +10,9 @@ import {
   pageSide,
   validatePrintDesign,
 } from './lib/print-model.js';
+import { analyzeMatter, chapterForBlockIndex, matterSectionForBlockIndex, runningHeaderText } from './lib/structure-model.js';
 
-const VERSION = '0.3.0';
+const VERSION = '0.4.0';
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
 
@@ -71,7 +72,7 @@ function renderShell() {
         <div>
           <div class="eyebrow">Story-safe book production</div>
           <h1>Build the pages.<br>Protect every word.</h1>
-          <p>Version 0.3 calibrates the first real series template from the published Book 1 interior: Arial typography, Book 1 margins and indents, chapter-opening rhythm, outside-bottom page numbers, and inline emphasis — without touching a word.</p>
+          <p>Version 0.4 adds book-level structure around the locked manuscript: front matter, chapter body, back matter, optional running headers, and book metadata — while the source story remains untouchable.</p>
         </div>
         <div class="story-lock-pill"><span class="dot"></span> Story Lock is mandatory</div>
       </section>
@@ -88,10 +89,11 @@ function renderSidebar() {
   const hasProject = Boolean(state.project);
   return `
     <aside class="sidebar">
-      <div class="sidebar-head"><strong>Publish workspace</strong><span>0.3 adds the first production-calibrated series template on top of Story Lock.</span></div>
+      <div class="sidebar-head"><strong>Publish workspace</strong><span>0.4 understands the whole book around the Story-Locked manuscript.</span></div>
       <nav class="sidebar-nav">
         ${navButton('import', '＋', hasProject ? 'Project' : 'Import')}
         ${navButton('chapters', '☷', 'Contents', !hasProject)}
+        ${navButton('matter', '§', 'Book Matter', !hasProject)}
         ${navButton('design', 'Aa', 'Design', !hasProject)}
         ${navButton('print', '▣', 'Print Preview', !hasProject)}
         ${navButton('source', '≡', 'Source', !hasProject)}
@@ -110,6 +112,7 @@ function renderMain() {
   if (state.activeView === 'library') return renderLibrary();
   if (!state.project) return renderImport();
   if (state.activeView === 'chapters') return renderChapters();
+  if (state.activeView === 'matter') return renderMatter();
   if (state.activeView === 'design') return renderDesign();
   if (state.activeView === 'print') return renderPrint();
   if (state.activeView === 'source') return renderSource();
@@ -131,14 +134,14 @@ function renderImport() {
       </div>
     </article>
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">v0.3 capability</div><h2>Tres Amigos is now a real series template</h2><p>Book 1's published paperback is the calibration target. The design layer can now reproduce its core typography and page behavior.</p></div></div>
+      <div class="panel-head"><div><div class="eyebrow">v0.4 capability</div><h2>Publish now understands the whole book</h2><p>Front matter, the chapter body, and recognized back matter are mapped without moving or rewriting a single source paragraph.</p></div></div>
       <div class="summary-grid six">
         <div class="stat"><b>✓</b><span>Read DOCX</span></div>
         <div class="stat"><b>✓</b><span>Story Lock</span></div>
         <div class="stat"><b>6×9</b><span>Trim</span></div>
         <div class="stat"><b>↔</b><span>Mirror margins</span></div>
         <div class="stat"><b>ODD</b><span>Chapter starts</span></div>
-        <div class="stat"><b>Arial</b><span>Book 1 type</span></div>
+        <div class="stat"><b>§</b><span>Book matter</span></div>
       </div>
     </article>`;
 }
@@ -159,7 +162,11 @@ function renderProject() {
         <div><strong>Story Lock verified</strong><p>Design can repaginate this manuscript, but source wording remains fingerprinted and read-only.</p></div>
         <div class="lock-hash">MANUSCRIPT SHA-256<br>${escapeHtml(shortHash(p.source.manuscriptHash, 18))}</div>
       </div>
-      <div class="project-title-row"><input id="projectTitle" value="${escapeHtml(p.title)}" aria-label="Project title"><button class="btn secondary" id="saveTitle">Save project name</button><button class="btn secondary" id="verifyLock">Verify Story Lock</button></div>
+      <div class="project-meta-grid">
+        <label><span>Book title metadata</span><input id="projectTitle" value="${escapeHtml(p.title)}" aria-label="Project title"></label>
+        <label><span>Author metadata</span><input id="projectAuthor" value="${escapeHtml(p.author || '')}" placeholder="Author / imprint name" aria-label="Author"></label>
+        <div class="project-meta-actions"><button class="btn secondary" id="saveMetadata">Save metadata</button><button class="btn secondary" id="verifyLock">Verify Story Lock</button></div>
+      </div>
       <div class="summary-grid">
         <div class="stat"><b>${formatNumber(s.chapters)}</b><span>Chapters</span></div>
         <div class="stat"><b>${formatNumber(s.words)}</b><span>Words</span></div>
@@ -171,7 +178,7 @@ function renderProject() {
       <div class="action-row"><button class="btn primary" data-go-view="design">Set print design</button><button class="btn secondary" data-go-view="print">Build print preview</button></div>
     </article>
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">0.3 series engine</div><h2>Book 1 becomes the visual rulebook</h2><p>The published paperback measured 6×9, Arial 12 pt body text, a 0.5 in first-line indent, wide binding margin, and outside-bottom folios. Those rules now live in the Tres Amigos template.</p></div></div>
+      <div class="panel-head"><div><div class="eyebrow">0.4 book engine</div><h2>Structure without manuscript surgery</h2><p>Publish can now identify the material before Chapter 1, the chapter body, and recognized back matter such as About the Authors or Join the Journey without reordering source blocks.</p></div></div>
       <div class="notice info"><strong>Story Lock still wins:</strong> inline bold/italic/underline styling is rendered from DOCX run metadata, but the exact manuscript characters are independently verified after pagination.</div>
     </article>`;
 }
@@ -187,6 +194,31 @@ function renderChapters() {
           <div><strong>${escapeHtml(chapter.title)}</strong><small>Starts at source paragraph ${chapter.startIndex + 1} · ${chapter.paragraphCount} body paragraphs</small></div>
           <span class="words">${formatNumber(chapter.wordCount)} words</span>
         </div>`).join('')}</div>` : `<div class="notice info">No chapters detected. Source content remains intact; Publish did not guess or rewrite anything.</div>`}
+    </article>`;
+}
+
+
+function renderMatter() {
+  const structure = analyzeMatter(state.project.manuscript.blocks);
+  const front = structure.frontMatterHeadings;
+  const back = structure.backMatterHeadings;
+  const headingRows = (items, emptyText) => items.length
+    ? `<div class="matter-heading-list">${items.map((block) => `<div><span>${block.index + 1}</span><strong>${escapeHtml(block.text.trim())}</strong><small>${escapeHtml(block.kind)} · ${escapeHtml(block.style?.name || 'Normal')}</small></div>`).join('')}</div>`
+    : `<div class="matter-empty">${escapeHtml(emptyText)}</div>`;
+  return `
+    <article class="panel">
+      <div class="panel-head"><div><span class="badge good">Read-only structure map</span><h2>Book matter</h2><p>Publish maps where the book changes sections. It does not move, delete, rewrite, or invent manuscript paragraphs.</p></div></div>
+      <div class="matter-summary">
+        <div><b>${formatNumber(structure.counts.frontMatterBlocks)}</b><span>front-matter paragraphs</span></div>
+        <div><b>${formatNumber(structure.counts.chapters)}</b><span>chapters</span></div>
+        <div><b>${formatNumber(structure.counts.backMatterBlocks)}</b><span>back-matter paragraphs</span></div>
+      </div>
+      <div class="matter-flow"><span>FRONT MATTER</span><i>→</i><span>CHAPTER BODY</span><i>→</i><span>BACK MATTER</span></div>
+      <div class="matter-grid">
+        <section class="design-card"><div class="eyebrow">Before Chapter 1</div><h3>Front matter</h3><p class="matter-copy">Everything before the first detected chapter stays in source order and is unnumbered by the Tres Amigos template.</p>${headingRows(front, 'No styled front-matter headings were detected. The source paragraphs are still preserved.')}</section>
+        <section class="design-card"><div class="eyebrow">After the story</div><h3>Back matter</h3><p class="matter-copy">Recognized post-story headings begin a back-matter section while normal book numbering continues.</p>${headingRows(back, 'No recognized back-matter heading was detected yet. Nothing was guessed.')}</section>
+      </div>
+      <div class="notice info"><strong>Safety behavior:</strong> if Publish cannot confidently identify back matter, it leaves those paragraphs in the chapter body rather than guessing. That can affect layout, but never the story text.</div>
     </article>`;
 }
 
@@ -234,6 +266,17 @@ function renderDesign() {
           </div>
           <div class="design-readout"><span>Live text box</span><strong>${validation.content.width.toFixed(2)} × ${validation.content.height.toFixed(2)} in</strong></div>
         </section>
+        <section class="design-card">
+          <div class="eyebrow">Page furniture</div><h3>Folios + running headers</h3>
+          <label class="design-field"><span>Page numbers</span><select id="pageNumbers"><option value="outside-bottom" ${d.pageNumbers === 'outside-bottom' ? 'selected' : ''}>Outside bottom</option><option value="none" ${d.pageNumbers === 'none' ? 'selected' : ''}>Off</option></select></label>
+          <label class="toggle-row"><input type="checkbox" id="runningHeaders" ${d.runningHeaders ? 'checked' : ''}><span><strong>Running headers</strong><small>Off by default for the Tres Amigos Book 1 template.</small></span></label>
+          <label class="design-field"><span>Running-header pattern</span><select id="runningHeaderMode"><option value="book-chapter" ${d.runningHeaderMode === 'book-chapter' ? 'selected' : ''}>Book title / chapter title</option><option value="author-book" ${d.runningHeaderMode === 'author-book' ? 'selected' : ''}>Author / book title</option><option value="book-author" ${d.runningHeaderMode === 'book-author' ? 'selected' : ''}>Book title / author</option></select></label>
+          <div class="field-grid two">
+            ${designNumberField('runningHeaderFontSize', 'Header size', d.runningHeaderFontSize, '0.25', '6', '14', 'pt')}
+            <label class="toggle-row compact"><input type="checkbox" id="suppressHeaderOnChapterOpen" ${d.suppressHeaderOnChapterOpen ? 'checked' : ''}><span><strong>Hide on chapter openings</strong><small>Recommended.</small></span></label>
+          </div>
+          <div class="notice info mini">Headers are generated from book metadata and chapter structure. They are not inserted into the Story-Locked manuscript.</div>
+        </section>
       </div>
       <div class="calibration-grid">
         <div><b>6 × 9</b><span>published trim</span></div>
@@ -267,11 +310,13 @@ function renderPrint() {
   return `
     <article class="panel preview-panel">
       <div class="panel-head"><div><span class="badge good">Story Lock verified before pagination</span><h2>Print preview</h2><p>Structural preview · ${preview.design.trimWidth} × ${preview.design.trimHeight} in · ${preview.design.chapterStarts === 'right' ? 'chapters on right' : 'chapters on next page'}</p></div><button class="btn secondary" id="rebuildPreview">Rebuild</button></div>
-      <div class="preview-stats">
+      <div class="preview-stats six">
         <div><b>${formatNumber(preview.pages.length)}</b><span>physical pages</span></div>
         <div><b>${formatNumber(preview.blankVersos)}</b><span>blank versos inserted</span></div>
         <div><b>${formatNumber(preview.chapterStarts)}</b><span>chapter starts</span></div>
         <div><b>${formatNumber(preview.chaptersOnRight)}</b><span>chapters on right</span></div>
+        <div><b>${formatNumber(preview.structure?.frontMatterBlocks || 0)}</b><span>front matter ¶</span></div>
+        <div><b>${formatNumber(preview.structure?.backMatterBlocks || 0)}</b><span>back matter ¶</span></div>
       </div>
       <div class="spread-toolbar">
         <button class="btn secondary small" id="prevSpread" ${state.spreadIndex <= 0 ? 'disabled' : ''}>← Previous</button>
@@ -283,7 +328,7 @@ function renderPrint() {
         ${spread.left ? renderBookPage(spread.left, preview.design) : '<div class="book-page-placeholder"><span>Front</span></div>'}
         ${spread.right ? renderBookPage(spread.right, preview.design) : '<div class="book-page-placeholder"><span>End</span></div>'}
       </div>
-      <div class="notice success preview-note"><strong>0.3 Story-safe typesetting:</strong> Book 1 typography, paragraph rhythm, right-page chapters, front-matter folio suppression, outside-bottom page numbers, and inline emphasis are active. Pagination integrity re-checks every source paragraph after layout.</div>
+      <div class="notice success preview-note"><strong>0.4 whole-book typesetting:</strong> front/body/back matter mapping, optional running headers, page furniture, Book 1 typography, right-page chapters, and Story Lock pagination integrity are active.</div>
     </article>`;
 }
 
@@ -356,6 +401,7 @@ function renderBookPage(page, design) {
   const chapterAfter = design.chapterAfterSpace * px;
   const chapterSize = design.chapterTitleSize * (96 / 72) * (px / 96);
   const pageNumberSize = design.pageNumberFontSize * (96 / 72) * (px / 96);
+  const runningHeaderSize = design.runningHeaderFontSize * (96 / 72) * (px / 96);
 
   const fragments = page.intentionalBlank
     ? `<div class="intentional-blank">Intentional blank verso<br><small>Kept blank so the next chapter opens on the right.</small></div>`
@@ -378,8 +424,14 @@ function renderBookPage(page, design) {
 
   const folio = design.pageNumbers !== 'none' && page.bookPageNumber != null
     ? `<div class="book-folio ${isLeft ? 'left' : 'right'}" style="font-size:${pageNumberSize}px">${page.bookPageNumber}</div>` : '';
+  const headerText = page.showRunningHeader
+    ? runningHeaderText({ side: page.side, projectTitle: state.project?.title || '', author: state.project?.author || '', chapterTitle: page.chapterTitle || '', mode: design.runningHeaderMode })
+    : '';
+  const header = design.runningHeaders && headerText
+    ? `<div class="book-running-header ${isLeft ? 'left' : 'right'}" style="font-size:${runningHeaderSize}px">${escapeHtml(headerText)}</div>` : '';
+  const sectionLabel = page.section === 'front' ? 'front matter' : page.section === 'back' ? 'back matter' : (page.chapterTitle || 'book body');
 
-  return `<div class="book-page-wrap"><div class="book-page-label">${page.side.toUpperCase()} · physical ${page.number}${page.bookPageNumber != null ? ` · book ${page.bookPageNumber}` : ' · front matter'}</div><div class="book-page ${page.intentionalBlank ? 'is-blank' : ''}" style="width:${width}px;height:${height}px;padding:${padding};font-family:${fontStack(design.bodyFont)};font-size:${fontSize}px;line-height:${design.lineHeight};">${fragments}${folio}</div></div>`;
+  return `<div class="book-page-wrap"><div class="book-page-label">${page.side.toUpperCase()} · physical ${page.number}${page.bookPageNumber != null ? ` · book ${page.bookPageNumber}` : ' · unnumbered'} · ${escapeHtml(sectionLabel)}</div><div class="book-page ${page.intentionalBlank ? 'is-blank' : ''}" style="width:${width}px;height:${height}px;padding:${padding};font-family:${fontStack(design.bodyFont)};font-size:${fontSize}px;line-height:${design.lineHeight};">${header}${fragments}${folio}</div></div>`;
 }
 
 function renderSource() {
@@ -405,7 +457,7 @@ function renderSource() {
 function renderLibrary() {
   return `
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">Local projects</div><h2>Library</h2><p>Projects live in this browser's IndexedDB. Older projects are migrated to the 0.3 design model without touching source blocks or Story Lock hashes.</p></div><button class="btn primary" id="libraryImport">New project</button></div>
+      <div class="panel-head"><div><div class="eyebrow">Local projects</div><h2>Library</h2><p>Projects live in this browser's IndexedDB. Older projects are migrated to the 0.4 book-structure model without touching source blocks or Story Lock hashes.</p></div><button class="btn primary" id="libraryImport">New project</button></div>
       ${state.projects.length ? `<div class="project-list">${state.projects.map((raw) => { const p = migrateProject(raw); return `
         <div class="project-row">
           <div><strong>${escapeHtml(p.title)}</strong><span>${escapeHtml(p.source.fileName)} · ${p.manuscript.stats.chapters} chapters · ${formatNumber(p.manuscript.stats.words)} words · Updated ${new Date(p.updatedAt).toLocaleString()}</span></div>
@@ -452,7 +504,7 @@ function bindDynamicEvents() {
   document.querySelector('#libraryImport')?.addEventListener('click', () => {
     state.project = null; state.preview = null; state.activeView = 'import'; state.error = ''; renderShell();
   });
-  document.querySelector('#saveTitle')?.addEventListener('click', saveProjectTitle);
+  document.querySelector('#saveMetadata')?.addEventListener('click', saveProjectMetadata);
   document.querySelector('#verifyLock')?.addEventListener('click', verifyLock);
   document.querySelector('#saveDesign')?.addEventListener('click', saveDesign);
   document.querySelector('#applyTresTemplate')?.addEventListener('click', applyTresAmigosTemplate);
@@ -538,13 +590,15 @@ async function importFile(file) {
   }
 }
 
-async function saveProjectTitle() {
+async function saveProjectMetadata() {
   if (!state.project) return;
-  const input = document.querySelector('#projectTitle');
-  const title = input?.value.trim();
+  const title = document.querySelector('#projectTitle')?.value.trim();
+  const author = document.querySelector('#projectAuthor')?.value.trim() || '';
   if (!title) return;
   state.project.title = title;
+  state.project.author = author;
   state.project.updatedAt = new Date().toISOString();
+  state.preview = null;
   await saveProject(state.project);
   state.projects = await listProjects();
   updateMain();
@@ -599,6 +653,11 @@ async function saveDesign() {
     chapterTopSpace: value('chapterTopSpace'),
     chapterAfterSpace: value('chapterAfterSpace'),
     pageNumberFontSize: value('pageNumberFontSize'),
+    pageNumbers: value('pageNumbers'),
+    runningHeaders: Boolean(document.querySelector('#runningHeaders')?.checked),
+    runningHeaderMode: value('runningHeaderMode'),
+    runningHeaderFontSize: value('runningHeaderFontSize'),
+    suppressHeaderOnChapterOpen: Boolean(document.querySelector('#suppressHeaderOnChapterOpen')?.checked),
     chapterStarts: value('chapterStarts'),
     templateId: 'custom',
   };
@@ -711,12 +770,34 @@ function verifyPaginatedText(project, pages) {
   return { ok: mismatches.length === 0, mismatches };
 }
 
+
+function attachPageStructure(project, pages, design) {
+  const structure = analyzeMatter(project.manuscript.blocks);
+  const blockIndex = new Map(project.manuscript.blocks.map((block) => [block.id, block.index]));
+  for (const page of pages) {
+    const sourceFragments = (page.fragments || []).filter((fragment) => blockIndex.has(fragment.sourceBlockId));
+    const firstIndex = sourceFragments.length ? blockIndex.get(sourceFragments[0].sourceBlockId) : null;
+    page.section = firstIndex == null ? 'blank' : matterSectionForBlockIndex(firstIndex, structure);
+    const chapter = firstIndex == null ? null : chapterForBlockIndex(firstIndex, structure);
+    page.chapterTitle = chapter?.title || '';
+    page.hasChapterTitle = (page.fragments || []).some((fragment) => fragment.kind === 'chapter-title');
+    page.showRunningHeader = Boolean(
+      design.runningHeaders &&
+      !page.intentionalBlank &&
+      page.section === 'body' &&
+      !(design.suppressHeaderOnChapterOpen && page.hasChapterTitle)
+    );
+  }
+  return structure;
+}
+
 async function paginateProject(project) {
   const design = currentDesign();
   const lock = await verifyProjectStoryLock(project);
   if (!lock.ok) throw new Error('Story Lock failed. Print pagination was blocked.');
 
   const rig = createMeasureRig(design);
+  const structure = analyzeMatter(project.manuscript.blocks);
   const pages = [];
   let current = null;
   let blankVersos = 0;
@@ -825,6 +906,7 @@ async function paginateProject(project) {
   try {
     for (let i = 0; i < project.manuscript.blocks.length; i += 1) {
       const block = project.manuscript.blocks[i];
+      if (structure.backMatterStartIndex === i && current?.fragments?.length) newPage();
       if (block.kind === 'chapter-title') {
         chapterStarts += 1;
         if (!current) newPage();
@@ -853,6 +935,8 @@ async function paginateProject(project) {
     for (const page of pages) page.bookPageNumber = page.number;
   }
 
+  attachPageStructure(project, pages, design);
+
   const integrity = verifyPaginatedText(project, pages);
   if (!integrity.ok) {
     throw new Error(`Story Lock pagination integrity failed for ${integrity.mismatches.length} source paragraph(s). Preview was blocked.`);
@@ -866,6 +950,7 @@ async function paginateProject(project) {
     chapterStarts,
     chaptersOnRight,
     firstChapterPhysicalPage,
+    structure: { ...structure.counts, backMatterStartIndex: structure.backMatterStartIndex },
     integrity: { ok: true, checkedBlocks: project.manuscript.blocks.length },
   };
 }

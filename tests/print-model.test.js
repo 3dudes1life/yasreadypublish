@@ -52,3 +52,13 @@ test('Tres Amigos template matches Book 1 calibrated core values', () => {
   assert.equal(design.outsideMargin, 0.5);
   assert.equal(design.chapterStarts, 'right');
 });
+
+
+test('0.4 page furniture defaults preserve the Book 1 look', () => {
+  const design = applyTemplate('tres-amigos-book1');
+  assert.equal(design.pageNumbers, 'outside-bottom');
+  assert.equal(design.numberFromFirstChapter, true);
+  assert.equal(design.runningHeaders, false);
+  assert.equal(design.runningHeaderMode, 'book-chapter');
+  assert.equal(design.suppressHeaderOnChapterOpen, true);
+});

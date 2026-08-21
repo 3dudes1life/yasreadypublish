@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0 — Whole-book structure + page furniture
+
+- Added read-only Book Matter view that maps front matter, chapter body, and recognized back matter without moving source paragraphs.
+- Added conservative back-matter detection; uncertain content stays in the story body instead of being guessed.
+- Added project-level book title and author metadata outside Story Lock text.
+- Added optional running headers with book/chapter and author/book patterns.
+- Added running-header suppression on front matter, recognized back matter, intentional blanks, and chapter-opening pages.
+- Added page section/chapter metadata to the two-page preview.
+- Recognized back matter begins on a fresh physical page while continuing printed book numbering.
+- Expanded Story Lock tests to cover book matter and generated page furniture.
+- Manuscript wording remains read-only and pagination integrity is still mandatory.
+
 ## 0.3.0 — Book 1 calibrated series template
 
 - Added `Tres Amigos Series · Book 1` template based on the published paperback interior.

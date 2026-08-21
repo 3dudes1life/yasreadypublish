@@ -9,7 +9,7 @@ export function classifyParagraph({ text, styleName }, previousNonEmpty = null) 
   if (/heading\s*1|chapter|title/.test(style) && trimmed.length < 180) return 'heading';
   if (/^\[[^\]]+\]:/.test(trimmed)) return 'text-message';
   if (/^(\*\s*\*\s*\*|#\s*#\s*#|~\s*~\s*~|—\s*—\s*—|•\s*•\s*•)$/.test(trimmed)) return 'scene-break';
-  if (/^(copyright|dedication|table of contents|contents|about the author|about the authors|acknowledg(e)?ments|previously on)\b/i.test(trimmed)) return 'front-back-heading';
+  if (/^(copyright|dedication|table of contents|contents|about the author|about the authors|acknowledg(e)?ments|previously on|join the journey|also by|author(?:’|'|)s? note|stay connected|newsletter|resources)\b/i.test(trimmed)) return 'front-back-heading';
   if (previousNonEmpty?.kind === 'chapter-title') return 'chapter-opening';
   return 'body';
 }

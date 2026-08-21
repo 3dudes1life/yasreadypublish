@@ -21,6 +21,9 @@ export const TRES_AMIGOS_TEMPLATE = Object.freeze({
   pageNumbers: 'outside-bottom',
   numberFromFirstChapter: true,
   runningHeaders: false,
+  runningHeaderMode: 'book-chapter',
+  runningHeaderFontSize: 8,
+  suppressHeaderOnChapterOpen: true,
 });
 
 export const DEFAULT_PRINT_DESIGN = Object.freeze({ ...TRES_AMIGOS_TEMPLATE });
@@ -60,11 +63,14 @@ export function normalizePrintDesign(input = {}) {
   merged.chapterTitleSize = number(merged.chapterTitleSize, 14, 9, 28);
   merged.chapterTitleLineHeight = number(merged.chapterTitleLineHeight, 1.12, 1, 2);
   merged.pageNumberFontSize = number(merged.pageNumberFontSize, 12, 7, 18);
+  merged.runningHeaderFontSize = number(merged.runningHeaderFontSize, 8, 6, 14);
   merged.chapterStarts = merged.chapterStarts === 'next' ? 'next' : 'right';
   merged.bodyFont = FONT_STACKS[merged.bodyFont] ? merged.bodyFont : 'Arial';
   merged.pageNumbers = merged.pageNumbers === 'none' ? 'none' : 'outside-bottom';
   merged.numberFromFirstChapter = merged.numberFromFirstChapter !== false;
   merged.runningHeaders = Boolean(merged.runningHeaders);
+  merged.runningHeaderMode = ['book-chapter','author-book','book-author'].includes(merged.runningHeaderMode) ? merged.runningHeaderMode : 'book-chapter';
+  merged.suppressHeaderOnChapterOpen = merged.suppressHeaderOnChapterOpen !== false;
   merged.templateId = merged.templateId || 'custom';
   return merged;
 }
