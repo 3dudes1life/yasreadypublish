@@ -160,7 +160,7 @@ export function runKdpPreflight({ project, preview, storyLockOk = true } = {}) {
     'word-tables',
     'Word tables',
     tableCount ? 'warning' : 'pass',
-    tableCount ? `${tableCount} Word table(s) were detected. Paragraph text is preserved, but table grid layout is not reproduced by the v0.9 fiction formatter.` : 'No Word table structures detected.',
+    tableCount ? `${tableCount} Word table(s) were detected. Paragraph text is preserved, but table grid layout is not reproduced by the v1.0 fiction formatter.` : 'No Word table structures detected.',
   ));
 
   const manualBreaks = Number(project?.manuscript?.metadata?.manualPageBreakCount || 0);

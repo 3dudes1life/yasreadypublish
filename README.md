@@ -1,89 +1,82 @@
-# YasReady Publish v0.9.0
+# YasReady Publish v1.0.0
 
-Private, Story-Locked book production software being built toward a Vellum-quality YasReady Publish 1.0.
+Private, local-first manuscript-to-book production for YasReady.
 
-## What v0.9 adds
+**Prime directive:** format the book; never rewrite the story.
 
-Version 0.9 hardens the print workflow around a long-form commercial novel while keeping manuscript text immutable.
+## 1.0 workflow
 
-- Automatic **print Table of Contents** generated from the final printed page map
-- Book 1-style `Table of Contents` title, dot leaders, chapter page numbers, and optional recognized back matter entries
-- Multi-pass pagination: page numbers are calculated, the generated TOC is inserted before Chapter 1, then the final map is verified again
-- TOC integrity gate that blocks export if any generated page number is stale
-- Safe detection of a manual/source Table of Contents; YasReady will not duplicate it or silently remove it
-- New **Structure Repair** workspace for metadata-only paragraph reclassification
-- Manual repair options for chapter title, body, scene break, text message, front/back heading, heading, and blank paragraph
-- Structure overrides never modify source text, paragraph order, punctuation, capitalization, or Story Lock hashes
-- Print and EPUB engines both honor the repaired structural metadata while consuming the same source wording
-- DOCX edge-case metadata for Word tables, fields, hyperlinks, manual page breaks, images, footnotes, and endnotes
-- Footnote/endnote import is blocked rather than silently omitting note text
-- KDP preflight now checks generated TOC integrity, unexpected empty pages, Word tables, Word fields, and manual Word page breaks
-- EPUB preflight reports structure repair metadata and Word-layout edge cases
-- Project schema migrated to 9 / app version 0.9.0 without changing manuscript hashes
+1. **Import** a finished Microsoft Word `.docx` manuscript.
+2. **Story Lock** fingerprints the canonical manuscript text with SHA-256.
+3. **Review structure**: chapters, front/back matter, texts, scene breaks, and metadata-only repairs.
+4. **Design paperback** with reusable themes, including `Tres Amigos Series · Book 1`.
+5. **Build Print Preview** using 6×9 fixed pages, mirrored margins, right-hand chapter starts, generated Contents, folios, and running headers.
+6. **KDP Export** runs production preflight, opens the fixed-page production master, performs final overflow validation, and launches the system **Save as PDF** flow.
+7. **Ebook / Kindle** builds a separate reflowable EPUB 3 with clickable navigation.
+8. **Final Check** verifies Story Lock + paperback + EPUB readiness together.
 
-## Story Lock remains rule #1
+## What makes 1.0 stable
 
-The imported DOCX is canonical. YasReady may change **presentation and structure metadata**, but not the wording.
+- Guided Project Home with a clear manuscript → structure → design → proof → paperback → ebook path.
+- **Superman Ready Final Check** for one-button release readiness.
+- Portable **Project Backup / Restore**. Restore re-verifies Story Lock before saving anything.
+- Sidebar and workflow controls re-render when project state changes, eliminating stale/disabled navigation after import.
+- Full literal-button binding audit in `npm run verify`.
+- Project schema 10 / app version 1.0.0.
+- Story wording remains read-only throughout the publishing UI.
 
-Structure Repair is intentionally not a manuscript editor. Selecting “Chapter title” for a paragraph changes only how that exact paragraph is interpreted by the layout engines. The paragraph text itself stays in the original `project.manuscript.blocks` array, and Story Lock continues hashing the untouched source layer.
+## Paperback engine
 
-Generated Table of Contents pages are also outside the source layer. They are generated book furniture, like page numbers and running headers.
+- 6×9 default trim.
+- Mirrored left/right margins.
+- Page-count-aware KDP inside-margin gate.
+- Right-hand odd-page chapter starts.
+- Intentional blank versos with no header or folio.
+- Automatic print Table of Contents using final printed page numbers.
+- Book 1-style page numbers in the actual fixed-page print master.
+- Optional running headers with chapter-opening suppression.
+- Source bold/italic/underline/strike/small-caps rendering.
+- Final fixed-page overflow check before the system Print / Save as PDF dialog is enabled.
 
-## Print Table of Contents workflow
+The current print exporter is intentionally **text-first / no bleed**. DOCX image assets block print export rather than being silently omitted.
 
-1. Import the final DOCX.
-2. Open **Design** and leave **Generate print Table of Contents** enabled.
-3. If YasReady detects a manual/source TOC, it will not generate a duplicate. Remove the manual TOC from the master DOCX and re-import if you want automatic page numbers.
-4. Build **Print Preview**.
-5. YasReady first paginates the locked manuscript, calculates chapter/back-matter printed page numbers, inserts the generated TOC before Chapter 1, and re-paginates.
-6. The TOC integrity gate verifies every generated entry against the final page map.
-7. KDP Export stays blocked if the generated TOC and final pagination disagree.
+## EPUB / Kindle engine
 
-For the Tres Amigos Series theme, recognized back matter such as **About the Authors** and **Join the Journey** is included in the generated print TOC, matching the Book 1 production pattern.
+- EPUB 3 reflowable package.
+- `nav.xhtml` + `toc.ncx` navigation.
+- Clickable chapter and recognized matter links.
+- Separate ebook typography controls.
+- No print gutters, fixed pages, folios, running headers, or blank versos.
+- Source-coverage verification requires every source paragraph exactly once and in source order.
+- Story Lock hash embedded in package metadata.
 
-## Structure Repair workflow
+DOCX image assets currently block EPUB export rather than being silently omitted.
 
-Use **Structure Repair** when Word styles or unusual chapter naming cause a paragraph to be misclassified.
+## Story Lock
 
-- Search for the exact paragraph.
-- Choose a structural label.
-- YasReady saves only `{ paragraph id → structure kind }` metadata.
-- Print Preview and EPUB are invalidated and rebuilt from the same locked text.
-- Clear the override at any time to return to source detection.
+The canonical manuscript is the ordered source paragraph text joined with a paragraph separator and fingerprinted at import. Presentation metadata lives separately.
 
-No text-editing field exists in Structure Repair.
+YasReady may change:
 
-## Two output engines
+- page geometry
+- typography
+- pagination
+- generated Table of Contents
+- folios and running headers
+- metadata-only paragraph classification
+- EPUB packaging / navigation
 
-### Paperback / KDP
+YasReady may **not** silently change:
 
-- fixed trim size and mirrored margins
-- binding gutter
-- right-hand/odd chapter openings
-- intentional blank versos
-- page numbers and optional running headers
-- generated print Table of Contents with final page numbers
-- KDP preflight
-- fixed single-page Print Master for Save as PDF
+- words
+- punctuation
+- capitalization
+- paragraph order
+- text-message wording
+- dialogue
+- story content
 
-### EPUB / Kindle
-
-- reflowable XHTML
-- clickable EPUB Contents (`nav.xhtml` + `toc.ncx`)
-- no fixed trim, gutter, print folios, running headers, or print blank versos
-- chapter/scene/message structure from the same Story-Locked source
-- EPUB preflight and direct `.epub` download
-
-## Edge-case safety in v0.9
-
-YasReady prefers stopping or warning over guessing.
-
-- tracked changes: import blocked
-- footnotes/endnotes: import blocked until note handling is implemented
-- images: print/EPUB export blocked in the current text-first engine
-- Word tables: text preserved, grid-layout warning shown
-- manual Word page breaks: warning shown because YasReady repaginates from book rules
-- Word fields: warning shown because dynamic Word fields are flattened to visible text
+If an operation cannot safely preserve source coverage, export is blocked.
 
 ## Run locally
 
@@ -94,15 +87,16 @@ npm run dev
 
 Open `http://localhost:4173`.
 
-No `npm install` is required for the current static build.
+No `npm install` is required for the application runtime. JSZip is vendored in `public/vendor/`.
 
 ## GitHub Pages
 
-The project uses relative static paths and can be hosted at:
+The app uses relative static paths and can run from a repository subpath such as:
 
 `https://3dudes1life.github.io/yasreadypublish/`
 
-## Roadmap
+## KDP production note
 
-- **0.9** automatic print TOC + safe structure repair + edge-case hardening
-- **1.0** private publisher-grade release: final visual calibration, production QA, PDF/EPUB release workflow, and Book 2 acceptance testing
+The built-in no-bleed preflight follows the current KDP paperback thresholds used by the 1.0 release: single-page interiors, 7 pt minimum text, at least 0.25 in outside margin, and inside margins that increase with page count. For 501–700 pages the current KDP inside minimum is 0.75 in. Always re-check KDP requirements if Amazon changes its manufacturing specifications.
+
+See `KDP-PREFLIGHT.md`, `EPUB-PREFLIGHT.md`, `STORY-LOCK-SPEC.md`, and `RELEASE-QA.md`.

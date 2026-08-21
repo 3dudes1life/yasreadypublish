@@ -1,10 +1,10 @@
-# YasReady Publish 0.9 — KDP Paperback Preflight
+# YasReady Publish 1.0 — KDP Paperback Preflight
 
-This file documents the paperback production checks built into YasReady Publish v0.9.
+This file documents the paperback production gate used by YasReady Publish 1.0 Stable.
 
 ## Blocking checks
 
-- Story Lock must verify against the imported manuscript hash.
+- Story Lock must verify against the imported manuscript hash immediately before production.
 - A paginated single-page interior model must exist.
 - Physical page count must be in the 24–828 working range used by this build.
 - Inside margin must meet the page-count band:
@@ -17,24 +17,30 @@ This file documents the paperback production checks built into YasReady Publish 
 - Active text styles must not be below 7 pt.
 - If the theme requires right-hand chapter starts, every detected chapter opener must land on an odd/right physical page.
 - Intentional blank versos must not carry running headers or folios.
-- DOCX image assets block the current text-first/no-bleed export path because image/bleed production is not yet implemented.
-
-## Warning checks
-
-- Non-6×9 trim sizes require matching selection/verification in KDP.
-- Font embedding cannot be proven until the final PDF exists and must be checked after Save as PDF.
-
-## Export gate
-
-When preflight has no blocking errors, YasReady Publish creates a fixed single-page Print Master. The Print Master runs an additional DOM overflow check against every physical page. The Print / Save as PDF button remains disabled if overflow is detected.
-
-The KDP Previewer remains the final manufacturing preview.
-
-
-## v0.9 additional gates
-
-- Generated print TOC entries must match the final printed page map.
-- A source/manual TOC is never silently replaced or removed.
+- Generated print TOC entries must agree with the final printed page map after pagination converges.
 - Unexpected non-intentional empty physical pages are blocking errors.
-- Word tables, Word fields, and manual Word page breaks are surfaced for review.
-- Structure-repair overrides are reported as metadata-only and do not modify Story Lock text.
+- DOCX image assets block the current text-first/no-bleed path because image/bleed production is intentionally not silently approximated.
+
+## Review checks
+
+- Non-6×9 trim sizes require the matching trim selection and final verification in KDP.
+- Word tables, Word fields, and manual Word page breaks are surfaced for review rather than silently treated as fully supported geometry.
+- Font embedding is a property of the final PDF and must be confirmed on the produced PDF before commercial upload.
+
+## Generated Table of Contents
+
+When automatic print TOC is enabled, Publish first paginates the Story-Locked source, creates generated TOC entries from the detected chapter/back-matter map, inserts those generated entries, and paginates again until the TOC target numbers agree with the final page map.
+
+A manual/source TOC in the DOCX is never silently deleted or replaced.
+
+## PDF production gate
+
+When preflight has no blocking errors, **Create Paperback PDF** opens the fixed single-page Print Master. The Print Master performs a second DOM overflow inspection against every physical page before triggering the system print/PDF dialog. If any page overflows its fixed trim box, PDF creation remains blocked.
+
+Page numbers, running headers, chapter openings, generated TOC entries, and intentional blank versos are baked into the fixed-page production master; they are not manuscript edits.
+
+The KDP Previewer and a human review of the exported PDF remain the final manufacturing acceptance checks.
+
+## 1.0 Final Check
+
+Project Home exposes **Run Final Check**, which re-verifies Story Lock, builds the current paperback preview, evaluates paperback preflight, evaluates EPUB preflight, and reports a single guided readiness state. “Superman Ready” means both software production gates passed; it does not replace visual proofing of the final commercial files.

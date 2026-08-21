@@ -1,17 +1,17 @@
-# YasReady Publish 0.9 — EPUB / Kindle Preflight
+# YasReady Publish 1.0 — EPUB / Kindle Preflight
 
-Version 0.9 retains a separate reflowable ebook engine. It consumes the same Story-Locked manuscript blocks as print but does **not** inherit fixed-page concepts such as gutters, folios, running headers, physical blank versos, or trim size.
+YasReady Publish 1.0 keeps print and ebook as separate presentation engines over the same Story-Locked source. EPUB does **not** inherit fixed-page concepts such as trim size, gutters, folios, running headers, or intentional blank versos.
 
 ## Export gate
 
 EPUB export is blocked when:
 
 - Story Lock does not match the canonical imported manuscript hash.
-- Ebook source mapping does not include every source paragraph exactly once and in source order.
+- Ebook source mapping does not include every source paragraph exactly once and in original source order.
 - No chapter starts were safely detected.
 - Book title metadata is blank.
 - The ebook language tag is invalid.
-- DOCX image assets are present in 0.9, because image packaging is not yet implemented and Publish refuses to silently omit them.
+- DOCX image assets are present, because image packaging is not yet silently approximated.
 - No reflowable sections or clickable navigation entries can be created.
 
 Blank author metadata is a warning rather than fabricated metadata. Publish never invents an author name.
@@ -28,13 +28,14 @@ The generated `.epub` contains:
 - ebook-only CSS
 - reading-order XHTML sections for front matter, chapters, and recognized back matter
 
-The OPF embeds the canonical manuscript SHA-256 as YasReady metadata for auditability.
+The OPF embeds the canonical manuscript SHA-256 as YasReady audit metadata.
 
 ## Story Lock behavior
 
-Ebook settings may change typography and reflow behavior only. They cannot change source text. Before packaging, the manuscript SHA-256 is recalculated. The section builder also checks that every imported source block appears exactly once, in the original order, with the exact same text.
+Ebook settings can change typography and reflow behavior only. Immediately before packaging, the canonical manuscript SHA-256 is recalculated. The section builder then verifies that every imported source block appears exactly once, in the original order, with the exact same text.
 
+Metadata-only Structure Repair may change the structural role of a source block without changing its wording, runs, ID, order, or hash input. Word tables and manual Word page breaks are surfaced for review because a reflowable ebook does not preserve Word page geometry.
 
-## v0.9 structure repair
+## 1.0 Final Check
 
-EPUB sectioning honors metadata-only Structure Repair overrides while source coverage continues to compare the effective reading order against the immutable source block IDs and exact source text. Word tables and manual Word page breaks are surfaced as warnings because reflowable EPUB does not preserve Word page geometry.
+The Project Home Final Check evaluates the EPUB gate alongside paperback production. “Superman Ready” requires both engines to pass their software checks. A final device/Kindle Previewer review remains part of commercial acceptance.

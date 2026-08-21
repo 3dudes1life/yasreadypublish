@@ -23,8 +23,10 @@ import { runEpubPreflight } from './lib/ebook-preflight.js';
 import { buildEbookPreviewHtml, buildEpubBlob } from './lib/epub-export.js';
 import { effectiveBlocks, effectiveChapters, effectiveStats, setStructureOverride, structureOverrideSummary, STRUCTURE_OVERRIDE_KINDS } from './lib/structure-overrides.js';
 import { buildPrintTocEntries, printTocSignature, shouldGeneratePrintToc, verifyGeneratedPrintToc } from './lib/print-toc.js';
+import { serializeProjectBackup, parseProjectBackup } from './lib/project-backup.js';
+import { buildPublishReadiness } from './lib/readiness-model.js';
 
-const VERSION = '0.9.0';
+const VERSION = '1.0.0';
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
 
@@ -46,6 +48,8 @@ const state = {
   ebookMessage: '',
   repairSearch: '',
   repairMessage: '',
+  finalCheck: null,
+  backupMessage: '',
 };
 
 const app = document.querySelector('#app');
@@ -84,15 +88,15 @@ function renderShell() {
     <header class="topbar">
       <div class="topbar-inner">
         <div class="brand"><span class="brand-mark">Y</span><span>YasReady <span class="brand-product">Publish</span></span></div>
-        <span class="version">PRIVATE ALPHA · v${VERSION}</span>
+        <span class="version">PRIVATE · v${VERSION} STABLE</span>
       </div>
     </header>
     <main class="app-shell">
       <section class="hero compact-hero">
         <div>
-          <div class="eyebrow">Story-safe book production</div>
-          <h1>Build the pages.<br>Protect every word.</h1>
-          <p>Version 0.9 adds automatic print Table of Contents generation, metadata-only structure repair, and edge-case preflight hardening while Story Lock keeps every source character immutable.</p>
+          <div class="eyebrow">Private publishing studio</div>
+          <h1>Publish beautifully.<br>Protect every word.</h1>
+          <p>YasReady Publish 1.0 turns a finished DOCX into a production-ready paperback and reflowable EPUB through one guided workflow, while Story Lock keeps the manuscript itself immutable.</p>
         </div>
         <div class="story-lock-pill"><span class="dot"></span> Story Lock is mandatory</div>
       </section>
@@ -100,7 +104,7 @@ function renderShell() {
         ${renderSidebar()}
         <section class="main" id="mainView">${renderMain()}</section>
       </div>
-      <div class="footer-note">YasReady Publish v${VERSION} · Manuscripts stay local in this build · Design settings never alter source wording.</div>
+      <div class="footer-note">YasReady Publish v${VERSION} · Private local-first publishing · Story Lock verifies source integrity before production export.</div>
     </main>`;
   bindEvents();
 }
@@ -109,17 +113,21 @@ function renderSidebar() {
   const hasProject = Boolean(state.project);
   return `
     <aside class="sidebar">
-      <div class="sidebar-head"><strong>Publish workspace</strong><span>0.9 adds a third safety layer: generated print matter and structure repair live outside the locked manuscript, while paperback and Kindle continue from the same exact source text.</span></div>
+      <div class="sidebar-head"><strong>${hasProject ? escapeHtml(state.project.title) : 'Publish workspace'}</strong><span>${hasProject ? 'Follow the path from manuscript → proof → export. Advanced tools stay available without cluttering the core workflow.' : 'Start with one finished DOCX. Publish handles structure and presentation; Story Lock protects the words.'}</span></div>
       <nav class="sidebar-nav">
-        ${navButton('import', '＋', hasProject ? 'Project' : 'Import')}
+        <div class="nav-group-label">Book</div>
+        ${navButton('import', '⌂', hasProject ? 'Project Home' : 'Import')}
         ${navButton('chapters', '☷', 'Contents', !hasProject)}
         ${navButton('matter', '§', 'Book Matter', !hasProject)}
         ${navButton('repair', '⚙', 'Structure Repair', !hasProject)}
-        ${navButton('navigator', '⌘', 'Navigator', !hasProject)}
+        <div class="nav-group-label">Paperback</div>
         ${navButton('design', 'Aa', 'Design', !hasProject)}
         ${navButton('print', '▣', 'Print Preview', !hasProject)}
         ${navButton('export', '⇩', 'KDP Export', !hasProject)}
+        <div class="nav-group-label">Digital</div>
         ${navButton('ebook', 'e', 'Ebook / Kindle', !hasProject)}
+        <div class="nav-group-label">Inspect</div>
+        ${navButton('navigator', '⌘', 'Navigator', !hasProject)}
         ${navButton('source', '≡', 'Source', !hasProject)}
         ${navButton('library', '▦', 'Library')}
       </nav>
@@ -162,7 +170,7 @@ function renderImport() {
       </div>
     </article>
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">v0.9 production hardening</div><h2>Automatic print Contents + safe structure repair</h2><p>YasReady can now generate print Table of Contents page numbers from final pagination and repair misclassified chapter/scene/message structure as metadata only—without editing or deleting source text.</p></div></div>
+      <div class="panel-head"><div><div class="eyebrow">1.0 production foundation</div><h2>One finished manuscript. Two production outputs.</h2><p>Import once, review structure, choose the series design, proof the paperback, then export print and Kindle files from the same Story-Locked source.</p></div></div>
       <div class="summary-grid six">
         <div class="stat"><b>✓</b><span>Read DOCX</span></div>
         <div class="stat"><b>✓</b><span>Story Lock</span></div>
@@ -180,34 +188,52 @@ function renderBusy() {
 
 function renderProject() {
   const p = state.project;
-  const s = effectiveStats(p);
+  const stats = effectiveStats(p);
   const design = currentDesign();
+  const readiness = buildPublishReadiness({ project: p, preview: state.preview, storyLockOk: p.storyLock?.status === 'verified' });
+  const completed = readiness.steps.filter((step) => step.status === 'complete').length;
+  const percent = Math.round((completed / readiness.steps.length) * 100);
+  const final = state.finalCheck;
+  const statusIcon = (status) => status === 'complete' ? '✓' : status === 'blocked' ? '!' : '→';
+  const statusLabel = (status) => status === 'complete' ? 'Ready' : status === 'blocked' ? 'Needs attention' : 'Next';
   return `
-    <article class="panel">
-      <div class="panel-head"><div><span class="badge good">Imported safely</span><h2>${escapeHtml(p.title)}</h2><p>${escapeHtml(p.source.fileName)} · ${formatBytes(p.source.fileSize)}</p></div><button class="btn secondary" id="newImport">Import another</button></div>
-      <div class="lock-card">
+    <article class="panel project-home-panel">
+      <div class="project-home-head">
+        <div><span class="badge good">Story Lock ${p.storyLock?.status === 'verified' ? 'VERIFIED' : 'CHECK'}</span><h2>${escapeHtml(p.title)}</h2><p>${escapeHtml(p.source.fileName)} · ${formatBytes(p.source.fileSize)} · ${formatNumber(stats.words)} words</p></div>
+        <div class="readiness-dial" aria-label="Publishing workflow ${percent}% complete"><b>${percent}%</b><span>workflow</span></div>
+      </div>
+      <div class="publish-path" aria-label="Publishing workflow">
+        ${readiness.steps.map((step, index) => `<button class="publish-step ${step.status}" data-go-view="${step.view}" type="button"><span class="step-index">${statusIcon(step.status)}</span><div><strong>${escapeHtml(step.label)}</strong><small>${escapeHtml(step.detail)}</small></div><em>${statusLabel(step.status)}</em></button>${index < readiness.steps.length - 1 ? '<i></i>' : ''}`).join('')}
+      </div>
+      <div class="lock-card compact-lock-card">
         <div class="lock-shield">◆</div>
-        <div><strong>Story Lock verified</strong><p>Design can repaginate this manuscript, but source wording remains fingerprinted and read-only.</p></div>
-        <div class="lock-hash">MANUSCRIPT SHA-256<br>${escapeHtml(shortHash(p.source.manuscriptHash, 18))}</div>
+        <div><strong>Exact-story protection is active</strong><p>The canonical manuscript hash is checked before pagination, paperback export, EPUB packaging, project backup restore, and Final Check.</p></div>
+        <div class="lock-hash">SHA-256<br>${escapeHtml(shortHash(p.source.manuscriptHash, 18))}</div>
       </div>
       <div class="project-meta-grid">
-        <label><span>Book title metadata</span><input id="projectTitle" value="${escapeHtml(p.title)}" aria-label="Project title"></label>
+        <label><span>Book title metadata</span><input id="projectTitle" value="${escapeHtml(p.title)}" aria-label="Book title"></label>
         <label><span>Author metadata</span><input id="projectAuthor" value="${escapeHtml(p.author || '')}" placeholder="Author / imprint name" aria-label="Author"></label>
-        <div class="project-meta-actions"><button class="btn secondary" id="saveMetadata">Save metadata</button><button class="btn secondary" id="verifyLock">Verify Story Lock</button></div>
+        <div class="project-meta-actions"><button class="btn secondary" id="saveMetadata" type="button">Save metadata</button><button class="btn secondary" id="verifyLock" type="button">Verify Story Lock</button></div>
       </div>
       <div class="summary-grid">
-        <div class="stat"><b>${formatNumber(s.chapters)}</b><span>Chapters</span></div>
-        <div class="stat"><b>${formatNumber(s.words)}</b><span>Words</span></div>
-        <div class="stat"><b>${formatNumber(s.paragraphs)}</b><span>Paragraphs</span></div>
+        <div class="stat"><b>${formatNumber(stats.chapters)}</b><span>Chapters</span></div>
+        <div class="stat"><b>${formatNumber(stats.words)}</b><span>Words</span></div>
+        <div class="stat"><b>${state.preview?.pages?.length ? formatNumber(state.preview.pages.length) : '—'}</b><span>Print pages</span></div>
         <div class="stat"><b>${design.trimWidth}×${design.trimHeight}</b><span>Trim inches</span></div>
         <div class="stat"><b>${design.insideMargin.toFixed(2)}”</b><span>Inside margin</span></div>
       </div>
-      ${s.chapters === 0 ? `<div class="notice error"><strong>No chapter titles were auto-detected.</strong> Publish will not guess where chapters begin. Inspect Source before using print pagination.</div>` : ''}
-      <div class="action-row"><button class="btn primary" data-go-view="design">Set print design</button><button class="btn secondary" data-go-view="print">Build print preview</button><button class="btn secondary" data-go-view="export">KDP preflight</button><button class="btn secondary" data-go-view="ebook">Build Kindle EPUB</button></div>
+      ${stats.chapters === 0 ? `<div class="notice error"><strong>No chapter titles were auto-detected.</strong> Publish will not guess where chapters begin. Use Structure Repair or Source before pagination.</div>` : ''}
+      ${state.backupMessage ? `<div class="notice success">${escapeHtml(state.backupMessage)}</div>` : ''}
+      ${final ? `<div class="final-check-banner ${final.allReady ? 'ready' : 'attention'}"><div class="final-check-mark">${final.allReady ? '✓' : '!'}</div><div><strong>${final.allReady ? 'Superman Ready' : 'Final Check found work to do'}</strong><p>${final.allReady ? 'Story Lock, paperback preflight, and EPUB preflight all passed in the same final verification run.' : `${final.printErrors || 0} paperback blocker(s) · ${final.ebookErrors || 0} ebook blocker(s). Nothing was exported or altered.`}</p></div><button class="btn secondary" id="runFinalCheckAgain" type="button">Run again</button></div>` : ''}
+      <div class="primary-actions">
+        <button class="btn primary big-action" id="runFinalCheck" type="button"><span>⚡</span><div><strong>Run Final Check</strong><small>Verify Story Lock + print + Kindle readiness</small></div></button>
+        <button class="btn secondary big-action" data-go-view="${state.preview ? 'export' : 'design'}" type="button"><span>${state.preview ? '⇩' : 'Aa'}</span><div><strong>${state.preview ? 'Go to KDP Export' : 'Continue to Design'}</strong><small>${state.preview ? 'Review paperback preflight and create PDF master' : 'Choose the series template and page geometry'}</small></div></button>
+      </div>
     </article>
-    <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">0.9 production workspace</div><h2>One manuscript, print + ebook + generated matter</h2><p>Publish maps front matter, chapter body, and recognized back matter; structure repairs and generated print Contents stay outside the canonical Story-Locked text.</p></div></div>
-      <div class="notice info"><strong>Story Lock still wins:</strong> inline bold/italic/underline styling is rendered from DOCX run metadata, but the exact manuscript characters are independently verified after pagination.</div>
+    <article class="panel safety-backup-panel">
+      <div class="panel-head"><div><div class="eyebrow">Recovery</div><h2>Your work should never depend on one browser.</h2><p>Projects autosave locally. A private backup gives you a second copy of structure, design, and the exact Story-Locked manuscript map.</p></div><button class="btn secondary" id="newImport" type="button">Import another DOCX</button></div>
+      <div class="backup-actions"><button class="btn secondary" id="backupProject" type="button">Download Project Backup</button><button class="btn secondary" id="restoreBackupButton" type="button">Restore Project Backup</button><input id="restoreBackupInput" type="file" accept=".json,.yasready-project.json,application/json" hidden></div>
+      <div class="notice info"><strong>Privacy note:</strong> a project backup contains the manuscript text because it is a true recovery file. It is downloaded only when you choose and is verified by Story Lock before restore.</div>
     </article>`;
 }
 
@@ -679,12 +705,12 @@ function renderExport() {
   if (!state.preview) {
     return `
       <article class="panel">
-        <div class="panel-head"><div><span class="badge good">Story Lock required</span><h2>KDP export</h2><p>Production export cannot run from an unpaginated manuscript.</p></div></div>
+        <div class="panel-head"><div><span class="badge good">Story Lock required</span><h2>KDP paperback</h2><p>YasReady needs one frozen pagination pass before it can validate the physical book.</p></div></div>
         <div class="preview-empty">
           <div class="spread-icon"><span></span><span></span></div>
-          <h3>Build the book first</h3>
-          <p>Pagination must be frozen before KDP margin, chapter parity, blank-page, and page-count checks can be evaluated.</p>
-          <button class="btn primary" id="buildPreviewForExport">Build Print Preview</button>
+          <h3>Build your proof first</h3>
+          <p>We’ll calculate the final page count, binding margin requirement, chapter parity, blank versos, generated Contents page numbers, and production geometry.</p>
+          <button class="btn primary" id="buildPreviewForExport" type="button">Build Print Preview</button>
         </div>
       </article>`;
   }
@@ -693,22 +719,26 @@ function renderExport() {
   const readyClass = report.ready ? 'ready' : 'blocked';
   return `
     <article class="panel export-panel">
-      <div class="panel-head"><div><span class="badge ${report.ready ? 'good' : 'bad'}">${report.ready ? 'PRE-FLIGHT READY' : 'EXPORT BLOCKED'}</span><h2>KDP paperback preflight</h2><p>${report.pageCount} physical pages · ${report.design.trimWidth} × ${report.design.trimHeight} in · no-bleed interior</p></div><button class="btn secondary" id="buildPreviewForExport">Rebuild pages</button></div>
+      <div class="panel-head"><div><span class="badge ${report.ready ? 'good' : 'bad'}">${report.ready ? 'PAPERBACK READY' : 'EXPORT BLOCKED'}</span><h2>KDP paperback</h2><p>${report.pageCount} single pages · ${report.design.trimWidth} × ${report.design.trimHeight} in · no-bleed text interior</p></div><button class="btn secondary" id="buildPreviewForExport" type="button">Rebuild proof</button></div>
       <div class="preflight-hero ${readyClass}">
         <div class="preflight-ring"><b>${report.summary.passes}</b><span>passes</span></div>
-        <div><h3>${report.ready ? 'Layout gate passed.' : `${report.summary.errors} blocking issue${report.summary.errors === 1 ? '' : 's'} found.`}</h3><p>${report.ready ? 'You can open the print master. The export window performs one final production overflow check before enabling Print / Save as PDF.' : 'Fix the blocking checks below, rebuild pagination, and run preflight again. Manuscript wording remains untouched.'}</p></div>
+        <div><h3>${report.ready ? 'The physical-book gate passed.' : `${report.summary.errors} blocking issue${report.summary.errors === 1 ? '' : 's'} found.`}</h3><p>${report.ready ? 'Create Paperback PDF opens a final fixed-page master, checks every page for overflow after fonts load, then opens the system print dialog for Save as PDF.' : 'Fix the blocking checks below and rebuild the proof. YasReady will not export around a failed gate.'}</p></div>
         <div class="preflight-counts"><span class="pass">${report.summary.passes} pass</span><span class="warning">${report.summary.warnings} warning</span><span class="error">${report.summary.errors} error</span></div>
+      </div>
+      <div class="export-primary-card ${report.ready ? 'ready' : 'blocked'}">
+        <div><div class="eyebrow">Final paperback file</div><h3>${report.ready ? 'Create the PDF you upload to KDP' : 'PDF creation is locked until preflight passes'}</h3><p>Page numbers, running headers, generated Contents, right-hand chapter starts, blank versos, mirrored margins, and Story-Locked text are all baked into the fixed-page master.</p></div>
+        <button class="btn primary export-main-button" id="createPaperbackPdf" type="button" ${report.ready ? '' : 'disabled'}>Create Paperback PDF</button>
       </div>
       <div class="preflight-list">${report.checks.map(renderPreflightCheck).join('')}</div>
       <div class="export-actions">
-        <button class="btn primary" id="openPrintMaster" ${report.ready ? '' : 'disabled'}>Open PDF Print Master</button>
-        <button class="btn secondary" id="downloadPrintMaster" ${report.ready ? '' : 'disabled'}>Download Print Master HTML</button>
-        <button class="btn secondary" id="downloadPreflightReport">Download Preflight Report</button>
+        <button class="btn secondary" id="openPrintMaster" type="button" ${report.ready ? '' : 'disabled'}>Open Print Master</button>
+        <button class="btn secondary" id="downloadPrintMaster" type="button" ${report.ready ? '' : 'disabled'}>Download HTML Master</button>
+        <button class="btn secondary" id="downloadPreflightReport" type="button">Download Preflight Report</button>
+        <button class="btn secondary" id="runFinalCheck" type="button">Run Final Check</button>
       </div>
-      <div class="notice info"><strong>PDF workflow:</strong> the print master contains one fixed ${report.design.trimWidth} × ${report.design.trimHeight} in page per physical page. In the export window, click <strong>Print / Save as PDF</strong>. Keep scale at 100%, disable browser headers/footers, and save as PDF. Font embedding must still be confirmed in the resulting PDF before KDP upload.</div>
+      <div class="notice info"><strong>Mac / Chrome PDF settings:</strong> choose <strong>Save as PDF</strong>, keep scale at <strong>100%</strong>, paper size at the book trim size, and browser headers/footers off. YasReady’s final master performs an overflow check before the print dialog is allowed to open.</div>
     </article>`;
 }
-
 
 function renderEbook() {
   const project = state.project;
@@ -783,19 +813,22 @@ function renderSource() {
 function renderLibrary() {
   return `
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">Local projects</div><h2>Library</h2><p>Projects live in this browser's IndexedDB. Older projects are migrated to the 0.9 print + ebook + structure-repair model without touching source blocks or Story Lock hashes.</p></div><button class="btn primary" id="libraryImport">New project</button></div>
+      <div class="panel-head"><div><div class="eyebrow">Local projects</div><h2>Library</h2><p>Projects autosave in this browser. Version 1.0 also supports portable recovery backups that are Story-Lock verified before restore.</p></div><div class="library-actions"><button class="btn secondary" id="restoreBackupButton" type="button">Restore Backup</button><button class="btn primary" id="libraryImport" type="button">New project</button><input id="restoreBackupInput" type="file" accept=".json,.yasready-project.json,application/json" hidden></div></div>
+      ${state.backupMessage ? `<div class="notice ${state.backupMessage.includes('blocked') || state.backupMessage.includes('not a') ? 'error' : 'success'}">${escapeHtml(state.backupMessage)}</div>` : ''}
       ${state.projects.length ? `<div class="project-list">${state.projects.map((raw) => { const p = migrateProject(raw); return `
         <div class="project-row">
           <div><strong>${escapeHtml(p.title)}</strong><span>${escapeHtml(p.source.fileName)} · ${effectiveStats(p).chapters} chapters · ${formatNumber(effectiveStats(p).words)} words · Updated ${new Date(p.updatedAt).toLocaleString()}</span></div>
-          <div class="project-actions"><button class="btn secondary" data-open-project="${p.id}">Open</button><button class="btn danger" data-delete-project="${p.id}">Delete</button></div>
-        </div>`; }).join('')}</div>` : `<div class="empty-project"><h3>No saved projects yet</h3><p>Import a DOCX and it will appear here automatically.</p></div>`}
+          <div class="project-actions"><button class="btn secondary" data-open-project="${p.id}" type="button">Open</button><button class="btn danger" data-delete-project="${p.id}" type="button">Delete</button></div>
+        </div>`; }).join('')}</div>` : `<div class="empty-project"><h3>No saved projects yet</h3><p>Import a DOCX or restore a private YasReady project backup.</p></div>`}
     </article>`;
 }
 
 function updateMain() {
-  document.querySelector('#mainView').innerHTML = renderMain();
-  document.querySelectorAll('.nav-item').forEach((el) => el.classList.toggle('active', el.dataset.view === state.activeView));
-  bindDynamicEvents();
+  const main = document.querySelector('#mainView');
+  if (main) main.innerHTML = renderMain();
+  const sidebar = document.querySelector('.sidebar');
+  if (sidebar) sidebar.outerHTML = renderSidebar();
+  bindEvents();
 }
 
 function bindEvents() {
@@ -825,13 +858,18 @@ function bindDynamicEvents() {
   });
 
   document.querySelector('#newImport')?.addEventListener('click', () => {
-    state.project = null; state.preview = null; state.ebookSectionIndex = 0; state.ebookMessage = ''; state.activeView = 'import'; state.error = ''; renderShell();
+    state.project = null; state.preview = null; state.ebookSectionIndex = 0; state.ebookMessage = ''; state.finalCheck = null; state.backupMessage = ''; state.activeView = 'import'; state.error = ''; renderShell();
   });
   document.querySelector('#libraryImport')?.addEventListener('click', () => {
-    state.project = null; state.preview = null; state.ebookSectionIndex = 0; state.ebookMessage = ''; state.activeView = 'import'; state.error = ''; renderShell();
+    state.project = null; state.preview = null; state.ebookSectionIndex = 0; state.ebookMessage = ''; state.finalCheck = null; state.backupMessage = ''; state.activeView = 'import'; state.error = ''; renderShell();
   });
   document.querySelector('#saveMetadata')?.addEventListener('click', saveProjectMetadata);
   document.querySelector('#verifyLock')?.addEventListener('click', verifyLock);
+  document.querySelector('#runFinalCheck')?.addEventListener('click', runFinalCheck);
+  document.querySelector('#runFinalCheckAgain')?.addEventListener('click', runFinalCheck);
+  document.querySelector('#backupProject')?.addEventListener('click', backupCurrentProject);
+  document.querySelector('#restoreBackupButton')?.addEventListener('click', () => document.querySelector('#restoreBackupInput')?.click());
+  document.querySelector('#restoreBackupInput')?.addEventListener('change', (event) => event.target.files?.[0] && restoreProjectBackup(event.target.files[0]));
   document.querySelector('#saveDesign')?.addEventListener('click', saveDesign);
   document.querySelector('#applyTresTemplate')?.addEventListener('click', applyTresAmigosTemplate);
   document.querySelector('#saveCustomTheme')?.addEventListener('click', saveCurrentCustomTheme);
@@ -843,6 +881,7 @@ function bindDynamicEvents() {
   document.querySelector('#buildPreview')?.addEventListener('click', buildPreview);
   document.querySelector('#rebuildPreview')?.addEventListener('click', buildPreview);
   document.querySelector('#buildPreviewForExport')?.addEventListener('click', buildPreviewForExport);
+  document.querySelector('#createPaperbackPdf')?.addEventListener('click', createPaperbackPdf);
   document.querySelector('#openPrintMaster')?.addEventListener('click', openPrintMaster);
   document.querySelector('#downloadPrintMaster')?.addEventListener('click', downloadPrintMaster);
   document.querySelector('#downloadPreflightReport')?.addEventListener('click', downloadPreflightReport);
@@ -919,6 +958,8 @@ function bindDynamicEvents() {
     state.spreadIndex = 0;
     state.ebookSectionIndex = 0;
     state.ebookMessage = '';
+    state.finalCheck = null;
+    state.backupMessage = '';
     state.activeView = 'import';
     renderShell();
   }));
@@ -931,6 +972,92 @@ function bindDynamicEvents() {
   }));
 }
 
+
+async function runFinalCheck() {
+  if (!state.project) return;
+  if (effectiveStats(state.project).chapters === 0) {
+    state.finalCheck = { allReady: false, printErrors: 1, ebookErrors: 1 };
+    state.activeView = 'import';
+    updateMain();
+    return;
+  }
+  state.busy = true;
+  state.busyMessage = 'Running Final Check across Story Lock, paperback, and EPUB…';
+  updateMain();
+  try {
+    const lock = await verifyProjectStoryLock(state.project);
+    state.project.storyLock.status = lock.ok ? 'verified' : 'failed';
+    state.project.storyLock.verifiedAt = lock.ok ? new Date().toISOString() : state.project.storyLock.verifiedAt;
+    if (!lock.ok) {
+      state.finalCheck = { allReady: false, printErrors: 1, ebookErrors: 1, storyLockOk: false };
+      await saveProject(state.project);
+      return;
+    }
+    if (!state.preview) state.preview = await paginateProject(state.project);
+    const printReport = runKdpPreflight({ project: state.project, preview: state.preview, storyLockOk: true });
+    const ebookReport = runEpubPreflight({ project: state.project, storyLockOk: true });
+    state.finalCheck = {
+      allReady: Boolean(printReport.ready && ebookReport.ready),
+      storyLockOk: true,
+      printErrors: printReport.summary.errors,
+      printWarnings: printReport.summary.warnings,
+      ebookErrors: ebookReport.summary.errors,
+      ebookWarnings: ebookReport.summary.warnings,
+      checkedAt: new Date().toISOString(),
+    };
+    await saveProject(state.project);
+  } catch (error) {
+    console.error(error);
+    state.finalCheck = { allReady: false, printErrors: 1, ebookErrors: 1, message: error?.message || 'Final Check failed safely.' };
+  } finally {
+    state.busy = false;
+    state.busyMessage = '';
+    state.activeView = 'import';
+    updateMain();
+  }
+}
+
+function backupCurrentProject() {
+  if (!state.project) return;
+  try {
+    const json = serializeProjectBackup(state.project);
+    downloadTextFile(`${safeExportBaseName()}-yasready-project.json`, json, 'application/json;charset=utf-8');
+    state.backupMessage = 'Project backup downloaded. It contains the exact manuscript map plus design and structure metadata.';
+    updateMain();
+  } catch (error) {
+    console.error(error);
+    state.backupMessage = error?.message || 'Project backup could not be created safely.';
+    updateMain();
+  }
+}
+
+async function restoreProjectBackup(file) {
+  if (!file) return;
+  state.busy = true;
+  state.busyMessage = 'Verifying project backup with Story Lock…';
+  updateMain();
+  try {
+    const restored = await parseProjectBackup(await file.text());
+    await saveProject(restored);
+    state.project = restored;
+    state.projects = await listProjects();
+    state.preview = null;
+    state.spreadIndex = 0;
+    state.finalCheck = null;
+    state.backupMessage = `Restored “${restored.title}” as a new local project after Story Lock verification.`;
+    state.activeView = 'import';
+  } catch (error) {
+    console.error(error);
+    state.backupMessage = error?.message || 'Project backup restore was blocked safely.';
+    state.activeView = state.project ? 'import' : 'library';
+  } finally {
+    state.busy = false;
+    state.busyMessage = '';
+    renderShell();
+  }
+}
+
+
 async function applyStructureRepair(blockId, kind) {
   if (!state.project) return;
   try {
@@ -939,6 +1066,7 @@ async function applyStructureRepair(blockId, kind) {
     state.preview = null;
     state.spreadIndex = 0;
     state.ebookSectionIndex = 0;
+    state.finalCheck = null;
     state.repairMessage = kind
       ? `Structure metadata updated for ${blockId}. Story text was not changed.`
       : `Structure override cleared for ${blockId}; source detection is active again.`;
@@ -973,8 +1101,9 @@ function jumpAdjacentChapter(direction) {
 
 async function importFile(file) {
   state.error = '';
-  if (!/\.docx$/i.test(file.name)) {
-    state.error = 'YasReady Publish only accepts .docx files in this build. No conversion was attempted.';
+  const isDocx = /\.docx$/i.test(file.name) || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  if (!isDocx) {
+    state.error = 'YasReady Publish accepts Microsoft Word .docx manuscripts only. No conversion was attempted.';
     updateMain();
     return;
   }
@@ -1013,6 +1142,7 @@ async function saveProjectMetadata() {
   state.project.author = author;
   state.project.updatedAt = new Date().toISOString();
   state.preview = null;
+  state.finalCheck = null;
   await saveProject(state.project);
   state.projects = await listProjects();
   updateMain();
@@ -1084,6 +1214,25 @@ async function buildPreviewForExport() {
   updateMain();
 }
 
+async function createPaperbackPdf() {
+  const popup = window.open('', '_blank');
+  const result = await ensureExportReady();
+  if (!result.ok) {
+    popup?.close();
+    state.activeView = 'export';
+    updateMain();
+    return;
+  }
+  if (!popup) {
+    alert('Your browser blocked the PDF window. Allow popups for YasReady Publish and try again.');
+    return;
+  }
+  const html = buildPrintMasterHtml({ project: state.project, preview: state.preview, manuscriptHash: state.project.source.manuscriptHash, autoPrint: true });
+  popup.document.open();
+  popup.document.write(html);
+  popup.document.close();
+}
+
 async function openPrintMaster() {
   const popup = window.open('', '_blank');
   const result = await ensureExportReady();
@@ -1152,6 +1301,7 @@ async function saveEbookSettings() {
   state.project.design = state.project.design || {};
   state.project.design.ebook = readEbookForm();
   state.project.updatedAt = new Date().toISOString();
+  state.finalCheck = null;
   state.ebookMessage = 'Ebook settings saved. Story wording and Story Lock hash were not changed.';
   await saveProject(state.project);
   state.projects = await listProjects();
@@ -1182,6 +1332,7 @@ async function ensureEpubReady() {
 
 async function downloadEpub() {
   if (!state.project) return;
+  state.finalCheck = null;
   state.project.design = state.project.design || {};
   state.project.design.ebook = readEbookForm();
   state.project.updatedAt = new Date().toISOString();
@@ -1247,6 +1398,7 @@ async function applyThemeFromLibrary(id, kind = 'built-in') {
   state.project.updatedAt = new Date().toISOString();
   state.preview = null;
   state.spreadIndex = 0;
+  state.finalCheck = null;
   state.themeMessage = `Applied “${name}”. Preview invalidated so pagination can be rebuilt safely.`;
   await saveProject(state.project);
   state.projects = await listProjects();
@@ -1354,6 +1506,7 @@ async function saveDesign() {
   state.project.updatedAt = new Date().toISOString();
   state.preview = null;
   state.spreadIndex = 0;
+  state.finalCheck = null;
   state.themeMessage = 'Saved custom design. Preview invalidated so pagination can be rebuilt safely.';
   await saveProject(state.project);
   state.projects = await listProjects();
@@ -1745,6 +1898,7 @@ async function paginateProject(project) {
 
 async function buildPreview() {
   if (!state.project) return;
+  state.finalCheck = null;
   if (effectiveStats(state.project).chapters === 0) {
     alert('No chapter starts were detected. Publish will not guess chapter boundaries. Inspect Source first.');
     return;

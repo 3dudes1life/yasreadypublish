@@ -23,3 +23,19 @@ test('print master emits one fixed page per physical preview page and story hash
   assert.match(html, /@page \{ size: 6in 9in; margin: 0; \}/);
   assert.doesNotMatch(html, />2<\/div>\s*<\/section>/); // intentional blank should not get a folio
 });
+
+
+test('auto-print master opens the system PDF flow only after overflow verification', () => {
+  const project = {
+    title: 'My Book', author: 'D.C.W.',
+    manuscript: { blocks: [{ id: 'p-1', text: 'Exact words.', runs: [{ text: 'Exact words.', bold: false, italic: false, underline: false, strike: false, smallCaps: false }] }] },
+    design: { print: { ...TRES_AMIGOS_TEMPLATE } },
+  };
+  const preview = {
+    design: { ...TRES_AMIGOS_TEMPLATE },
+    pages: [{ number: 1, side: 'right', bookPageNumber: 1, intentionalBlank: false, showRunningHeader: false, chapterTitle: 'Chapter 1: Home', fragments: [{ sourceBlockId: 'p-1', kind: 'body', text: 'Exact words.', continuation: false, startOffset: 0, endOffset: 12, isFinalPiece: true, suppressIndent: false }] }],
+  };
+  const html = buildPrintMasterHtml({ project, preview, manuscriptHash: 'abc123', autoPrint: true });
+  assert.match(html, /if \(true\) setTimeout\(\(\) => window\.print\(\), 250\);/);
+  assert.match(html, /overflow/i);
+});

@@ -88,3 +88,27 @@ Story Lock verification always hashes the original `project.manuscript.blocks`, 
 ### Unsupported source-content protection
 
 If a DOCX contains footnotes or endnotes that the current importer cannot safely place into reading order, import is blocked instead of omitting the note text. Other layout-sensitive constructs such as tables, Word fields, and manual page breaks are surfaced in preflight rather than silently treated as fully supported formatting.
+
+## 1.0 Stable — recovery, readiness, and final production gate
+
+Version 1.0 adds workflow and recovery features without weakening the canonical-source rule.
+
+### Project backups
+
+A `.yasready-project.json` backup is a private recovery artifact, not a reusable theme. Because its purpose is complete recovery, it intentionally contains the manuscript and project metadata. Restore never trusts the backup blindly: Publish migrates it into the current project schema and re-verifies the restored canonical manuscript against its stored Story Lock fingerprint before accepting it. A tampered backup is rejected.
+
+Theme files remain presentation-only and never contain manuscript prose.
+
+### Guided readiness
+
+The Project Home workflow—Manuscript, Structure, Design, Proof, Paperback, Ebook—is status metadata. Changing workflow state cannot change manuscript blocks.
+
+### Superman Final Check
+
+“Run Final Check” is a production orchestration step, not an editor. It re-verifies canonical Story Lock, builds the current print preview, runs paperback preflight, and runs EPUB preflight. A green Superman Ready result means both production engines passed their current software gates.
+
+Any structure, metadata, design, pagination, or ebook-setting change invalidates the previous Final Check result so the project must be checked again.
+
+### Final principle
+
+If presentation quality and source fidelity ever conflict, source fidelity wins. Publish must stop, flag, and require an explicit user decision rather than silently changing the book.

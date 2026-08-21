@@ -191,7 +191,7 @@ export async function parseDocx(arrayBuffer) {
   const footnoteCount = countRealNotes(footnotesXml, 'footnote');
   const endnoteCount = countRealNotes(endnotesXml, 'endnote');
   if (footnoteCount || endnoteCount) {
-    throw new Error(`Story Lock stopped this import because the DOCX contains ${footnoteCount} footnote(s) and ${endnoteCount} endnote(s). v0.9 will not silently omit note text; convert or remove notes in the master DOCX before import.`);
+    throw new Error(`Story Lock stopped this import because the DOCX contains ${footnoteCount} footnote(s) and ${endnoteCount} endnote(s). v1.0 will not silently omit note text; convert or remove notes in the master DOCX before import.`);
   }
 
   const styles = parseStyles(stylesXml);

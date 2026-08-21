@@ -1,93 +1,63 @@
 # Changelog
 
+## v1.0.0 — Stable Private Publishing Studio
+
+- Promoted YasReady Publish from private alpha to private stable 1.0.
+- Added a guided, Apple-simple **Project Home** with a six-step publishing path: Manuscript → Structure → Design → Proof → Paperback → Ebook.
+- Added **Superman Ready Final Check** that verifies Story Lock, KDP paperback preflight, and EPUB preflight in one run.
+- Added private **Project Backup / Restore** with Story Lock verification before restored data is accepted.
+- Added **Create Paperback PDF** workflow: opens the fixed-page master, performs the final overflow check, then invokes the system print dialog for Save as PDF.
+- Added recovery-focused UI and clear readiness status instead of exposing every advanced control as the primary workflow.
+- Reorganized sidebar navigation into Book, Paperback, Digital, and Inspect groups.
+- Fixed stale sidebar state after import: navigation is now re-rendered whenever project state changes, so newly available workspace buttons are immediately live.
+- Added literal-button wiring audit and core UI contract tests.
+- Updated project schema to 10 / app version 1.0.0 without changing canonical manuscript hashes.
+- Hardened import recognition to accept a valid DOCX MIME type even when a platform obscures the filename extension.
+- Updated production/preflight language from v0.9 to v1.0.
+
+### QA gate
+
+- **57/57** unit/integration tests pass.
+- Static JavaScript syntax verification passes.
+- Every literal button ID in the application has a registered handler.
+- Dynamic control families (navigation, projects, structure repair, themes, ebook sections, print navigation) are explicitly audited.
+- Browser interaction smoke testing covered real import, Design, Print Preview, KDP-ready preflight, Ebook, and Superman Final Check with no page/console errors in the exercised flow.
+- The available Book 2 draft DOCX was parser-tested separately: source extraction completed with Story Lock-compatible paragraph mapping and no images, tables, fields, manual page breaks, footnotes, or endnotes detected in that draft.
+
 ## v0.9.0 — Automatic Print TOC + Structure Repair
 
-- Added automatic print Table of Contents generation from final printed page numbers.
-- Added Book 1-style TOC title, dot leaders, chapter entries, and recognized back-matter entries.
-- Added multi-pass pagination and a TOC convergence/integrity gate; stale generated page numbers block export.
-- Added source/manual TOC detection so YasReady never duplicates or silently deletes an existing manuscript TOC.
-- Added metadata-only Structure Repair for chapter titles, body paragraphs, scene breaks, text messages, matter headings, headings, and blanks.
-- Updated print and EPUB structure engines to honor structure overrides while preserving original source text and source order.
-- Added Word-document edge metadata for tables, fields, hyperlinks, manual page breaks, footnotes, and endnotes.
-- Added safe import blocking for footnotes/endnotes rather than silently omitting note text.
-- Expanded KDP preflight with automatic TOC verification, unexpected-empty-page checks, Word-table warnings, Word-field warnings, and manual-page-break warnings.
-- Expanded EPUB preflight with structure-repair and Word-layout warnings.
-- Migrated projects to schema version 9 / app version 0.9.0 without changing Story Lock hashes.
-- Expanded the automated suite to 50 tests before release packaging.
+- Automatic print Table of Contents with final printed page numbers.
+- Metadata-only Structure Repair.
+- Edge-case preflight hardening.
 
 ## v0.8.0 — EPUB / Kindle Engine
 
-- Added a dedicated reflowable Ebook / Kindle workspace.
-- Added independent ebook design metadata so print geometry can never leak into EPUB layout.
-- Added EPUB 3 package generation with uncompressed root `mimetype`, container.xml, OPF, XHTML reading order, CSS, `nav.xhtml`, and `toc.ncx`.
-- Added automatic clickable Contents from safely detected chapters and recognized front/back matter.
-- Added ebook section mapping that preserves every source block exactly once and in original order.
-- Added ebook source-coverage integrity checks in addition to the canonical Story Lock SHA-256 check.
-- Added reflowable preview and chapter/matter navigation.
-- Added EPUB metadata controls for language and publisher while retaining project title/author metadata.
-- Added Story Lock hash metadata inside the EPUB package for auditability.
-- Added EPUB preflight and downloadable EPUB preflight JSON report.
-- Added direct browser download of the generated `.epub`.
-- Kept DOCX image assets blocked in 0.8 rather than silently omitting them.
-- Migrated projects to schema version 8 / app version 0.8.0 without changing Story Lock hashes.
-- Expanded the automated suite to 42 tests, including a real EPUB archive check that verifies the required uncompressed root `mimetype` entry.
+- Reflowable EPUB 3 packaging and clickable navigation.
 
 ## v0.7.0 — KDP Production Gate
 
-- Added dedicated KDP Export workspace.
-- Added page-count-aware paperback preflight using the current KDP inside-margin bands.
-- Added checks for single-page interior output, page count, trim, no-bleed outside margin, minimum font size, right-hand chapter starts, Story Lock, and intentional blank-page furniture.
-- Added DOCX image-asset detection and blocks 0.7 export when images are present rather than silently dropping them.
-- Added fixed single-page Print Master HTML generation with CSS `@page` dimensions matching the selected trim size.
-- Added export-window production overflow detection; Print / Save as PDF stays disabled if any page exceeds its fixed page box.
-- Added Story Lock re-verification immediately before every print-master export.
-- Added downloadable Print Master HTML and KDP preflight JSON report.
-- Intentional blank versos now suppress both running headers and page-number folios.
-- Migrated projects to schema version 7 / app version 0.7.0 without changing Story Lock hashes.
-- Added KDP preflight and print-master tests.
+- KDP preflight and fixed-page print master.
 
-## v0.6.0 — Reusable House Styles
+## v0.6.0 — Reusable Themes
 
-- Added a reusable Theme Library while preserving the Story-Locked manuscript layer.
-- Added built-in `Tres Amigos Series · Book 1`, `Classic Novel`, and `Modern Romance` print themes.
-- Added private custom-theme creation from the current design.
-- Added theme JSON export/import for backups and reuse across books/browsers.
-- Added safe custom-theme deletion; deleting a theme never deletes or alters a manuscript.
-- Added a Book 1 Calibration Inspector that compares presentation metadata against the saved series reference profile.
-- Added body alignment and chapter-title alignment controls.
-- Added configurable folio bottom/outside positions and running-header top/outside positions.
-- Updated Book 1 preview furniture to use design-controlled placement rather than fixed preview pixels.
-- Migrated projects to schema version 6 / app version 0.6.0 without changing Story Lock hashes.
-- Added theme-store and calibration tests.
+- Built-in and private themes plus Book 1 calibration.
 
-## v0.5.0 — Long Book Navigator
+## v0.5.0 — Long-book Navigator
 
-- Added a dedicated Navigator view for 500+ page books.
-- Added physical-page and printed-page mapping for every detected chapter.
-- Added direct jumps to front matter, chapters, and recognized back matter.
-- Added previous/next chapter and previous/next spread controls.
-- Added physical-page jump, full-book page scrubber, and preview zoom levels.
-- Added a searchable navigation rail next to the spread preview.
-- Kept all navigation outside the Story-Locked source layer.
+- Chapter/page navigator and spread workbench.
 
-## v0.4.0 — Whole Book Structure
+## v0.4.0 — Whole-book Structure
 
-- Added front/body/back matter mapping.
-- Added running headers generated from metadata and chapter structure.
-- Added header suppression rules for chapter openings and blank pages.
-- Added fresh-page back-matter starts.
+- Front/back matter and running headers.
 
-## v0.3.0 — Tres Amigos Template
+## v0.3.0 — Tres Amigos Calibration
 
-- Added the initial Book 1 6×9 presentation profile.
-- Added page numbers and chapter-opening styling.
-- Added inline DOCX run formatting in preview.
-- Added post-pagination text-integrity verification.
+- Book 1 series profile and source inline formatting.
 
 ## v0.2.0 — Print Structure
 
-- Added mirrored page geometry, binding margins, odd/right chapter starts, intentional blank versos, and structural spread preview.
+- 6×9 fixed-page model, mirrored margins, odd-page chapter starts.
 
 ## v0.1.0 — Story Lock Foundation
 
-- Added local DOCX import, chapter detection, read-only source inspector, IndexedDB projects, and SHA-256 Story Lock.
+- DOCX import, structure mapping, local projects, immutable source fingerprinting.
