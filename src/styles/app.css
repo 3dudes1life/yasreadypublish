@@ -653,3 +653,32 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 @media(max-width:850px){.ebook-device-card{grid-template-columns:1fr}.ebook-device-actions{justify-content:flex-start}.preview-studio-grid{grid-template-columns:1fr}.ebook-format-inspector{grid-column:auto}.inspector-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:560px){.inspector-grid,.inspector-actions{grid-template-columns:1fr}.ebook-device-actions .btn{width:100%}}
 .inspector-default-button{width:100%;margin-top:7px;font-size:8px}
+
+/* v1.0.9 Kindle Preview Studio — high-fidelity device simulator */
+.kindle-preview-studio-v109 .panel-head{margin-bottom:10px}
+.kindle-preview-toolbar{display:grid;grid-template-columns:repeat(5,minmax(110px,1fr)) auto;gap:8px;align-items:end;padding:10px;border:1px solid #e4e3e9;border-radius:15px;background:#fafafa;margin-bottom:10px}
+.kindle-preview-control>span{display:block;margin:0 0 4px;font-size:7px;font-weight:850;letter-spacing:.05em;text-transform:uppercase;color:#76767c}
+.kindle-preview-control select{width:100%;border:1px solid #dcdce2;border-radius:9px;background:#fff;padding:8px 9px;font-size:9px;font-weight:700;color:#222;outline:none}
+.kindle-mode-toggle{display:flex;gap:3px;padding:3px;border:1px solid #dcdce2;border-radius:11px;background:#eeeef2;align-self:end}
+.kindle-mode-toggle button{border:0;border-radius:8px;background:transparent;padding:8px 10px;font-size:8px;font-weight:850;color:#666;cursor:pointer;white-space:nowrap}
+.kindle-mode-toggle button.active{background:#151517;color:#fff;box-shadow:0 1px 5px rgba(0,0,0,.16)}
+.kindle-preview-truth{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:8px;align-items:center;margin:0 0 12px;padding:8px 10px;border-radius:11px;background:#f0edff;color:#5547a5}
+.kindle-preview-truth>span{font-size:6.7px;font-weight:900;letter-spacing:.06em}.kindle-preview-truth>strong{font-size:8px}.kindle-preview-truth>p{margin:0;font-size:7.4px;line-height:1.35;color:#6b6196}
+.kindle-simulator-wrap{min-width:0;display:grid;place-items:start center;overflow:auto;padding:4px 2px 18px}
+.kindle-device{width:min(100%,calc(var(--kindle-w) * 1px));aspect-ratio:calc(var(--kindle-w) / var(--kindle-h));padding:calc(var(--kindle-bezel) * 1px);border-radius:var(--kindle-radius);background:#242428;box-shadow:0 18px 44px rgba(0,0,0,.22);display:grid;grid-template-rows:auto minmax(0,1fr);gap:7px;transition:width .18s ease,aspect-ratio .18s ease}
+.kindle-device-ereader{background:#292a2b}.kindle-device-phone{background:#151517}.kindle-device-tablet{background:#242428}
+.kindle-device-top{height:18px;display:flex;align-items:center;justify-content:space-between;gap:8px;color:#ededf0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:0 2px;overflow:hidden}
+.kindle-device-top span{font-size:7px;font-weight:850;white-space:nowrap}.kindle-device-top small{font-size:6.5px;color:#aaaab0;text-transform:capitalize;white-space:nowrap}
+.kindle-screen{min-height:0;border-radius:max(7px,calc(var(--kindle-radius) - 10px));overflow:hidden;background:var(--kindle-chrome);box-shadow:inset 0 0 0 1px rgba(255,255,255,.09)}
+.kindle-render-frame{display:block;width:100%;height:100%;min-height:0;border:0;background:#fff}
+.preview-studio-grid.is-reading .ebook-toc-row{cursor:pointer}
+.preview-studio-grid.is-reading #ebookInspectorSlot{align-self:start}
+.ebook-format-inspector.read-mode .inspector-empty-icon{font-size:13px;font-weight:900}
+.inspector-mode-button,.inspector-reset-all{width:100%;margin-top:8px}
+.inspector-reset-all{font-size:7.5px!important}
+.preview-studio-grid.is-adjusting .ebook-format-inspector{border-color:#cfc8ff;box-shadow:0 8px 24px rgba(88,68,170,.08)}
+.preview-studio-grid.is-adjusting .ebook-reader-shell:before{content:"ADJUST LAYOUT";position:absolute;z-index:3;top:8px;left:8px;padding:5px 7px;border-radius:7px;background:#6855df;color:white;font-size:6px;font-weight:900;letter-spacing:.06em;pointer-events:none}
+.kindle-simulator-wrap+.ebook-format-inspector{min-width:0}
+@media(max-width:1250px){.kindle-preview-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}.kindle-mode-toggle{grid-column:1/-1;justify-self:start}.kindle-device{max-width:620px}}
+@media(max-width:850px){.kindle-preview-toolbar{grid-template-columns:1fr 1fr}.kindle-preview-truth{grid-template-columns:1fr}.kindle-mode-toggle{width:100%;justify-self:stretch}.kindle-mode-toggle button{flex:1}.kindle-device{width:min(100%,calc(var(--kindle-w) * 1px))}}
+@media(max-width:560px){.kindle-preview-toolbar{grid-template-columns:1fr}.kindle-mode-toggle{grid-column:auto}.kindle-device{width:100%;border-radius:18px;padding:10px}.kindle-device-top{height:15px}.kindle-simulator-wrap{padding-bottom:8px}}

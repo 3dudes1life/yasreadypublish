@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.0.9 — Kindle Simulator + Read/Adjust UX Hardening
+
+- Replaces the oversized generic cover/web preview with a device-framed Kindle working simulator.
+- Adds E-reader, Phone, and Tablet preview classes; portrait/landscape; Reader Serif/Sans; five text sizes; White/Sepia/Mint/Black appearances.
+- E-reader mode previews cover artwork in grayscale while Phone/Tablet remain color, matching Amazon's documented preview behavior categories.
+- Cover now fits the simulated reader viewport instead of rendering as a giant webpage image.
+- Splits Preview Studio into explicit **Read Mode** and **Adjust Layout**. Read Mode contains no inspection hooks or hover outlines.
+- Adjust Layout adds selection hooks only while active; clicking a block updates the inspector slot without rebuilding the entire preview surface.
+- Keeps visible Contents navigation working in both Read and Adjust modes.
+- Adds reset-all Kindle presentation fixes while preserving Story Lock.
+- Preview font/device/appearance settings affect only the simulator and never the final EPUB.
+- Final EPUB continues to use the exact same production XHTML/CSS source model and contains no preview-only markers.
+- Adds Kindle preview model regression tests and schema 19 / app 1.0.9 migration that leaves manuscript blocks unchanged.
+- Automated gate: **111/111 tests passing**, static verification PASS, Superman audit PASS.
+
 ## v1.0.8 — Kindle Preview Studio + Private Device Proof
 
 - Adds a live **Cover** item at the start of the Kindle preview when an ebook cover is attached, without adding a duplicate HTML cover page to the final EPUB.

@@ -3,7 +3,7 @@ import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const VERSION = '1.0.8';
+const VERSION = '1.0.9';
 
 function walk(dir) {
   const out = [];
@@ -41,7 +41,7 @@ const buttonIds = [...main.matchAll(/<button\b[^>]*\bid="([^"]+)"/g)].map((m) =>
 const boundIds = new Set([...main.matchAll(/querySelector\(['"]#([^'"]+)['"]\)/g)].map((m) => m[1]));
 const unbound = [...new Set(buttonIds)].filter((id) => !boundIds.has(id));
 if (unbound.length) throw new Error(`Unbound button IDs: ${unbound.join(', ')}`);
-const dynamic = ['data-go-view','data-open-project','data-delete-project','data-nav-page','data-ebook-section','data-repair-block','data-apply-theme','data-export-theme','data-delete-theme','data-edition-enabled','data-work-edition'];
+const dynamic = ['data-go-view','data-open-project','data-delete-project','data-nav-page','data-ebook-section','data-repair-block','data-apply-theme','data-export-theme','data-delete-theme','data-edition-enabled','data-work-edition','data-kindle-mode'];
 for (const attr of dynamic) {
   if (main.includes(attr) && !main.includes(`querySelectorAll('[${attr}]')`) && !main.includes(`querySelectorAll("[${attr}]")`)) {
     throw new Error(`Dynamic control family lacks a binding: ${attr}`);
@@ -67,6 +67,9 @@ for (const marker of [
   'ebookCoverInput',
   'shareDevicePreview',
   'applyEbookBlockOverride',
+  'kindlePreviewDevice',
+  'updateKindlePreviewPreference',
+  'refreshEbookInspectorOnly',
 ]) {
   if (!main.includes(marker)) throw new Error(`Missing release safety marker: ${marker}`);
 }

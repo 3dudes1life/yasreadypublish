@@ -311,7 +311,7 @@ function previewTocHtml(toc) {
   return `<nav epub:type="toc" id="toc" role="doc-toc"><h1>Table of Contents</h1><ol>${toc.map((entry) => `<li><a href="#" data-yrp-toc-href="${escapeXml(entry.href)}">${escapeXml(entry.label)}</a></li>`).join('')}</ol></nav>`;
 }
 
-export function buildEbookPreviewHtml({ project, sectionIndex = 0 } = {}) {
+export function buildEbookPreviewHtml({ project, sectionIndex = 0, inspectMode = false } = {}) {
   if (!project) throw new Error('A publishing project is required.');
   const design = normalizeEbookDesign(project.editions?.ebook?.design || project.design?.ebook || {});
   const { sections: sourceSections } = buildEbookSections(project);
@@ -329,14 +329,14 @@ export function buildEbookPreviewHtml({ project, sectionIndex = 0 } = {}) {
   const index = Math.max(0, Math.min(Math.max(0, items.length - 1), Number(sectionIndex) || 0));
   const section = items[index] || { id: 'empty', title: 'Empty book', type: 'front', blocks: [] };
   const html = section.type === 'cover' && section.cover
-    ? `<div class="yrp-cover-preview"><img src="${escapeXml(section.cover.dataUrl)}" alt="${escapeXml(project.title || 'Book cover')}" /></div>`
+    ? `<div class="yrp-cover-preview yrp-live-cover"><img src="${escapeXml(section.cover.dataUrl)}" alt="${escapeXml(project.title || 'Book cover')}" /></div>`
     : section.synthetic
       ? previewTocHtml(toc)
       : section.blocks.map((block, blockIndex) => {
         const blankMode = section.type === 'chapter'
           ? blankRenderMode({ blocks: section.blocks, index: blockIndex, sectionType: section.type, policy: design.bodyBlankPolicy })
           : 'collapse';
-        return renderBlock(block, { blankMode, sectionType: section.type, design, project, previewMode: true });
+        return renderBlock(block, { blankMode, sectionType: section.type, design, project, previewMode: Boolean(inspectMode) });
       }).join('\n');
   return {
     index,

@@ -16,8 +16,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   const project = {
     id: crypto.randomUUID(),
-    version: 18,
-    appVersion: '1.0.8',
+    version: 19,
+    appVersion: '1.0.9',
     title: baseName,
     author: '',
     createdAt: now,
@@ -179,11 +179,20 @@ export function migrateProject(project) {
     if (project.editions?.ebook) project.editions.ebook.lastPreflight = null;
   }
 
+  // 1.0.9 rebuilds the Kindle preview interaction layer around explicit Read
+  // and Adjust modes. The simulator is UI-only; migration touches no source
+  // blocks or wording. We invalidate only stale ebook preflight status so the
+  // next acceptance run is always fresh.
+  if (oldVersion < 19) {
+    ensurePresentationOverrides(project);
+    if (project.editions?.ebook) project.editions.ebook.lastPreflight = null;
+  }
+
   ensureEbookDesign(project);
   ensureEditions(project);
   ensurePresentationOverrides(project);
-  project.version = Math.max(oldVersion, 18);
-  project.appVersion = '1.0.8';
+  project.version = Math.max(oldVersion, 19);
+  project.appVersion = '1.0.9';
   return project;
 }
 

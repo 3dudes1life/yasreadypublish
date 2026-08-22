@@ -38,7 +38,7 @@ test('ebook block presentation override changes preview and final XHTML but neve
   setBlockPresentationOverride(p,'ebook','p2',{spaceAfter:1.25,alignment:'center',firstLineIndent:0.5});
   const preview0=buildEbookPreviewHtml({project:p,sectionIndex:0});
   const chapterIndex=preview0.sections.findIndex(x=>x.type==='chapter');
-  const preview=buildEbookPreviewHtml({project:p,sectionIndex:chapterIndex});
+  const preview=buildEbookPreviewHtml({project:p,sectionIndex:chapterIndex,inspectMode:true});
   assert.match(preview.html,/data-yrp-block-id="p2"/);
   assert.match(preview.html,/margin-bottom:1.25em/);
   assert.match(preview.html,/text-align:center/);
@@ -62,8 +62,8 @@ test('device preview is standalone read-only proof with cover, TOC and reader co
 test('1.0.8 migration initializes presentation override buckets without changing manuscript', () => {
   const p=project();
   const before=JSON.stringify(p.manuscript.blocks);
-  assert.equal(p.version,18);
-  assert.equal(p.appVersion,'1.0.8');
+  assert.equal(p.version,19);
+  assert.equal(p.appVersion,'1.0.9');
   assert.deepEqual(p.presentationOverrides,{ebook:{},paperback:{},hardcover:{}});
   assert.equal(JSON.stringify(p.manuscript.blocks),before);
 });
