@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { migrateProject } from '../src/lib/project.js';
 
-test('1.0.3 retains 1.0.1 migration and the old Tres Amigos paragraph gap and Contents parity without touching manuscript text', () => {
+test('1.0.4 retains 1.0.1 migration and the old Tres Amigos paragraph gap and Contents parity without touching manuscript text', () => {
   const project = {
     version: 10,
     appVersion: '1.0.0',
@@ -13,14 +13,14 @@ test('1.0.3 retains 1.0.1 migration and the old Tres Amigos paragraph gap and Co
   };
   const before = project.manuscript.blocks[0].text;
   migrateProject(project);
-  assert.equal(project.version, 13);
-  assert.equal(project.appVersion, '1.0.3');
-  assert.equal(project.design.print.paragraphGap, 0);
+  assert.equal(project.version, 14);
+  assert.equal(project.appVersion, '1.0.4');
+  assert.equal(project.design.print.paragraphGap, 0.12);
   assert.equal(project.design.print.tocStartSide, 'left');
   assert.equal(project.manuscript.blocks[0].text, before);
 });
 
-test('1.0.3 preserves a deliberately customized paragraph gap', () => {
+test('1.0.4 preserves a deliberately customized paragraph gap', () => {
   const project = {
     version: 10,
     appVersion: '1.0.0',

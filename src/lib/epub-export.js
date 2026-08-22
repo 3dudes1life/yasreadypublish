@@ -46,13 +46,13 @@ function stylesheet(designInput) {
   return `@charset "UTF-8";
 html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; padding: 0; font-family: ${ebookFontStack(design.fontFamily)}; line-height: ${design.lineHeight}; text-align: ${design.bodyAlignment}; }
-p { margin: 0 0 ${design.paragraphGapEm}em 0; }
-p.body { text-indent: ${design.firstLineIndentEm}em; }
+p { margin:0; }
+p.body { margin:0 0 ${design.paragraphGapEm}em 0; text-indent: ${design.firstLineIndentEm}em; }
 p.chapter-opening { text-indent: 0; }
 h1.chapter-title { margin: ${design.chapterTopEm}em 0 ${design.chapterAfterEm}em; text-align: ${design.chapterTitleAlignment}; font-size: 1.55em; line-height: 1.2; font-weight: 700; page-break-before: always; break-before: page; }
 h2.matter-heading { margin: 2.6em 0 1.4em; font-size: 1.3em; line-height: 1.2; page-break-before: always; break-before: page; }
 p.scene-break { margin: ${design.sceneBreakSpaceEm}em 0; text-indent: 0; text-align: center; }
-p.text-message { margin-left: ${design.textMessageIndentEm}em; margin-right: ${design.textMessageIndentEm}em; text-indent: 0; }
+p.text-message { margin:0 ${design.textMessageIndentEm}em ${design.paragraphGapEm}em; text-indent: 0; }
 p.blank { min-height: .7em; }
 p.blank.normalized { display:block; min-height:${design.bodyBlankSpaceEm}em; height:${design.bodyBlankSpaceEm}em; margin:0; padding:0; }
 p.blank.collapsed { display:none; min-height:0; height:0; margin:0; padding:0; }

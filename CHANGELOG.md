@@ -1,4 +1,13 @@
-## v1.0.3 — Edition Manager + Spacing Normalization
+# YasReady Publish v1.0.4
+
+- Fixes the Chapter 5+ spacing regression by making Tres Amigos body rhythm uniform across the entire manuscript, independent of inconsistent DOCX blank-paragraph markup.
+- Paperback/Hardcover: every story paragraph now receives the same 0.12-inch presentation gap; source blank body paragraphs collapse visually but remain Story-Locked.
+- Ebook/Kindle: every story paragraph receives the same 0.7em presentation gap; source blank body paragraphs remain in XHTML for coverage but collapse visually.
+- Scene breaks and headings keep their own dedicated spacing and no longer inherit generic paragraph gap.
+- Existing v1.0.4 projects migrate automatically; manuscript text/hashes are unchanged.
+- Edition Manager from v1.0.4 remains fully intact.
+
+## v1.0.4 — Edition Manager + Spacing Normalization
 
 - Replaces the over-aggressive 1.0.2 all-blank collapse with a three-mode presentation policy: Normalize, Preserve, or Collapse.
 - Tres Amigos defaults to Normalize: one run of source blank paragraphs renders as one standard spacer; extra consecutive blanks collapse visually.

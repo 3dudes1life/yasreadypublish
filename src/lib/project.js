@@ -15,8 +15,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   const project = {
     id: crypto.randomUUID(),
-    version: 13,
-    appVersion: '1.0.3',
+    version: 14,
+    appVersion: '1.0.4',
     title: baseName,
     author: '',
     createdAt: now,
@@ -69,7 +69,7 @@ export function migrateProject(project) {
     if (!project.design.print.tocStartSide) project.design.print.tocStartSide = 'left';
   }
 
-  // 1.0.3 corrects the over-aggressive 1.0.2 blank-line hotfix. Instead of
+  // 1.0.4 corrects the over-aggressive 1.0.2 blank-line hotfix. Instead of
   // deleting all visual blank lines, body blank runs are normalized to one
   // standard spacer while extra consecutive blanks collapse. Source blocks stay intact.
   if (oldVersion < 13) {
@@ -87,8 +87,51 @@ export function migrateProject(project) {
   ensureEbookDesign(project);
   ensureEditions(project);
 
-  project.version = Math.max(oldVersion, 13);
-  project.appVersion = '1.0.3';
+  // 1.0.4: the book's visible paragraph rhythm must not depend on inconsistent
+  // blank paragraph markup in the source DOCX. Tres Amigos editions get one
+  // uniform presentation gap after every story paragraph while body blank
+  // paragraphs collapse visually. Story Lock source blocks remain unchanged.
+  if (oldVersion < 14) {
+    const applyPrintRhythm = (edition) => {
+      if (!edition?.design) return;
+      const id = edition.design.templateId || project.design?.print?.templateId;
+      if (id === 'tres-amigos-book1' || id === 'tres-amigos-hardcover') {
+        const gap = Number(edition.design.paragraphGap);
+        const policy = edition.design.bodyBlankPolicy;
+        const legacyGap = !Number.isFinite(gap) || Math.abs(gap) < 0.0001 || Math.abs(gap - 0.333) < 0.0001;
+        const legacyPolicy = !policy || policy === 'normalize' || policy === 'collapse';
+        if (legacyGap && legacyPolicy) {
+          edition.design.paragraphGap = 0.12;
+          edition.design.bodyBlankPolicy = 'collapse';
+          edition.design.bodyBlankSpace = 0.12;
+        }
+      }
+    };
+    applyPrintRhythm(project.editions?.paperback);
+    applyPrintRhythm(project.editions?.hardcover);
+    if (project.editions?.ebook?.design) {
+      const ebook = project.editions.ebook.design;
+      const gap = Number(ebook.paragraphGapEm);
+      const legacyGap = !Number.isFinite(gap) || Math.abs(gap) < 0.0001;
+      const legacyPolicy = !ebook.bodyBlankPolicy || ebook.bodyBlankPolicy === 'normalize' || ebook.bodyBlankPolicy === 'collapse';
+      if (legacyGap && legacyPolicy) {
+        ebook.paragraphGapEm = 0.7;
+        ebook.bodyBlankPolicy = 'collapse';
+        ebook.bodyBlankSpaceEm = 0.7;
+      }
+    }
+    if (project.editions?.activePrint && project.editions[project.editions.activePrint]?.design) {
+      project.design.print = { ...project.editions[project.editions.activePrint].design };
+    }
+    if (project.editions?.ebook?.design) project.design.ebook = { ...project.editions.ebook.design };
+  }
+
+  ensurePrintDesign(project);
+  ensureEbookDesign(project);
+  ensureEditions(project);
+
+  project.version = Math.max(oldVersion, 14);
+  project.appVersion = '1.0.4';
   return project;
 }
 

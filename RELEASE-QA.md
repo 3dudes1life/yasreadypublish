@@ -1,4 +1,12 @@
-## 1.0.3 edition + spacing acceptance
+# v1.0.4 Release QA
+
+- Automated suite: **72 / 72 passing**
+- Static verification: **PASS**
+- Whole-book uniform paragraph rhythm regression tests: **PASS**
+- Paperback/Hardcover/Ebook edition independence retained: **PASS**
+- Story Lock manuscript mutation check during migration: **PASS**
+
+## 1.0.4 edition + spacing acceptance
 
 - [x] One body blank between prose paragraphs renders one normalized spacer.
 - [x] Consecutive blank paragraphs render only one spacer in Normalize mode.

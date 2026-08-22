@@ -45,7 +45,7 @@ The KDP Previewer and a human review of the exported PDF remain the final manufa
 
 Project Home exposes **Run Final Check**, which re-verifies Story Lock, builds the current paperback preview, evaluates paperback preflight, evaluates EPUB preflight, and reports a single guided readiness state. “Superman Ready” means both software production gates passed; it does not replace visual proofing of the final commercial files.
 
-## v1.0.3 edition-specific page-count gate
+## v1.0.4 edition-specific page-count gate
 
 YasReady now evaluates the active physical edition independently.
 

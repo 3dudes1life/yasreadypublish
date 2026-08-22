@@ -33,7 +33,7 @@ import {
   setEbookEditionDesign, setPrintEditionDesign,
 } from './lib/editions.js';
 
-const VERSION = '1.0.3';
+const VERSION = '1.0.4';
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
 
@@ -204,7 +204,7 @@ function renderImport() {
       </div>
     </article>
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">1.0.3 production foundation</div><h2>One finished manuscript. Choose your editions.</h2><p>Import once, then enable paperback, hardcover, ebook, or any combination. Each edition gets its own presentation rules while Story Lock remains one source of truth.</p></div></div>
+      <div class="panel-head"><div><div class="eyebrow">1.0.4 production foundation</div><h2>One finished manuscript. Choose your editions.</h2><p>Import once, then enable paperback, hardcover, ebook, or any combination. Each edition gets its own presentation rules while Story Lock remains one source of truth.</p></div></div>
       <div class="summary-grid six">
         <div class="stat"><b>✓</b><span>Read DOCX</span></div>
         <div class="stat"><b>✓</b><span>Story Lock</span></div>
@@ -498,8 +498,8 @@ function renderDesign() {
             ${designNumberField('bodyFontSize', 'Body size', d.bodyFontSize, '0.25', '7', '18', 'pt')}
             ${designNumberField('lineHeight', 'Line height', d.lineHeight, '0.01', '1', '2', '×')}
             ${designNumberField('firstLineIndent', 'First-line indent', d.firstLineIndent, '0.01', '0', '1')}
-            ${designNumberField('paragraphGap', 'Paragraph gap', d.paragraphGap, '0.01', '0', '0.75')}
-            <label class="design-field"><span>Blank paragraph handling</span><select id="bodyBlankPolicy"><option value="normalize" ${d.bodyBlankPolicy === 'normalize' ? 'selected' : ''}>Normalize each blank run to one spacer</option><option value="preserve" ${d.bodyBlankPolicy === 'preserve' ? 'selected' : ''}>Preserve every source blank line</option><option value="collapse" ${d.bodyBlankPolicy === 'collapse' ? 'selected' : ''}>Collapse all body blank lines</option></select><small>Normalize keeps one intentional-looking breathing space while preventing doubled/tripled DOCX blanks.</small></label>${designNumberField('bodyBlankSpace', 'Normalized blank space', d.bodyBlankSpace, '0.01', '0', '0.5')}
+            ${designNumberField('paragraphGap', 'Uniform paragraph spacing', d.paragraphGap, '0.01', '0', '0.75')}
+            <label class="design-field"><span>Blank paragraph handling</span><select id="bodyBlankPolicy"><option value="normalize" ${d.bodyBlankPolicy === 'normalize' ? 'selected' : ''}>Normalize each blank run to one spacer</option><option value="preserve" ${d.bodyBlankPolicy === 'preserve' ? 'selected' : ''}>Preserve every source blank line</option><option value="collapse" ${d.bodyBlankPolicy === 'collapse' ? 'selected' : ''}>Collapse all body blank lines</option></select><small>Tres Amigos defaults to collapsing source blank lines and applying one uniform paragraph rhythm to every story paragraph from Chapter 1 through the final chapter.</small></label>${designNumberField('bodyBlankSpace', 'Normalized blank space', d.bodyBlankSpace, '0.01', '0', '0.5')}
             ${designNumberField('chapterTitleSize', 'Chapter title', d.chapterTitleSize, '0.25', '9', '28', 'pt')}
             ${designNumberField('chapterTopSpace', 'Chapter top space', d.chapterTopSpace, '0.01', '0', '2.5')}
             ${designNumberField('chapterAfterSpace', 'After chapter title', d.chapterAfterSpace, '0.01', '0', '1.5')}
@@ -712,7 +712,8 @@ function renderBookPage(page, design) {
       const shouldIndent = fragment.kind === 'body' && !fragment.continuation && !fragment.suppressIndent;
       if (fragment.kind === 'body') extra += `text-align:${design.bodyAlignment};`;
       if (shouldIndent) extra += `text-indent:${indent}px;`;
-      const gap = fragment.isFinalPiece && design.paragraphGap && !['chapter-title','blank','generated-toc-title','generated-toc-entry'].includes(fragment.kind)
+      const gapKinds = new Set(['body','chapter-opening','text-message']);
+      const gap = fragment.isFinalPiece && design.paragraphGap && gapKinds.has(fragment.kind)
         ? design.paragraphGap * px : 0;
       if (gap) extra += `padding-bottom:${gap}px;`;
       return `<div class="${classes}" style="${extra}">${content}</div>`;
@@ -808,8 +809,8 @@ function renderEbook() {
         <label class="design-field"><span>Body alignment</span><select id="ebookBodyAlignment"><option value="left" ${design.bodyAlignment === 'left' ? 'selected' : ''}>Left</option><option value="justify" ${design.bodyAlignment === 'justify' ? 'selected' : ''}>Justified</option></select></label>
         <label class="design-field"><span>Line height</span><input id="ebookLineHeight" type="number" min="1" max="2.2" step="0.01" value="${design.lineHeight}"></label>
         <label class="design-field"><span>First-line indent</span><div class="number-wrap"><input id="ebookFirstIndent" type="number" min="0" max="3" step="0.05" value="${design.firstLineIndentEm}"><em>em</em></div></label>
-        <label class="design-field"><span>Paragraph gap</span><div class="number-wrap"><input id="ebookParagraphGap" type="number" min="0" max="2" step="0.05" value="${design.paragraphGapEm}"><em>em</em></div></label>
-        <label class="design-field"><span>Blank paragraph handling</span><select id="ebookBodyBlankPolicy"><option value="normalize" ${design.bodyBlankPolicy === 'normalize' ? 'selected' : ''}>Normalize each blank run to one spacer</option><option value="preserve" ${design.bodyBlankPolicy === 'preserve' ? 'selected' : ''}>Preserve every source blank line</option><option value="collapse" ${design.bodyBlankPolicy === 'collapse' ? 'selected' : ''}>Collapse all body blank lines</option></select><small>Normalize prevents giant Kindle gaps without smashing all breathing room together.</small></label><label class="design-field"><span>Normalized blank space</span><div class="number-wrap"><input id="ebookBodyBlankSpace" type="number" min="0" max="2" step="0.05" value="${design.bodyBlankSpaceEm}"><em>em</em></div></label>
+        <label class="design-field"><span>Uniform paragraph spacing</span><div class="number-wrap"><input id="ebookParagraphGap" type="number" min="0" max="2" step="0.05" value="${design.paragraphGapEm}"><em>em</em></div></label>
+        <label class="design-field"><span>Blank paragraph handling</span><select id="ebookBodyBlankPolicy"><option value="normalize" ${design.bodyBlankPolicy === 'normalize' ? 'selected' : ''}>Normalize each blank run to one spacer</option><option value="preserve" ${design.bodyBlankPolicy === 'preserve' ? 'selected' : ''}>Preserve every source blank line</option><option value="collapse" ${design.bodyBlankPolicy === 'collapse' ? 'selected' : ''}>Collapse all body blank lines</option></select><small>Tres Amigos defaults to collapsing source blank lines and applying one uniform ebook paragraph rhythm across every chapter.</small></label><label class="design-field"><span>Normalized blank space</span><div class="number-wrap"><input id="ebookBodyBlankSpace" type="number" min="0" max="2" step="0.05" value="${design.bodyBlankSpaceEm}"><em>em</em></div></label>
         <label class="design-field"><span>Chapter title alignment</span><select id="ebookChapterAlignment"><option value="left" ${design.chapterTitleAlignment === 'left' ? 'selected' : ''}>Left</option><option value="center" ${design.chapterTitleAlignment === 'center' ? 'selected' : ''}>Center</option><option value="right" ${design.chapterTitleAlignment === 'right' ? 'selected' : ''}>Right</option></select></label>
       </div>
       <div class="action-row"><button class="btn primary" id="saveEbookSettings">Save Ebook Settings</button><button class="btn secondary" id="downloadEpubPreflight">Download EPUB Preflight</button><button class="btn primary" id="downloadEpub" ${report.ready ? '' : 'disabled'}>Download .EPUB</button></div>
@@ -1783,7 +1784,7 @@ function measureFragment(rig, design, kind, text, continuation = false, isFinalP
     paragraph.style.textIndent = `${design.firstLineIndent}in`;
   }
 
-  if (isFinalPiece && design.paragraphGap && !['chapter-title','blank','generated-toc-title','generated-toc-entry'].includes(kind)) {
+  if (isFinalPiece && design.paragraphGap && ['body','chapter-opening','text-message'].includes(kind)) {
     wrapper.style.paddingBottom = `${design.paragraphGap}in`;
   }
   wrapper.appendChild(paragraph);

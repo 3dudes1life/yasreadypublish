@@ -42,7 +42,7 @@ test('print design normalization clamps unsafe values without mutating story dat
   assert.equal(design.insideMargin, 0.25);
   assert.equal(design.bodyFontSize, 18);
   assert.equal(design.chapterStarts, 'right');
-  assert.equal(design.paragraphGap, 0);
+  assert.equal(design.paragraphGap, 0.12);
   assert.equal(design.tocStartSide, 'left');
 });
 

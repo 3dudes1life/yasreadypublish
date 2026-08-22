@@ -13,8 +13,8 @@ export const TRES_AMIGOS_TEMPLATE = Object.freeze({
   lineHeight: 1.10,
   bodyAlignment: 'left',
   firstLineIndent: 0.5,
-  paragraphGap: 0,
-  bodyBlankPolicy: 'normalize',
+  paragraphGap: 0.12,
+  bodyBlankPolicy: 'collapse',
   bodyBlankSpace: 0.12,
   chapterStarts: 'right',
   chapterTopSpace: 0.82,
@@ -125,7 +125,7 @@ export function normalizePrintDesign(input = {}) {
   merged.bodyFontSize = number(merged.bodyFontSize, 12, 7, 18);
   merged.lineHeight = number(merged.lineHeight, 1.10, 1, 2);
   merged.firstLineIndent = number(merged.firstLineIndent, 0.5, 0, 1);
-  merged.paragraphGap = number(merged.paragraphGap, 0, 0, 0.75);
+  merged.paragraphGap = number(merged.paragraphGap, 0.12, 0, 0.75);
   merged.bodyBlankPolicy = ['normalize','preserve','collapse'].includes(merged.bodyBlankPolicy) ? merged.bodyBlankPolicy : (merged.collapseBodyBlankParagraphs === false ? 'preserve' : 'normalize');
   merged.bodyBlankSpace = number(merged.bodyBlankSpace, 0.12, 0, 0.5);
   delete merged.collapseBodyBlankParagraphs;

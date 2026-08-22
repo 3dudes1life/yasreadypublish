@@ -4,7 +4,7 @@ import { blankRenderMode } from '../src/lib/spacing-policy.js';
 import { buildEbookPreviewHtml } from '../src/lib/epub-export.js';
 import { migrateProject } from '../src/lib/project.js';
 
-test('1.0.3 normalizes one-or-more body blanks to one visual spacer', () => {
+test('1.0.4 normalizes one-or-more body blanks to one visual spacer', () => {
   const blocks = [
     { id:'p-1', index:0, kind:'body', text:'One.' },
     { id:'p-2', index:1, kind:'blank', text:'' },
@@ -17,7 +17,7 @@ test('1.0.3 normalizes one-or-more body blanks to one visual spacer', () => {
   assert.equal(blankRenderMode({ blocks, index:1, sectionType:'chapter', policy:'collapse' }), 'collapse');
 });
 
-test('1.0.3 does not add normalized body space around chapter titles or front matter', () => {
+test('1.0.4 does not add normalized body space around chapter titles or front matter', () => {
   const chapterBlocks = [
     { id:'p-1', index:0, kind:'chapter-title', text:'Chapter 1: Home' },
     { id:'p-2', index:1, kind:'blank', text:'' },
@@ -27,7 +27,7 @@ test('1.0.3 does not add normalized body space around chapter titles or front ma
   assert.equal(blankRenderMode({ blocks:chapterBlocks, index:1, sectionType:'front', policy:'normalize' }), 'preserve');
 });
 
-test('1.0.3 ebook keeps every source blank but normalizes a blank run visually', () => {
+test('1.0.4 ebook keeps every source blank but normalizes a blank run visually', () => {
   const project = {
     id:'book-1', title:'Test', author:'D.C.W.',
     design:{ ebook:{ bodyBlankPolicy:'normalize', bodyBlankSpaceEm:0.7 } },
@@ -50,7 +50,7 @@ test('1.0.3 ebook keeps every source blank but normalizes a blank run visually',
   assert.match(preview.css, /p\.blank\.collapsed \{ display:none;/);
 });
 
-test('1.0.3 migration replaces 1.0.2 all-collapse behavior with normalize without changing manuscript', () => {
+test('1.0.4 migration replaces legacy blank-dependent spacing with uniform rhythm without changing manuscript', () => {
   const project = {
     version:12, appVersion:'1.0.2',
     design:{ print:{templateId:'tres-amigos-book1',collapseBodyBlankParagraphs:true}, ebook:{collapseBodyBlankParagraphs:true} },
@@ -60,11 +60,13 @@ test('1.0.3 migration replaces 1.0.2 all-collapse behavior with normalize withou
   };
   const before = JSON.stringify(project.manuscript.blocks);
   migrateProject(project);
-  assert.equal(project.version, 13);
-  assert.equal(project.appVersion, '1.0.3');
-  assert.equal(project.design.print.bodyBlankPolicy, 'normalize');
-  assert.equal(project.design.ebook.bodyBlankPolicy, 'normalize');
+  assert.equal(project.version, 14);
+  assert.equal(project.appVersion, '1.0.4');
+  assert.equal(project.design.print.bodyBlankPolicy, 'collapse');
+  assert.equal(project.design.ebook.bodyBlankPolicy, 'collapse');
   assert.equal(project.design.print.bodyBlankSpace, 0.12);
+  assert.equal(project.design.print.paragraphGap, 0.12);
   assert.equal(project.design.ebook.bodyBlankSpaceEm, 0.7);
+  assert.equal(project.design.ebook.paragraphGapEm, 0.7);
   assert.equal(JSON.stringify(project.manuscript.blocks), before);
 });
