@@ -1,21 +1,31 @@
-# v1.0.4 Release QA
+# v1.0.5 Superman Release QA
 
-- Automated suite: **72 / 72 passing**
+- Automated suite: **88 / 88 passing**
 - Static verification: **PASS**
-- Whole-book uniform paragraph rhythm regression tests: **PASS**
-- Paperback/Hardcover/Ebook edition independence retained: **PASS**
-- Story Lock manuscript mutation check during migration: **PASS**
+- Superman audit: **PASS**
+- JavaScript application modules syntax/import checked: **22**
+- Literal button IDs audited: **33**
+- Dynamic control families audited: **11**
+- Browser network-egress primitive scan: **PASS** (no fetch/XHR/WebSocket/sendBeacon paths in app source)
+- Proof ownership / stale-proof rejection: **PASS**
+- Edition proof invalidation: **PASS**
+- Controlled even physical page count: **PASS**
+- Whole-book print/ebook rhythm regression tests: **PASS**
+- Story Lock preservation through migration: **PASS**
 
-## 1.0.4 edition + spacing acceptance
+## Bugs caught in the 1.0.5 sweep
 
-- [x] One body blank between prose paragraphs renders one normalized spacer.
-- [x] Consecutive blank paragraphs render only one spacer in Normalize mode.
-- [x] Chapter-title and scene-break spacing are not doubled by blank normalization.
-- [x] EPUB retains all blank source blocks while visually normalizing duplicate blank runs.
-- [x] Paperback and Hardcover edition designs remain independent.
-- [x] Ebook-only projects are supported with both print editions disabled.
-- [x] Story Lock manuscript content remains byte-for-byte unchanged through migration and edition changes.
-- [x] 69/69 automated tests + static verification pass.
+- A previously generated print preview could theoretically remain visible after a settings/metadata/structure change. Proof signatures now make stale export fail closed.
+- Old edition readiness could survive design changes. Edition proof/preflight state now invalidates automatically.
+- Odd final physical page counts could leave KDP to append a page outside YasReady's page map. Pagination now owns the terminal blank and preflight blocks odd counts.
+- TOC parity alignment blanks were not counted consistently in intentional-blank statistics. Fixed.
+- Final Check could report a print blocker for an ebook-only project, and an exception while checking another physical edition could leave the UI focused on the wrong edition. Fixed.
+- Hardcover/custom-trim geometry validation was too permissive for a release gate. Hardened.
+- Preflight now validates the frozen preview geometry and separately proves that preview still belongs to the current project state.
+
+## What this audit does not claim
+
+No automated suite can prove that a browser application has zero bugs. The remaining acceptance gate is a manual black-box pass with the real manuscript: early/middle/late chapters, Contents parity, page furniture, both print/ebook spacing, Final Check, and the actual exported PDF/EPUB. The release is designed to fail closed when integrity or production assumptions cannot be verified.
 
 # YasReady Publish 1.0 — Release QA
 
@@ -27,7 +37,7 @@ Run:
 npm run verify
 ```
 
-The 1.0 release currently passes **57/57 automated tests** plus static verification. The verification gate checks:
+The 1.0.5 release currently passes **88/88 automated tests** plus static verification and the Superman audit. The verification gate checks:
 
 - every required runtime file exists
 - JavaScript syntax for every application module

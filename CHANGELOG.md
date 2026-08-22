@@ -1,13 +1,29 @@
-# YasReady Publish v1.0.4
+# YasReady Publish Changelog
+
+## v1.0.5 — Superman QA Hardening
+
+- Hardening release focused on release-blocking bugs and stale-state safety rather than new publishing features.
+- Adds signed/frozen proof ownership: every print proof is tied to its edition, Story Lock hash, title/author metadata, structure overrides, and exact design settings. A changed project can no longer export an old proof.
+- Invalidates edition proof/preflight status whenever print design, ebook design, metadata, structure classification, or Story Lock state changes.
+- Adds a controlled final intentional blank page when needed so physical print page counts end even instead of leaving KDP to add a page outside YasReady's pagination model.
+- Strengthens KDP geometry checks for hardcover trim sizes, top/bottom margins, paperback custom-trim bounds, cream-paper page-limit review, and edition-specific page ranges.
+- Fixes TOC alignment blanks not being included in intentional-blank statistics.
+- Fixes Final Check error accounting for ebook-only / print-disabled projects and guarantees the UI returns to the print edition the author was working on even if another edition fails during Final Check.
+- Adds `npm run superman`: syntax/import resolution, literal-button wiring, dynamic-control-family audit, version consistency, safety-marker checks, and a scan for browser network-egress primitives.
+- Retains the 1.0.4 uniform whole-book Tres Amigos rhythm: print paragraphs use one consistent 0.12 in presentation gap and ebook paragraphs one consistent 0.7 em gap; inconsistent empty DOCX paragraphs no longer control chapter rhythm.
+- Project schema 15 / app version 1.0.5. Old proof status is intentionally invalidated on migration; Story-Locked manuscript text is unchanged.
+- Automated release gate: 88/88 tests passing plus static verification and Superman audit.
+
+## v1.0.4 — Uniform Whole-Book Paragraph Rhythm
 
 - Fixes the Chapter 5+ spacing regression by making Tres Amigos body rhythm uniform across the entire manuscript, independent of inconsistent DOCX blank-paragraph markup.
-- Paperback/Hardcover: every story paragraph now receives the same 0.12-inch presentation gap; source blank body paragraphs collapse visually but remain Story-Locked.
+- Paperback/Hardcover: every story paragraph receives the same 0.12-inch presentation gap; source blank body paragraphs collapse visually but remain Story-Locked.
 - Ebook/Kindle: every story paragraph receives the same 0.7em presentation gap; source blank body paragraphs remain in XHTML for coverage but collapse visually.
 - Scene breaks and headings keep their own dedicated spacing and no longer inherit generic paragraph gap.
-- Existing v1.0.4 projects migrate automatically; manuscript text/hashes are unchanged.
-- Edition Manager from v1.0.4 remains fully intact.
+- Existing projects migrate automatically; manuscript text/hashes are unchanged.
+- Edition Manager remains fully intact.
 
-## v1.0.4 — Edition Manager + Spacing Normalization
+## v1.0.3 — Edition Manager + Spacing Normalization
 
 - Replaces the over-aggressive 1.0.2 all-blank collapse with a three-mode presentation policy: Normalize, Preserve, or Collapse.
 - Tres Amigos defaults to Normalize: one run of source blank paragraphs renders as one standard spacer; extra consecutive blanks collapse visually.

@@ -1,6 +1,6 @@
-# YasReady Publish v1.0.4
+# YasReady Publish v1.0.5
 
-**v1.0.4:** Uniform whole-book paragraph rhythm now applies from Chapter 1 through the final chapter, regardless of inconsistent blank-line markup in the imported DOCX. Story Lock still preserves every source paragraph.
+**v1.0.5:** Superman QA hardening. Print proofs are now cryptographically tied to the exact edition/design/structure state that produced them; stale proofs are blocked, print page counts are forced even under YasReady control, edition preflight state invalidates correctly, and the whole app runs through an expanded button/import/safety audit. The 1.0.4 whole-book spacing correction remains intact.
 
 Private, local-first manuscript-to-book production for YasReady.
 
@@ -11,23 +11,25 @@ Private, local-first manuscript-to-book production for YasReady.
 1. **Import** a finished Microsoft Word `.docx` manuscript.
 2. **Story Lock** fingerprints the canonical manuscript text with SHA-256.
 3. **Review structure**: chapters, front/back matter, texts, scene breaks, and metadata-only repairs.
-4. **Design paperback** with reusable themes, including `Tres Amigos Series · Book 1`.
-5. **Build Print Preview** using 6×9 fixed pages, mirrored margins, right-hand chapter starts, generated Contents, folios, and running headers.
-6. **KDP Export** runs production preflight, opens the fixed-page production master, performs final overflow validation, and launches the system **Save as PDF** flow.
-7. **Ebook / Kindle** builds a separate reflowable EPUB 3 with clickable navigation.
-8. **Final Check** verifies Story Lock + paperback + EPUB readiness together.
+4. **Choose editions**: paperback, hardcover, ebook, or any combination.
+5. **Design each physical edition independently** with reusable themes, including `Tres Amigos Series · Book 1`.
+6. **Build Print Preview** using fixed single pages, mirrored margins, right-hand chapter starts, generated Contents, folios, and controlled blank pages.
+7. **Print Export** runs edition-specific KDP preflight, opens the fixed-page production master, performs final overflow validation, and launches the system **Save as PDF** flow.
+8. **Ebook / Kindle** builds a separate reflowable EPUB 3 with clickable navigation.
+9. **Final Check** verifies Story Lock plus every enabled edition in one run.
 
-## What makes 1.0.4 stable
+## What makes 1.0.5 stable
 
-- Guided Project Home with a clear manuscript → structure → design → proof → paperback → ebook path.
-- **Superman Ready Final Check** for one-button release readiness.
-- Portable **Project Backup / Restore**. Restore re-verifies Story Lock before saving anything.
-- Sidebar and workflow controls re-render when project state changes, eliminating stale/disabled navigation after import.
-- Full literal-button binding audit in `npm run verify`.
-- Project schema 13 / app version 1.0.4.
-- Edition Manager: paperback, hardcover, and ebook can be enabled independently from one Story-Locked manuscript.
-- Paperback and hardcover keep separate trim, gutter, pagination, TOC page numbers, and last proof page counts.
-- Body blank paragraphs now use Normalize mode by default: one source blank run becomes one standard visual spacer while duplicate blanks collapse. This fixes 1.0.2 over-collapse without restoring Chapter 5-style giant gaps.
+- Guided Project Home with a clear manuscript → structure → editions → design → proof → export path.
+- **Superman Ready Final Check** evaluates only the editions you enabled.
+- Every print preview carries a **proof signature** tied to edition type, Story Lock hash, metadata, structure overrides, and normalized design. Changing any of those makes the old proof ineligible for export.
+- Paperback and hardcover keep independent trim, gutter, pagination, generated Contents numbers, page counts, and preflight state.
+- Physical proofs are forced to an **even total page count** with a YasReady-controlled terminal blank when necessary.
+- Tres Amigos whole-book rhythm is renderer-owned: 0.12 in paragraph spacing in print and 0.7 em in ebook across all chapters, while empty source paragraphs remain preserved by Story Lock but do not randomly change visual rhythm.
+- Portable **Project Backup / Restore** re-verifies Story Lock before a restored project is accepted.
+- `npm run verify` runs the automated test suite, static verification, and the **Superman audit**.
+- Superman audit checks JavaScript syntax/import resolution, button wiring, dynamic control families, version consistency, critical safety guards, and confirms no fetch/XHR/WebSocket/sendBeacon manuscript-egress path exists in the app source.
+- Project schema 15 / app version 1.0.5.
 - Story wording remains read-only throughout the publishing UI.
 
 ## Paperback engine

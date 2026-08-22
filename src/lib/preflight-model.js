@@ -1,6 +1,7 @@
 import { normalizePrintDesign } from './print-model.js';
 import { shouldGeneratePrintToc, verifyGeneratedPrintToc } from './print-toc.js';
 import { effectiveStats } from './structure-overrides.js';
+import { verifyPreviewProof } from './proof-integrity.js';
 
 export const KDP_MARGIN_BANDS = Object.freeze([
   { min: 24, max: 150, inside: 0.375 },
@@ -20,7 +21,9 @@ function check(id, label, status, message, meta = {}) {
 }
 
 export function runKdpPreflight({ project, preview, storyLockOk = true, editionType = 'paperback' } = {}) {
-  const design = normalizePrintDesign(project?.design?.print || preview?.design || {});
+  // Validate the frozen proof design first. Current project settings are checked separately
+  // by the proof-ownership gate so a stale preview can never pass export.
+  const design = normalizePrintDesign(preview?.design || project?.design?.print || {});
   const pages = preview?.pages || [];
   const pageCount = pages.length;
   const requiredInside = requiredInsideMargin(pageCount);
@@ -33,6 +36,18 @@ export function runKdpPreflight({ project, preview, storyLockOk = true, editionT
   const editionLabel = isHardcover ? 'Hardcover' : 'Paperback';
   const minPages = isHardcover ? 75 : 24;
   const maxPages = isHardcover ? 550 : 828;
+  const proofOwnership = verifyPreviewProof({ project, preview, editionType });
+
+  checks.push(check(
+    'proof-ownership',
+    'Frozen proof belongs to this edition',
+    proofOwnership.ok ? 'pass' : 'error',
+    proofOwnership.ok
+      ? `This preview is signed to the current ${editionLabel.toLowerCase()} settings and Story-Locked manuscript.`
+      : proofOwnership.reason === 'wrong-edition'
+        ? `This preview belongs to ${proofOwnership.actual || 'another edition'}, not ${editionType}. Rebuild this edition before export.`
+        : 'The manuscript, structure, metadata, or design changed after this proof was built. Rebuild before export.',
+  ));
 
   checks.push(check(
     'story-lock',
@@ -50,13 +65,23 @@ export function runKdpPreflight({ project, preview, storyLockOk = true, editionT
     pageCount ? `${pageCount} individual physical pages will export; no 2-up spreads.` : 'Build Print Preview before export.',
   ));
 
+  const exact6x9 = Math.abs(design.trimWidth - 6) < 0.001 && Math.abs(design.trimHeight - 9) < 0.001;
+  const exact55x85 = Math.abs(design.trimWidth - 5.5) < 0.001 && Math.abs(design.trimHeight - 8.5) < 0.001;
+  const paperbackCustomRange = design.trimWidth >= 4 && design.trimWidth <= 8.5 && design.trimHeight >= 6 && design.trimHeight <= 11.69;
+  const trimSupported = isHardcover ? (exact6x9 || exact55x85) : paperbackCustomRange;
   checks.push(check(
     'trim',
-    'Trim size',
-    design.trimWidth === 6 && design.trimHeight === 9 ? 'pass' : 'warning',
-    design.trimWidth === 6 && design.trimHeight === 9
-      ? `6 × 9 in trim is supported for this KDP ${editionLabel.toLowerCase()} edition.`
-      : `${design.trimWidth} × ${design.trimHeight} in is custom in this build. Confirm the same trim size in KDP.`,
+    'KDP trim-size support',
+    trimSupported ? (exact6x9 ? 'pass' : 'warning') : 'error',
+    trimSupported
+      ? exact6x9
+        ? `6 × 9 in trim is supported for this KDP ${editionLabel.toLowerCase()} edition.`
+        : isHardcover
+          ? '5.5 × 8.5 in is a supported KDP hardcover trim. Confirm your cover uses the same trim.'
+          : `${design.trimWidth} × ${design.trimHeight} in is within KDP paperback custom-trim bounds. Confirm the same trim in KDP.`
+      : isHardcover
+        ? `${design.trimWidth} × ${design.trimHeight} in is not one of the KDP hardcover trims validated by this release (5.5 × 8.5 or 6 × 9).`
+        : `${design.trimWidth} × ${design.trimHeight} in is outside KDP paperback custom-trim bounds validated by this release.`,
   ));
 
   checks.push(check(
@@ -66,6 +91,15 @@ export function runKdpPreflight({ project, preview, storyLockOk = true, editionT
     pageCount >= minPages && pageCount <= maxPages
       ? `${pageCount} pages is inside the ${minPages}–${maxPages} KDP ${editionLabel.toLowerCase()} range used by this preflight.`
       : `${pageCount || 0} pages is outside the ${minPages}–${maxPages} KDP ${editionLabel.toLowerCase()} range used by this preflight.`,
+  ));
+
+  checks.push(check(
+    'even-page-count',
+    'Even physical page count',
+    pageCount > 0 && pageCount % 2 === 0 ? 'pass' : 'error',
+    pageCount > 0 && pageCount % 2 === 0
+      ? `${pageCount} physical pages form complete front/back sheets.`
+      : 'Print books require an even physical page count. Rebuild the proof so YasReady can add a controlled terminal blank page.',
   ));
 
   checks.push(check(
@@ -84,6 +118,22 @@ export function runKdpPreflight({ project, preview, storyLockOk = true, editionT
     design.outsideMargin + 1e-9 >= 0.25 ? 'pass' : 'error',
     `${design.outsideMargin.toFixed(3)} in set; KDP no-bleed minimum is 0.250 in.`,
   ));
+
+  checks.push(check(
+    'top-bottom-margins',
+    'Top / bottom margins',
+    design.topMargin + 1e-9 >= 0.25 && design.bottomMargin + 1e-9 >= 0.25 ? 'pass' : 'error',
+    `${design.topMargin.toFixed(3)} in top / ${design.bottomMargin.toFixed(3)} in bottom; KDP no-bleed minimum is 0.250 in.`,
+  ));
+
+  if (!isHardcover && pageCount > 776 && pageCount <= 828) {
+    checks.push(check(
+      'cream-paper-limit',
+      'Paper-color page limit',
+      'warning',
+      `${pageCount} pages fits the black-ink/white-paper 6×9 paperback limit used by this preflight, but exceeds KDP's 776-page cream-paper limit. Choose white paper or reduce page count.`,
+    ));
+  }
 
   const smallestFont = Math.min(
     design.bodyFontSize,

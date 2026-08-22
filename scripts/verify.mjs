@@ -7,7 +7,7 @@ const required = [
   'src/lib/navigator-model.js', 'src/lib/theme-store.js', 'src/lib/preflight-model.js', 'src/lib/print-export.js',
   'src/lib/ebook-model.js', 'src/lib/ebook-preflight.js', 'src/lib/epub-export.js', 'src/lib/structure-overrides.js',
   'src/lib/print-toc.js', 'src/lib/project-backup.js', 'src/lib/readiness-model.js', 'src/lib/spacing-policy.js',
-  'src/lib/editions.js', 'public/vendor/jszip.min.js',
+  'src/lib/editions.js', 'src/lib/proof-integrity.js', 'public/vendor/jszip.min.js',
   'STORY-LOCK-SPEC.md', 'KDP-PREFLIGHT.md', 'EPUB-PREFLIGHT.md', 'RELEASE-QA.md',
 ];
 for (const file of required) if (!existsSync(file)) throw new Error(`Missing required file: ${file}`);
@@ -20,8 +20,8 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
   throw new Error('index.html is not wired to the self-contained static runtime.');
 }
 const main = readFileSync('src/main.js', 'utf8');
-for (const marker of ["const VERSION = '1.0.4'", 'Run Final Check', 'Download Project Backup', 'Ebook / Kindle', 'Structure Repair', 'generated-toc-entry', 'One Story Lock · separate outputs', 'bodyBlankPolicy']) {
-  if (!main.includes(marker)) throw new Error(`1.0.4 production workspace is missing: ${marker}`);
+for (const marker of ["const VERSION = '1.0.5'", 'Run Final Check', 'Download Project Backup', 'Ebook / Kindle', 'Structure Repair', 'generated-toc-entry', 'One Story Lock · separate outputs', 'bodyBlankPolicy']) {
+  if (!main.includes(marker)) throw new Error(`1.0.5 production workspace is missing: ${marker}`);
 }
 const printModel = readFileSync('src/lib/print-model.js', 'utf8');
 if (!printModel.includes("tocTitle: 'Table of Contents'") || !printModel.includes('printToc: true') || !printModel.includes("tocStartSide: 'left'") || !printModel.includes('paragraphGap: 0.12,') || !printModel.includes("bodyBlankPolicy: 'collapse'")) {
@@ -36,7 +36,7 @@ for (const dynamicBinding of ['[data-go-view]','[data-open-project]','[data-dele
 }
 
 const project = readFileSync('src/lib/project.js', 'utf8');
-if (!project.includes("appVersion: '1.0.4'") || !project.includes('version: 14') || !project.includes('ensureEditions(project)')) {
-  throw new Error('Project schema was not migrated to 1.0.4 editions.');
+if (!project.includes("appVersion: '1.0.5'") || !project.includes('version: 15') || !project.includes('ensureEditions(project)')) {
+  throw new Error('Project schema was not migrated to 1.0.5 safety state.');
 }
-console.log('YasReady Publish v1.0.4 static verification passed.');
+console.log('YasReady Publish v1.0.5 static verification passed.');

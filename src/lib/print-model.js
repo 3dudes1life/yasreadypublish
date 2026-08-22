@@ -217,6 +217,12 @@ export function tocNeedsLeadingBlank(nextPageNumber, tocStartSide = 'left') {
   return tocStartSide === 'left' && pageSide(nextPageNumber) !== 'left';
 }
 
+
+export function needsTerminalBlankPage(pageCount) {
+  const count = Number(pageCount) || 0;
+  return count > 0 && count % 2 === 1;
+}
+
 const CALIBRATION_FIELDS = Object.freeze([
   ['trimWidth', 'Trim width', 'in'],
   ['trimHeight', 'Trim height', 'in'],

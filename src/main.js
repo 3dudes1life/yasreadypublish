@@ -12,6 +12,7 @@ import {
   normalizePrintDesign,
   pageSide,
   tocNeedsLeadingBlank,
+  needsTerminalBlankPage,
   validatePrintDesign,
 } from './lib/print-model.js';
 import { analyzeMatter, chapterForBlockIndex, matterSectionForBlockIndex, runningHeaderText } from './lib/structure-model.js';
@@ -27,13 +28,14 @@ import { buildPrintTocEntries, printTocSignature, shouldGeneratePrintToc, verify
 import { serializeProjectBackup, parseProjectBackup } from './lib/project-backup.js';
 import { buildPublishReadiness } from './lib/readiness-model.js';
 import { blankRenderMode } from './lib/spacing-policy.js';
+import { stampPreviewProof } from './lib/proof-integrity.js';
 import {
   activePrintEdition, copyPaperbackDesignToHardcover, editionLabel, ensureEditions,
   getEbookEditionDesign, getPrintEditionDesign, setActivePrintEdition, setEditionEnabled,
-  setEbookEditionDesign, setPrintEditionDesign,
+  setEbookEditionDesign, setPrintEditionDesign, invalidateAllEditionProofs, invalidateEditionProof,
 } from './lib/editions.js';
 
-const VERSION = '1.0.4';
+const VERSION = '1.0.5';
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
 
@@ -204,7 +206,7 @@ function renderImport() {
       </div>
     </article>
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">1.0.4 production foundation</div><h2>One finished manuscript. Choose your editions.</h2><p>Import once, then enable paperback, hardcover, ebook, or any combination. Each edition gets its own presentation rules while Story Lock remains one source of truth.</p></div></div>
+      <div class="panel-head"><div><div class="eyebrow">1.0.5 production foundation</div><h2>One finished manuscript. Choose your editions.</h2><p>Import once, then enable paperback, hardcover, ebook, or any combination. Each edition gets its own presentation rules while Story Lock remains one source of truth.</p></div></div>
       <div class="summary-grid six">
         <div class="stat"><b>✓</b><span>Read DOCX</span></div>
         <div class="stat"><b>✓</b><span>Story Lock</span></div>
@@ -263,7 +265,7 @@ function renderProject() {
       </div>
       ${stats.chapters === 0 ? `<div class="notice error"><strong>No chapter titles were auto-detected.</strong> Publish will not guess where chapters begin. Use Structure Repair or Source before pagination.</div>` : ''}
       ${state.backupMessage ? `<div class="notice success">${escapeHtml(state.backupMessage)}</div>` : ''}
-      ${final ? `<div class="final-check-banner ${final.allReady ? 'ready' : 'attention'}"><div class="final-check-mark">${final.allReady ? '✓' : '!'}</div><div><strong>${final.allReady ? 'Superman Ready' : 'Final Check found work to do'}</strong><p>${final.allReady ? 'Story Lock and every enabled edition passed in the same final verification run.' : `${final.printErrors || 0} paperback blocker(s) · ${final.ebookErrors || 0} ebook blocker(s). Nothing was exported or altered.`}</p></div><button class="btn secondary" id="runFinalCheckAgain" type="button">Run again</button></div>` : ''}
+      ${final ? `<div class="final-check-banner ${final.allReady ? 'ready' : 'attention'}"><div class="final-check-mark">${final.allReady ? '✓' : '!'}</div><div><strong>${final.allReady ? 'Superman Ready' : 'Final Check found work to do'}</strong><p>${final.allReady ? 'Story Lock and every enabled edition passed in the same final verification run.' : `${final.printErrors || 0} print blocker(s) · ${final.ebookErrors || 0} ebook blocker(s). Nothing was exported or altered.`}</p></div><button class="btn secondary" id="runFinalCheckAgain" type="button">Run again</button></div>` : ''}
       <div class="primary-actions">
         <button class="btn primary big-action" id="runFinalCheck" type="button"><span>⚡</span><div><strong>Run Final Check</strong><small>Verify Story Lock + all enabled editions</small></div></button>
         <button class="btn secondary big-action" data-go-view="${nextView}" type="button"><span>${hasPrintEdition ? (state.preview ? '⇩' : 'Aa') : p.editions.ebook.enabled ? 'e' : '◫'}</span><div><strong>${escapeHtml(nextTitle)}</strong><small>${escapeHtml(nextDetail)}</small></div></button>
@@ -690,8 +692,13 @@ function renderBookPage(page, design) {
   const pageNumberSize = design.pageNumberFontSize * (96 / 72) * (px / 96);
   const runningHeaderSize = design.runningHeaderFontSize * (96 / 72) * (px / 96);
 
+  const blankReasonText = page.blankReason === 'terminal-even'
+    ? 'Terminal blank keeps the physical interior even so KDP does not add an untracked page.'
+    : page.blankReason === 'toc-left-spread'
+      ? 'Front-matter alignment keeps the generated Contents opening on the left side of a spread.'
+      : 'Kept blank so the next chapter opens on the right.';
   const fragments = page.intentionalBlank
-    ? `<div class="intentional-blank">Intentional blank verso<br><small>Kept blank so the next chapter opens on the right.</small></div>`
+    ? `<div class="intentional-blank">Intentional blank page<br><small>${escapeHtml(blankReasonText)}</small></div>`
     : page.fragments.map((fragment) => {
       if (fragment.kind === 'blank') return `<div class="print-fragment blank-space" style="height:${(fragment.previewHeight ?? 6) * (px / PREVIEW_PX_PER_INCH)}px"></div>`;
       if (fragment.kind === 'generated-toc-title') {
@@ -917,7 +924,7 @@ function renderEditions() {
     const activeClass = print && active === type ? ' active' : '';
     return `<section class="edition-card${activeClass}">
       <div class="edition-card-head"><span class="edition-icon">${icon}</span><div><h3>${escapeHtml(editionLabel(type))}</h3><p>${escapeHtml(copy)}</p></div><label class="edition-toggle"><input type="checkbox" data-edition-enabled="${type}" ${edition.enabled ? 'checked' : ''}><span>${edition.enabled ? 'ON' : 'OFF'}</span></label></div>
-      <div class="edition-card-meta">${print ? `<span>${edition.design.trimWidth}×${edition.design.trimHeight} in</span><span>${pageCount ? `${formatNumber(pageCount)} last proof pages` : 'No proof yet'}</span>` : '<span>Reflowable EPUB 3</span><span>No fixed print pages</span>'}</div>
+      <div class="edition-card-meta">${print ? `<span>${edition.design.trimWidth}×${edition.design.trimHeight} in</span><span>${pageCount ? `${formatNumber(pageCount)} last proof pages` : 'No current proof'}</span><span>${edition.lastPreflight?.ready ? '✓ Last final check passed' : edition.lastPreflight ? '⚠ Last final check needs work' : 'Not final-checked'}</span>` : `<span>Reflowable EPUB 3</span><span>No fixed print pages</span><span>${edition.lastPreflight?.ready ? '✓ Last final check passed' : edition.lastPreflight ? '⚠ Last final check needs work' : 'Not final-checked'}</span>`}</div>
       <div class="edition-card-actions">${print ? `<button class="btn ${active === type ? 'primary' : 'secondary'}" data-work-edition="${type}" ${edition.enabled ? '' : 'disabled'}>${active === type ? 'Working on this edition' : `Work on ${escapeHtml(editionLabel(type))}`}</button>` : `<button class="btn secondary" data-go-view="ebook" ${edition.enabled ? '' : 'disabled'}>Open Ebook / Kindle</button>`}</div>
     </section>`;
   };
@@ -1109,8 +1116,11 @@ function bindDynamicEvents() {
 async function runFinalCheck() {
   if (!state.project) return;
   ensureEditions(state.project);
+  const originalPrint = currentPrintEditionType();
+  const enabledPrintTypes = ['paperback', 'hardcover'].filter((type) => state.project.editions[type].enabled);
+  invalidateAllEditionProofs(state.project, { clearPageCounts: false });
   if (effectiveStats(state.project).chapters === 0) {
-    state.finalCheck = { allReady: false, printErrors: 1, ebookErrors: state.project.editions.ebook.enabled ? 1 : 0 };
+    state.finalCheck = { allReady: false, printErrors: enabledPrintTypes.length ? 1 : 0, ebookErrors: state.project.editions.ebook.enabled ? 1 : 0, message: 'No chapter starts are available for production.' };
     state.activeView = 'import';
     updateMain();
     return;
@@ -1123,13 +1133,12 @@ async function runFinalCheck() {
     state.project.storyLock.status = lock.ok ? 'verified' : 'failed';
     state.project.storyLock.verifiedAt = lock.ok ? new Date().toISOString() : state.project.storyLock.verifiedAt;
     if (!lock.ok) {
-      state.finalCheck = { allReady: false, printErrors: 1, ebookErrors: state.project.editions.ebook.enabled ? 1 : 0, storyLockOk: false };
+      state.finalCheck = { allReady: false, printErrors: enabledPrintTypes.length ? 1 : 0, ebookErrors: state.project.editions.ebook.enabled ? 1 : 0, storyLockOk: false, message: 'Story Lock failed. Production was blocked.' };
       await saveProject(state.project);
       return;
     }
 
-    const originalPrint = currentPrintEditionType();
-    const printTypes = ['paperback', 'hardcover'].filter((type) => state.project.editions[type].enabled);
+    const printTypes = enabledPrintTypes;
     const printReports = {};
     const previews = {};
     let printErrors = 0;
@@ -1143,6 +1152,13 @@ async function runFinalCheck() {
       state.project.editions[type].lastBuiltAt = new Date().toISOString();
       const report = runKdpPreflight({ project: state.project, preview, storyLockOk: true, editionType: type });
       printReports[type] = report;
+      state.project.editions[type].lastPreflight = {
+        ready: report.ready,
+        pageCount: report.pageCount,
+        errors: report.summary.errors,
+        warnings: report.summary.warnings,
+        checkedAt: new Date().toISOString(),
+      };
       printErrors += report.summary.errors;
       printWarnings += report.summary.warnings;
     }
@@ -1161,6 +1177,12 @@ async function runFinalCheck() {
     let ebookWarnings = 0;
     if (state.project.editions.ebook.enabled) {
       ebookReport = runEpubPreflight({ project: state.project, storyLockOk: true });
+      state.project.editions.ebook.lastPreflight = {
+        ready: ebookReport.ready,
+        errors: ebookReport.summary.errors,
+        warnings: ebookReport.summary.warnings,
+        checkedAt: new Date().toISOString(),
+      };
       ebookErrors = ebookReport.summary.errors;
       ebookWarnings = ebookReport.summary.warnings;
     }
@@ -1183,8 +1205,21 @@ async function runFinalCheck() {
     await saveProject(state.project);
   } catch (error) {
     console.error(error);
-    state.finalCheck = { allReady: false, printErrors: 1, ebookErrors: 1, message: error?.message || 'Final Check failed safely.' };
+    state.finalCheck = { allReady: false, printErrors: enabledPrintTypes.length ? 1 : 0, ebookErrors: state.project.editions.ebook.enabled ? 1 : 0, message: error?.message || 'Final Check failed safely.' };
   } finally {
+    // Final Check may temporarily switch between paperback and hardcover. Always
+    // return the author to the edition they were working on, even if one edition
+    // throws during pagination/preflight.
+    if (state.project) {
+      ensureEditions(state.project);
+      const fallback = state.project.editions[originalPrint]?.enabled
+        ? originalPrint
+        : enabledPrintTypes.find((type) => state.project.editions[type]?.enabled);
+      if (fallback) {
+        setActivePrintEdition(state.project, fallback);
+        state.printEdition = fallback;
+      }
+    }
     state.busy = false;
     state.busyMessage = '';
     state.activeView = 'import';
@@ -1240,6 +1275,7 @@ async function applyStructureRepair(blockId, kind) {
   try {
     setStructureOverride(state.project, blockId, kind || null);
     state.project.updatedAt = new Date().toISOString();
+    invalidateAllEditionProofs(state.project);
     state.preview = null;
     state.spreadIndex = 0;
     state.ebookSectionIndex = 0;
@@ -1320,6 +1356,7 @@ async function saveProjectMetadata() {
   state.project.title = title;
   state.project.author = author;
   state.project.updatedAt = new Date().toISOString();
+  invalidateAllEditionProofs(state.project, { clearPageCounts: false });
   state.preview = null;
   state.finalCheck = null;
   await saveProject(state.project);
@@ -1338,6 +1375,8 @@ async function verifyLock(showAlert = true) {
     return true;
   }
   state.project.storyLock.status = 'failed';
+  invalidateAllEditionProofs(state.project, { clearPageCounts: false });
+  state.finalCheck = null;
   await saveProject(state.project);
   if (showAlert) alert('STORY LOCK FAILED. Pagination and export must remain blocked until the source mismatch is resolved.');
   return false;
@@ -1373,6 +1412,8 @@ async function ensureExportReady() {
   const lock = await verifyProjectStoryLock(state.project);
   if (!lock.ok) {
     state.project.storyLock.status = 'failed';
+    invalidateAllEditionProofs(state.project, { clearPageCounts: false });
+    state.finalCheck = null;
     await saveProject(state.project);
     return { ok: false, report: currentPreflight(false) };
   }
@@ -1871,9 +1912,9 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
   let previousNonEmptyKind = null;
   let tocInserted = false;
 
-  const newPage = ({ intentionalBlank = false } = {}) => {
+  const newPage = ({ intentionalBlank = false, blankReason = '' } = {}) => {
     const number = pages.length + 1;
-    current = { number, side: pageSide(number), fragments: [], usedPx: 0, intentionalBlank, bookPageNumber: null };
+    current = { number, side: pageSide(number), fragments: [], usedPx: 0, intentionalBlank, blankReason, bookPageNumber: null };
     pages.push(current);
     if (intentionalBlank) blankVersos += 1;
     return current;
@@ -1915,6 +1956,8 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
     // front-matter alignment page. This is presentation metadata only; Story Lock text is untouched.
     if (tocNeedsLeadingBlank(current.number, design.tocStartSide)) {
       current.intentionalBlank = true;
+      current.blankReason = 'toc-left-spread';
+      blankVersos += 1;
       newPage();
     }
     const titleBlock = { id: null };
@@ -2024,6 +2067,7 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
         else if (current.fragments.length || current.intentionalBlank) newPage();
         if (design.chapterStarts === 'right' && current.side !== 'right') {
           current.intentionalBlank = true;
+          current.blankReason = 'chapter-right';
           blankVersos += 1;
           newPage();
         }
@@ -2036,6 +2080,14 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
     }
   } finally {
     rig.root.remove();
+  }
+
+  // KDP counts physical front/back pages. Keep the final interior even ourselves so
+  // Amazon does not silently add an untracked terminal page that changes spine/page-count math.
+  let terminalBlankPages = 0;
+  if (needsTerminalBlankPage(pages.length)) {
+    newPage({ intentionalBlank: true, blankReason: 'terminal-even' });
+    terminalBlankPages = 1;
   }
 
   if (firstChapterPhysicalPage != null && design.numberFromFirstChapter) {
@@ -2058,6 +2110,7 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
     design: { ...design },
     pages,
     blankVersos,
+    terminalBlankPages,
     collapsedBodyBlanks,
     normalizedBodyBlankRuns,
     chapterStarts,
@@ -2078,7 +2131,7 @@ async function paginateProject(project) {
   let preview = await paginateProjectPass(project);
   if (!tocMode.generate) {
     preview.generatedToc = { enabled: false, entries: [], reason: tocMode.reason, sourceToc: tocMode.sourceToc };
-    return preview;
+    return stampPreviewProof(preview, { project, design: preview.design, editionType: currentPrintEditionType() });
   }
 
   let entries = buildPrintTocEntries({ project, pages: preview.pages, design });
@@ -2101,7 +2154,7 @@ async function paginateProject(project) {
   };
   const tocIntegrity = verifyGeneratedPrintToc({ project, preview, design });
   if (!tocIntegrity.ok) throw new Error('Automatic Table of Contents could not converge on final printed page numbers. Preview was blocked rather than exporting stale page numbers.');
-  return preview;
+  return stampPreviewProof(preview, { project, design: preview.design, editionType: currentPrintEditionType() });
 }
 
 async function buildPreview() {
@@ -2121,6 +2174,7 @@ async function buildPreview() {
     const editionType = currentPrintEditionType();
     state.project.editions[editionType].lastPageCount = state.preview.pages.length;
     state.project.editions[editionType].lastBuiltAt = new Date().toISOString();
+    state.project.editions[editionType].lastPreflight = null;
     await saveProject(state.project);
   } catch (error) {
     console.error(error);

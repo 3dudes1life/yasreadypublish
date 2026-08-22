@@ -112,3 +112,12 @@ Any structure, metadata, design, pagination, or ebook-setting change invalidates
 ### Final principle
 
 If presentation quality and source fidelity ever conflict, source fidelity wins. Publish must stop, flag, and require an explicit user decision rather than silently changing the book.
+
+
+## Proof ownership and stale-state protection (v1.0.5)
+
+Story Lock proves the manuscript text; proof ownership separately proves that a print preview belongs to the current presentation state. Each frozen print proof is signed against the edition type, manuscript hash, book/author metadata, structure overrides, and normalized print design.
+
+If any of those values changes, the existing proof is stale and print preflight must block export until pagination is rebuilt. Changing presentation state invalidates proof/preflight metadata but never changes the canonical manuscript hash or source blocks.
+
+A terminal blank page inserted solely to make the physical page count even is generated presentation metadata. It contains no manuscript text and is excluded from Story Lock reconstruction.

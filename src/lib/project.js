@@ -2,7 +2,7 @@ import { sha256Hex } from './hash.js';
 import { DEFAULT_PRINT_DESIGN, ensurePrintDesign } from './print-model.js';
 import { DEFAULT_EBOOK_DESIGN, ensureEbookDesign } from './ebook-model.js';
 import { ensureStructureOverrides } from './structure-overrides.js';
-import { ensureEditions } from './editions.js';
+import { ensureEditions, invalidateAllEditionProofs } from './editions.js';
 
 export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
   const [sourceFileHash, manuscriptHash] = await Promise.all([
@@ -15,8 +15,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   const project = {
     id: crypto.randomUUID(),
-    version: 14,
-    appVersion: '1.0.4',
+    version: 15,
+    appVersion: '1.0.5',
     title: baseName,
     author: '',
     createdAt: now,
@@ -126,12 +126,19 @@ export function migrateProject(project) {
     if (project.editions?.ebook?.design) project.design.ebook = { ...project.editions.ebook.design };
   }
 
+  // 1.0.5 invalidates pre-release proof state because proofs now carry an
+  // edition/design/source signature. Old page counts could otherwise look current
+  // after a migration even though they were built by an older renderer.
+  if (oldVersion < 15) {
+    invalidateAllEditionProofs(project);
+  }
+
   ensurePrintDesign(project);
   ensureEbookDesign(project);
   ensureEditions(project);
 
-  project.version = Math.max(oldVersion, 14);
-  project.appVersion = '1.0.4';
+  project.version = Math.max(oldVersion, 15);
+  project.appVersion = '1.0.5';
   return project;
 }
 

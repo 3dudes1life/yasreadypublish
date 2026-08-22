@@ -99,3 +99,10 @@ test('Book 1 calibration flags changed presentation metadata', () => {
   assert.equal(result.exact, false);
   assert.ok(result.rows.some((row) => row.key === 'bodyFontSize' && !row.match));
 });
+
+test('1.0.5 controls terminal even-page padding instead of leaving it to KDP', async () => {
+  const { needsTerminalBlankPage } = await import('../src/lib/print-model.js');
+  assert.equal(needsTerminalBlankPage(571), true);
+  assert.equal(needsTerminalBlankPage(572), false);
+  assert.equal(needsTerminalBlankPage(0), false);
+});

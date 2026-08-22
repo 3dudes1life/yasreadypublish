@@ -1,6 +1,6 @@
-# YasReady Publish 1.0 — EPUB / Kindle Preflight
+# YasReady Publish 1.0.5 — EPUB / Kindle Preflight
 
-YasReady Publish 1.0 keeps print and ebook as separate presentation engines over the same Story-Locked source. EPUB does **not** inherit fixed-page concepts such as trim size, gutters, folios, running headers, or intentional blank versos.
+YasReady Publish 1.0.5 keeps print and ebook as separate presentation engines over the same Story-Locked source. EPUB does **not** inherit fixed-page concepts such as trim size, gutters, folios, running headers, or intentional blank versos.
 
 ## Export gate
 

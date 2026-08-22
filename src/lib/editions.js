@@ -30,17 +30,22 @@ export function ensureEditions(project) {
     type: 'paperback',
     design: normalizePrintDesign(project.editions.paperback?.design || legacyPrint),
     lastPageCount: Number(project.editions.paperback?.lastPageCount) || null,
+    lastBuiltAt: project.editions.paperback?.lastBuiltAt || null,
+    lastPreflight: project.editions.paperback?.lastPreflight || null,
   };
   project.editions.hardcover = {
     enabled: Boolean(project.editions.hardcover?.enabled),
     type: 'hardcover',
     design: normalizePrintDesign(project.editions.hardcover?.design || hardcoverDesignFrom(legacyPrint)),
     lastPageCount: Number(project.editions.hardcover?.lastPageCount) || null,
+    lastBuiltAt: project.editions.hardcover?.lastBuiltAt || null,
+    lastPreflight: project.editions.hardcover?.lastPreflight || null,
   };
   project.editions.ebook = {
     enabled: project.editions.ebook?.enabled !== false,
     type: 'ebook',
     design: normalizeEbookDesign(project.editions.ebook?.design || legacyEbook),
+    lastPreflight: project.editions.ebook?.lastPreflight || null,
   };
   project.editions.activePrint = PRINT_EDITION_TYPES.includes(project.editions.activePrint) ? project.editions.activePrint : 'paperback';
   if (!project.editions[project.editions.activePrint]?.enabled) {
@@ -83,6 +88,7 @@ export function setPrintEditionDesign(project, type, design) {
   const resolved = type || project.editions.activePrint;
   if (!PRINT_EDITION_TYPES.includes(resolved)) throw new Error('Unknown print edition.');
   project.editions[resolved].design = normalizePrintDesign(design);
+  invalidateEditionProof(project, resolved);
   if (project.editions.activePrint === resolved) project.design.print = normalizePrintDesign(project.editions[resolved].design);
   return project.editions[resolved].design;
 }
@@ -95,6 +101,7 @@ export function getEbookEditionDesign(project) {
 export function setEbookEditionDesign(project, design) {
   ensureEditions(project);
   project.editions.ebook.design = normalizeEbookDesign(design);
+  invalidateEditionProof(project, 'ebook', { clearPageCount: false });
   project.design.ebook = normalizeEbookDesign(project.editions.ebook.design);
   return project.editions.ebook.design;
 }
@@ -114,5 +121,25 @@ export function copyPaperbackDesignToHardcover(project) {
   ensureEditions(project);
   project.editions.hardcover.enabled = true;
   project.editions.hardcover.design = hardcoverDesignFrom(project.editions.paperback.design);
+  invalidateEditionProof(project, 'hardcover');
   return project.editions.hardcover.design;
+}
+
+
+export function invalidateEditionProof(project, type, { clearPageCount = true } = {}) {
+  ensureEditions(project);
+  const edition = project.editions?.[type];
+  if (!edition) return project;
+  edition.lastPreflight = null;
+  if (clearPageCount && type !== 'ebook') {
+    edition.lastPageCount = null;
+    edition.lastBuiltAt = null;
+  }
+  return project;
+}
+
+export function invalidateAllEditionProofs(project, { clearPageCounts = true } = {}) {
+  ensureEditions(project);
+  for (const type of EDITION_TYPES) invalidateEditionProof(project, type, { clearPageCount: clearPageCounts });
+  return project;
 }
