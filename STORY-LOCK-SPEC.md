@@ -134,3 +134,8 @@ Version 1.0.6 adds a visible generated ebook Table of Contents, EPUB landmarks, 
 - Parking Paperback/Hardcover changes enabled-edition state only and cannot delete or rewrite manuscript blocks.
 
 Any source-coverage mismatch still blocks EPUB packaging.
+
+
+## Kindle-first presentation isolation (v1.0.7)
+
+Version 1.0.7 narrows the ebook workspace to Amazon KDP / Kindle. Migration may reset ebook presentation defaults (reader-controlled body alignment/font behavior, linked Contents, clean front matter), but it must never modify `project.manuscript.blocks`, canonical text, paragraph IDs, source order, or the Story Lock hash. KDP preflight and EPUB packaging remain presentation/output layers only.

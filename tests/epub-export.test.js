@@ -75,10 +75,10 @@ test('EPUB preflight blocks image omission and failed Story Lock', () => {
   assert.equal(lockReport.checks.find((item) => item.id === 'story-lock').status, 'error');
 });
 
-test('blank author is warning, not silent metadata fabrication', () => {
+test('blank author blocks Kindle release instead of fabricating metadata', () => {
   const report = runEpubPreflight({ project: sampleProject({ author: '' }), storyLockOk: true });
-  assert.equal(report.checks.find((item) => item.id === 'author').status, 'warning');
-  assert.equal(report.ready, true);
+  assert.equal(report.checks.find((item) => item.id === 'author').status, 'error');
+  assert.equal(report.ready, false);
 });
 
 test('generated EPUB starts with uncompressed mimetype entry as required by EPUB containers', async () => {

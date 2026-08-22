@@ -15,8 +15,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   const project = {
     id: crypto.randomUUID(),
-    version: 16,
-    appVersion: '1.0.6',
+    version: 17,
+    appVersion: '1.0.7',
     title: baseName,
     author: '',
     createdAt: now,
@@ -133,7 +133,7 @@ export function migrateProject(project) {
     invalidateAllEditionProofs(project);
   }
 
-  // 1.0.6 focuses the ebook pipeline: visible in-book TOC, universal-store
+  // 1.0.6 focuses the ebook pipeline: visible in-book TOC, multi-store
   // navigation defaults, and clean front-matter reflow. No manuscript block is changed.
   if (oldVersion < 16) {
     ensureEditions(project);
@@ -151,8 +151,27 @@ export function migrateProject(project) {
   ensureEbookDesign(project);
   ensureEditions(project);
 
-  project.version = Math.max(oldVersion, 16);
-  project.appVersion = '1.0.6';
+  // 1.0.7 narrows the ebook workspace to Amazon KDP/Kindle. It keeps the
+  // same EPUB source model, but restores reader-controlled body defaults and
+  // removes multi-store-specific presentation state. Manuscript blocks stay untouched.
+  if (oldVersion < 17) {
+    ensureEditions(project);
+    const ebook = project.editions?.ebook?.design;
+    if (ebook) {
+      ebook.fontFamily = 'reader';
+      ebook.bodyAlignment = 'reader';
+      ebook.visibleToc = true;
+      ebook.tocScope = 'chapters';
+      ebook.frontMatterMode = 'clean';
+      project.design.ebook = { ...ebook };
+    }
+    if (project.editions?.ebook) project.editions.ebook.lastPreflight = null;
+  }
+
+  ensureEbookDesign(project);
+  ensureEditions(project);
+  project.version = Math.max(oldVersion, 17);
+  project.appVersion = '1.0.7';
   return project;
 }
 

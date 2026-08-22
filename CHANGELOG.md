@@ -1,3 +1,18 @@
+# Changelog
+
+## v1.0.7 — Kindle First + Apple-Easy Ebook Studio
+
+- Removes Apple Books, Kobo, Google Play Books, and NOOK readiness cards from the UI and preflight.
+- Narrows the ebook release target to Amazon KDP / Kindle EPUB.
+- Rebuilds the Ebook / Kindle top experience around a four-step setup strip: Metadata, Cover, Navigation, Story Lock.
+- Moves the primary KDP EPUB download into one obvious release card.
+- Hides nonessential typography controls inside an Advanced section.
+- Keeps visible linked Contents + Kindle Go To navigation mandatory in the KDP profile.
+- Restores reader-controlled body defaults: no forced body font size, line height, or alignment in the EPUB CSS.
+- Adds KDP HTML-file count and approximate per-section size guards.
+- Project schema 17 / app version 1.0.7; migration changes ebook presentation settings only and leaves manuscript blocks untouched.
+- Adds Kindle-specific regression tests and UI clutter checks.
+
 # YasReady Publish Changelog
 
 ## v1.0.6 — Ebook Focus + Universal EPUB Hardening

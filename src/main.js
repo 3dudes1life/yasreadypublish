@@ -36,7 +36,7 @@ import {
   getEbookCover, setEbookCover, clearEbookCover,
 } from './lib/editions.js';
 
-const VERSION = '1.0.6';
+const VERSION = '1.0.7';
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
 
@@ -808,60 +808,110 @@ function renderEbook() {
       <div><strong>${escapeHtml(section.title)}</strong><small>${escapeHtml(detail)}</small></div>
     </button>`;
   }).join('');
-  const storeCards = report.storeReadiness.map((item) => `
-    <div class="stat" style="min-height:94px">
-      <b>${item.ready ? '✓' : '!'}</b><span><strong style="display:block;margin-bottom:3px">${escapeHtml(item.label)}</strong>${escapeHtml(item.message)}</span>
-    </div>`).join('');
+
   const coverSummary = cover
-    ? `<div style="display:flex;align-items:center;gap:14px"><img src="${escapeHtml(cover.dataUrl)}" alt="Ebook cover preview" style="width:74px;height:110px;object-fit:cover;border-radius:8px;box-shadow:0 3px 12px rgba(0,0,0,.14)"><div><strong>${escapeHtml(cover.fileName)}</strong><small style="display:block;margin-top:4px;color:var(--muted)">${cover.width} × ${cover.height}px · ${formatBytes(cover.fileSize)}</small></div></div>`
-    : `<div><strong>No internal ebook cover yet</strong><small style="display:block;margin-top:4px;color:var(--muted)">A JPEG or PNG cover is required for the universal EPUB release gate.</small></div>`;
+    ? `<div class="ebook-cover-current"><img src="${escapeHtml(cover.dataUrl)}" alt="Ebook cover preview"><div><strong>${escapeHtml(cover.fileName)}</strong><small>${cover.width} × ${cover.height}px · ${formatBytes(cover.fileSize)}</small></div></div>`
+    : `<div class="ebook-cover-empty"><div class="ebook-cover-placeholder">e</div><div><strong>Add the Kindle cover</strong><small>Front cover only · JPEG or PNG · stored outside Story Lock</small></div></div>`;
+
+  const checkById = (id) => report.checks.find((item) => item.id === id);
+  const metadataReady = Boolean(project.title?.trim() && project.author?.trim() && design.language?.trim());
+  const coverReady = checkById('cover')?.status === 'pass';
+  const navReady = checkById('chapters')?.status === 'pass' && checkById('visible-toc')?.status === 'pass' && checkById('logical-toc')?.status === 'pass';
+  const lockReady = checkById('story-lock')?.status === 'pass' && checkById('source-coverage')?.status === 'pass';
+  const setupSteps = [metadataReady, coverReady, navReady, lockReady];
+  const readySteps = setupSteps.filter(Boolean).length;
+  const printParked = !project.editions?.paperback?.enabled && !project.editions?.hardcover?.enabled;
+  const setupStatus = report.ready ? 'Ready for KDP' : `${report.summary.errors} thing${report.summary.errors === 1 ? '' : 's'} to fix`;
+
+  const step = (ready, icon, label, detail) => `<div class="ebook-step ${ready ? 'done' : ''}"><span>${ready ? '✓' : icon}</span><div><strong>${label}</strong><small>${detail}</small></div></div>`;
 
   return `
-    <article class="panel ebook-panel">
-      <div class="panel-head"><div><span class="badge ${report.ready ? 'good' : 'bad'}">${report.ready ? 'UNIVERSAL EPUB READY' : 'EPUB NEEDS WORK'}</span><h2>Ebook / Kindle — Focus Mode</h2><p>We are finishing the reflowable ebook first. Paperback and hardcover stay parked while this edition is hardened for Kindle, Apple Books, Kobo, Google Play Books, and B&N NOOK.</p></div><div class="action-row"><button class="btn secondary" id="focusEbookOnly">Park print editions</button><button class="btn secondary" data-go-view="import">Book metadata</button></div></div>
-      ${state.ebookMessage ? `<div class="notice info">${escapeHtml(state.ebookMessage)}</div>` : ''}
-      <div class="ebook-engine-banner">
-        <div><div class="eyebrow">Universal reflowable EPUB</div><h3>One locked story. Reader-controlled pages.</h3><p>Chapter order, emphasis, scene breaks, text messages, front matter, cover metadata, and navigation are packaged without print folios, gutters, or fixed page numbers.</p></div>
-        <div class="ebook-format-chip"><b>EPUB 3</b><span>Kindle · Apple · Kobo · Google · NOOK</span></div>
+    <article class="panel ebook-panel ebook-studio">
+      <div class="ebook-studio-top">
+        <div class="ebook-studio-title">
+          <span class="badge ${report.ready ? 'good' : 'bad'}">${report.ready ? 'KDP EPUB READY' : 'KINDLE SETUP'}</span>
+          <h2>Kindle / eBook</h2>
+          <p>One Story-Locked manuscript → one clean reflowable EPUB for Amazon KDP. Paperback and hardcover stay separate.</p>
+        </div>
+        <div class="ebook-top-actions">
+          <button class="btn secondary" id="focusEbookOnly" type="button" ${printParked ? 'disabled' : ''}>${printParked ? 'Print editions parked' : 'Focus on ebook'}</button>
+          <button class="btn secondary" data-go-view="import" type="button">Book metadata</button>
+        </div>
       </div>
 
-      <div class="panel" style="margin:16px 0 0;padding:18px">
-        <div class="panel-head"><div><div class="eyebrow">Ebook cover asset</div><h3>Internal cover image</h3><p>The cover image is stored as edition artwork outside Story Lock and packaged as the EPUB <code>cover-image</code>. YasReady does not add a duplicate HTML cover page.</p></div></div>
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap">${coverSummary}<div class="action-row"><input id="ebookCoverInput" type="file" accept="image/jpeg,image/png" hidden><button class="btn secondary" id="chooseEbookCover">${cover ? 'Replace cover' : 'Choose cover'}</button>${cover ? '<button class="btn danger" id="removeEbookCover">Remove</button>' : ''}</div></div>
+      ${state.ebookMessage ? `<div class="notice info ebook-message">${escapeHtml(state.ebookMessage)}</div>` : ''}
+
+      <div class="ebook-release-card ${report.ready ? 'ready' : ''}">
+        <div class="ebook-release-status">
+          <div class="ebook-kindle-mark">e</div>
+          <div><div class="eyebrow">Amazon KDP · Reflowable EPUB 3</div><h3>${setupStatus}</h3><p>${report.ready ? 'Story Lock, navigation, metadata, cover, and Kindle structure all passed.' : 'Finish the highlighted setup items, then download the same EPUB you will upload to KDP.'}</p></div>
+        </div>
+        <div class="ebook-release-progress"><strong>${readySteps}/4</strong><span>setup</span></div>
+        <button class="btn primary ebook-download-main" id="downloadEpub" type="button" ${report.ready ? '' : 'disabled'}>Download KDP EPUB</button>
       </div>
 
-      <div class="ebook-settings-grid">
-        <label class="design-field"><span>Language</span><input id="ebookLanguage" value="${escapeHtml(design.language)}" placeholder="en"></label>
-        <label class="design-field"><span>Publisher / imprint</span><input id="ebookPublisher" value="${escapeHtml(design.publisher)}" placeholder="3Dudes1Life Creative"></label>
-        <label class="design-field"><span>Reader font behavior</span><select id="ebookFontFamily"><option value="reader" ${design.fontFamily === 'reader' ? 'selected' : ''}>Reader default</option><option value="serif" ${design.fontFamily === 'serif' ? 'selected' : ''}>Publisher serif fallback</option><option value="sans" ${design.fontFamily === 'sans' ? 'selected' : ''}>Publisher sans fallback</option></select></label>
-        <label class="design-field"><span>Body alignment</span><select id="ebookBodyAlignment"><option value="left" ${design.bodyAlignment === 'left' ? 'selected' : ''}>Left</option><option value="justify" ${design.bodyAlignment === 'justify' ? 'selected' : ''}>Justified</option></select></label>
-        <label class="design-field"><span>Line height</span><input id="ebookLineHeight" type="number" min="1" max="2.2" step="0.01" value="${design.lineHeight}"></label>
-        <label class="design-field"><span>First-line indent</span><div class="number-wrap"><input id="ebookFirstIndent" type="number" min="0" max="3" step="0.05" value="${design.firstLineIndentEm}"><em>em</em></div></label>
-        <label class="design-field"><span>Uniform chapter spacing</span><div class="number-wrap"><input id="ebookParagraphGap" type="number" min="0" max="2" step="0.05" value="${design.paragraphGapEm}"><em>em</em></div></label>
-        <label class="design-field"><span>Chapter blank lines</span><select id="ebookBodyBlankPolicy"><option value="collapse" ${design.bodyBlankPolicy === 'collapse' ? 'selected' : ''}>Collapse source blank lines</option><option value="normalize" ${design.bodyBlankPolicy === 'normalize' ? 'selected' : ''}>One spacer per blank run</option><option value="preserve" ${design.bodyBlankPolicy === 'preserve' ? 'selected' : ''}>Preserve every source blank line</option></select><small>Tres Amigos uses uniform paragraph rhythm, so inconsistent Word blank lines cannot change later chapters.</small></label>
-        <label class="design-field"><span>Normalized blank space</span><div class="number-wrap"><input id="ebookBodyBlankSpace" type="number" min="0" max="2" step="0.05" value="${design.bodyBlankSpaceEm}"><em>em</em></div></label>
-        <label class="design-field"><span>Chapter title alignment</span><select id="ebookChapterAlignment"><option value="left" ${design.chapterTitleAlignment === 'left' ? 'selected' : ''}>Left</option><option value="center" ${design.chapterTitleAlignment === 'center' ? 'selected' : ''}>Center</option><option value="right" ${design.chapterTitleAlignment === 'right' ? 'selected' : ''}>Right</option></select></label>
-        <label class="design-field"><span>Visible Table of Contents</span><select id="ebookVisibleToc"><option value="yes" ${design.visibleToc ? 'selected' : ''}>Yes — place before Chapter 1</option><option value="no" ${!design.visibleToc ? 'selected' : ''}>No</option></select><small>Universal release preflight requires this ON.</small></label>
-        <label class="design-field"><span>TOC entries</span><select id="ebookTocScope"><option value="chapters" ${design.tocScope === 'chapters' ? 'selected' : ''}>Chapters only</option><option value="all-matter" ${design.tocScope === 'all-matter' ? 'selected' : ''}>Chapters + front/back headings</option></select><small>Novels default to chapters only so copyright/legal pages do not clutter reader navigation.</small></label>
-        <label class="design-field"><span>Front matter reflow</span><select id="ebookFrontMatterMode"><option value="clean" ${design.frontMatterMode === 'clean' ? 'selected' : ''}>Clean ebook layout</option><option value="source" ${design.frontMatterMode === 'source' ? 'selected' : ''}>Use bounded source spacing</option></select><small>Clean mode keeps every word but removes print-only blank-page spacing before the story.</small></label>
+      <div class="ebook-steps">
+        ${step(metadataReady, '1', 'Metadata', metadataReady ? 'Title, author, language set' : 'Finish book metadata')}
+        ${step(coverReady, '2', 'Cover', coverReady ? 'Internal Kindle cover attached' : 'Attach front cover')}
+        ${step(navReady, '3', 'Navigation', navReady ? `${report.chapterEntries} chapters + linked Contents` : 'Contents needs attention')}
+        ${step(lockReady, '4', 'Story Lock', lockReady ? `${formatNumber(project.manuscript.stats.words)} locked words verified` : 'Verification required')}
       </div>
-      <div class="action-row"><button class="btn primary" id="saveEbookSettings">Save Ebook Settings</button><button class="btn secondary" id="downloadEpubPreflight">Download EPUB Preflight</button><button class="btn primary" id="downloadEpub" ${report.ready ? '' : 'disabled'}>Download Universal .EPUB</button></div>
+
+      <div class="ebook-setup-grid-v107">
+        <section class="ebook-setup-card ebook-cover-card">
+          <div class="ebook-card-head"><div><div class="eyebrow">Cover</div><h3>Kindle cover</h3></div><span class="mini-status ${coverReady ? 'good' : 'needs'}">${coverReady ? 'Ready' : 'Needed'}</span></div>
+          ${coverSummary}
+          <div class="ebook-cover-actions"><input id="ebookCoverInput" type="file" accept="image/jpeg,image/png" hidden><button class="btn secondary" id="chooseEbookCover" type="button">${cover ? 'Replace cover' : 'Choose cover'}</button>${cover ? '<button class="btn danger" id="removeEbookCover" type="button">Remove</button>' : ''}</div>
+          <p class="ebook-helper">YasReady packages one internal cover image and never adds a duplicate HTML cover page.</p>
+        </section>
+
+        <section class="ebook-setup-card ebook-core-card">
+          <div class="ebook-card-head"><div><div class="eyebrow">Essentials</div><h3>Kindle setup</h3></div><span class="mini-status good">Smart defaults</span></div>
+          <div class="ebook-core-fields">
+            <label class="design-field"><span>Language</span><input id="ebookLanguage" value="${escapeHtml(design.language)}" placeholder="en"></label>
+            <label class="design-field"><span>Publisher / imprint</span><input id="ebookPublisher" value="${escapeHtml(design.publisher)}" placeholder="3Dudes1Life Creative"></label>
+          </div>
+          <div class="ebook-smart-defaults">
+            <div><span>✓</span><p><strong>Visible Contents</strong><small>Placed before Chapter 1</small></p></div>
+            <div><span>✓</span><p><strong>Kindle Go To TOC</strong><small>All ${report.chapterEntries} chapters linked</small></p></div>
+            <div><span>✓</span><p><strong>Clean front matter</strong><small>Print-only blank spacing removed</small></p></div>
+            <div><span>✓</span><p><strong>Reader-controlled text</strong><small>No forced body size or line height</small></p></div>
+          </div>
+          <button class="btn primary" id="saveEbookSettings" type="button">Save & Refresh Preview</button>
+        </section>
+      </div>
+
+      <details class="ebook-advanced">
+        <summary><span><strong>Advanced typography</strong><small>Tres Amigos defaults are already loaded. Change these only if the preview needs it.</small></span><b>⌄</b></summary>
+        <div class="ebook-settings-grid ebook-settings-advanced">
+          <label class="design-field"><span>First-line indent</span><div class="number-wrap"><input id="ebookFirstIndent" type="number" min="0" max="3" step="0.05" value="${design.firstLineIndentEm}"><em>em</em></div></label>
+          <label class="design-field"><span>Paragraph spacing</span><div class="number-wrap"><input id="ebookParagraphGap" type="number" min="0" max="2" step="0.05" value="${design.paragraphGapEm}"><em>em</em></div></label>
+          <label class="design-field"><span>Chapter blank lines</span><select id="ebookBodyBlankPolicy"><option value="collapse" ${design.bodyBlankPolicy === 'collapse' ? 'selected' : ''}>Collapse source blank lines</option><option value="normalize" ${design.bodyBlankPolicy === 'normalize' ? 'selected' : ''}>One spacer per blank run</option><option value="preserve" ${design.bodyBlankPolicy === 'preserve' ? 'selected' : ''}>Preserve every source blank line</option></select></label>
+          <label class="design-field"><span>Normalized blank space</span><div class="number-wrap"><input id="ebookBodyBlankSpace" type="number" min="0" max="2" step="0.05" value="${design.bodyBlankSpaceEm}"><em>em</em></div></label>
+          <label class="design-field"><span>Chapter title alignment</span><select id="ebookChapterAlignment"><option value="left" ${design.chapterTitleAlignment === 'left' ? 'selected' : ''}>Left</option><option value="center" ${design.chapterTitleAlignment === 'center' ? 'selected' : ''}>Center</option><option value="right" ${design.chapterTitleAlignment === 'right' ? 'selected' : ''}>Right</option></select></label>
+        </div>
+      </details>
+
       <div class="ebook-summary-grid">
         <div><b>${report.sections}</b><span>Reading-order files</span></div>
         <div><b>${report.chapterEntries}</b><span>Chapter links</span></div>
         <div><b>${report.tocEntries}</b><span>TOC links</span></div>
         <div><b>${project.manuscript.stats.words.toLocaleString()}</b><span>Locked words</span></div>
       </div>
-      <div class="summary-grid" style="margin-top:14px">${storeCards}</div>
-      <div class="preflight-list ebook-preflight">${report.checks.map(renderPreflightCheck).join('')}</div>
     </article>
+
     <article class="panel ebook-workbench-panel">
-      <div class="panel-head"><div><div class="eyebrow">Reflowable preview</div><h2>${escapeHtml(preview.section.title)}</h2><p>Item ${preview.index + 1} of ${preview.sections.length}. The generated Table of Contents is now a real reading-order item you can preview before Chapter 1.</p></div><div class="ebook-section-buttons"><button class="btn small secondary" id="prevEbookSection" ${preview.index <= 0 ? 'disabled' : ''}>← Previous</button><button class="btn small secondary" id="nextEbookSection" ${preview.index >= preview.sections.length - 1 ? 'disabled' : ''}>Next →</button></div></div>
+      <div class="panel-head"><div><div class="eyebrow">Kindle reflow preview</div><h2>${escapeHtml(preview.section.title)}</h2><p>Reading item ${preview.index + 1} of ${preview.sections.length}. Use the left rail to inspect front matter, Contents, early chapters, middle chapters, and the ending.</p></div><div class="ebook-section-buttons"><button class="btn small secondary" id="prevEbookSection" ${preview.index <= 0 ? 'disabled' : ''}>← Previous</button><button class="btn small secondary" id="nextEbookSection" ${preview.index >= preview.sections.length - 1 ? 'disabled' : ''}>Next →</button></div></div>
       <div class="ebook-workbench">
         <aside class="ebook-toc"><div class="ebook-toc-head"><strong>Reading Order</strong><span>${preview.sections.length} items</span></div><div class="ebook-toc-list">${sectionRows}</div></aside>
-        <div class="ebook-reader-shell"><iframe class="ebook-reader" title="Ebook reflowable preview" srcdoc="${escapeHtml(frameHtml)}"></iframe></div>
+        <div class="ebook-reader-shell"><iframe class="ebook-reader" title="Kindle reflowable preview" srcdoc="${escapeHtml(frameHtml)}"></iframe></div>
       </div>
-      <div class="notice info"><strong>Ebook navigation:</strong> the EPUB now includes a visible linked Table of Contents in the spine before Chapter 1, EPUB 3 logical navigation, legacy NCX, and landmarks for Table of Contents + Begin Reading. No fixed ebook page numbers are generated.</div>
+      <div class="notice info"><strong>Kindle navigation:</strong> YasReady creates both the Kindle Go To navigation and a visible linked Contents page before Chapter 1. The ebook contains no fixed print page numbers.</div>
+    </article>
+
+    <article class="panel ebook-preflight-panel">
+      <div class="panel-head"><div><span class="badge ${report.ready ? 'good' : 'bad'}">${report.ready ? 'KDP CHECK PASSED' : 'KDP CHECK NEEDS WORK'}</span><h2>Kindle preflight</h2><p>${escapeHtml(report.kdp.message)} This is the technical gate before the EPUB download is enabled.</p></div><button class="btn secondary" id="downloadEpubPreflight" type="button">Download Preflight Report</button></div>
+      <div class="preflight-list ebook-preflight">${report.checks.map(renderPreflightCheck).join('')}</div>
     </article>`;
 }
 

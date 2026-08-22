@@ -8,7 +8,7 @@ const required = [
   'src/lib/ebook-model.js', 'src/lib/ebook-preflight.js', 'src/lib/epub-export.js', 'src/lib/structure-overrides.js',
   'src/lib/print-toc.js', 'src/lib/project-backup.js', 'src/lib/readiness-model.js', 'src/lib/spacing-policy.js',
   'src/lib/editions.js', 'src/lib/proof-integrity.js', 'public/vendor/jszip.min.js',
-  'STORY-LOCK-SPEC.md', 'KDP-PREFLIGHT.md', 'EPUB-PREFLIGHT.md', 'RELEASE-QA.md',
+  'STORY-LOCK-SPEC.md', 'KDP-PREFLIGHT.md', 'EPUB-PREFLIGHT.md', 'KINDLE-STANDARDS.md', 'RELEASE-QA.md',
 ];
 for (const file of required) if (!existsSync(file)) throw new Error(`Missing required file: ${file}`);
 
@@ -20,8 +20,8 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
   throw new Error('index.html is not wired to the self-contained static runtime.');
 }
 const main = readFileSync('src/main.js', 'utf8');
-for (const marker of ["const VERSION = '1.0.6'", 'Run Final Check', 'Download Project Backup', 'Ebook / Kindle', 'Structure Repair', 'generated-toc-entry', 'One Story Lock · separate outputs', 'bodyBlankPolicy']) {
-  if (!main.includes(marker)) throw new Error(`1.0.6 production workspace is missing: ${marker}`);
+for (const marker of ["const VERSION = '1.0.7'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB', 'Amazon KDP · Reflowable EPUB 3', 'Structure Repair', 'generated-toc-entry', 'One Story Lock · separate outputs', 'bodyBlankPolicy']) {
+  if (!main.includes(marker)) throw new Error(`1.0.7 production workspace is missing: ${marker}`);
 }
 const printModel = readFileSync('src/lib/print-model.js', 'utf8');
 if (!printModel.includes("tocTitle: 'Table of Contents'") || !printModel.includes('printToc: true') || !printModel.includes("tocStartSide: 'left'") || !printModel.includes('paragraphGap: 0.12,') || !printModel.includes("bodyBlankPolicy: 'collapse'")) {
@@ -36,11 +36,11 @@ for (const dynamicBinding of ['[data-go-view]','[data-open-project]','[data-dele
 }
 
 const project = readFileSync('src/lib/project.js', 'utf8');
-if (!project.includes("appVersion: '1.0.6'") || !project.includes('version: 16') || !project.includes('ensureEditions(project)')) {
-  throw new Error('Project schema was not migrated to 1.0.6 safety state.');
+if (!project.includes("appVersion: '1.0.7'") || !project.includes('version: 17') || !project.includes('ensureEditions(project)')) {
+  throw new Error('Project schema was not migrated to 1.0.7 safety state.');
 }
 const epub = readFileSync('src/lib/epub-export.js', 'utf8');
 for (const marker of ['epub:type=\"landmarks\"','properties=\"cover-image\"','itemref idref=\"nav\"','Table of Contents']) {
-  if (!epub.includes(marker)) throw new Error(`Universal EPUB hardening is missing: ${marker}`);
+  if (!epub.includes(marker)) throw new Error(`Kindle EPUB hardening is missing: ${marker}`);
 }
-console.log('YasReady Publish v1.0.6 static verification passed.');
+console.log('YasReady Publish v1.0.7 static verification passed.');

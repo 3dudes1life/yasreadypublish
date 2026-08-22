@@ -55,7 +55,7 @@ function matterParagraphStyle(block, design) {
   }
   // Clean mode deliberately ignores fixed-page Word spacing while preserving
   // source alignment. It is the safe default for title/copyright/dedication
-  // pages that need to reflow on Kindle/Apple/Kobo/Google readers.
+  // pages that need to reflow on Kindle readers.
   return `text-align:${align};text-indent:0;margin:0 0 .18em 0;`;
 }
 
@@ -77,9 +77,10 @@ function renderBlock(block, { blankMode = 'preserve', sectionType = 'chapter', d
 
 function stylesheet(designInput) {
   const design = normalizeEbookDesign(designInput);
+  const bodyAlignment = design.bodyAlignment === 'reader' ? '' : ` text-align:${design.bodyAlignment};`;
   return `@charset "UTF-8";
 html { -webkit-text-size-adjust: 100%; }
-body { margin: 0; padding: 0; font-family: ${ebookFontStack(design.fontFamily)}; line-height: ${design.lineHeight}; text-align: ${design.bodyAlignment}; }
+body { margin:0; padding:0; font-family:${ebookFontStack(design.fontFamily)};${bodyAlignment} }
 p { margin:0; }
 p.body { margin:0 0 ${design.paragraphGapEm}em 0; text-indent: ${design.firstLineIndentEm}em; }
 p.chapter-opening { text-indent: 0; }

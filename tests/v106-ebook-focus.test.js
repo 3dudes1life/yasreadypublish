@@ -37,8 +37,8 @@ test('1.0.6 migration enables visible chapters-only TOC and clean front matter w
   const p = sample();
   const before = JSON.stringify(p.manuscript.blocks);
   migrateProject(p);
-  assert.equal(p.version,16);
-  assert.equal(p.appVersion,'1.0.6');
+  assert.equal(p.version,17);
+  assert.equal(p.appVersion,'1.0.7');
   assert.equal(p.editions.ebook.design.visibleToc,true);
   assert.equal(p.editions.ebook.design.tocScope,'chapters');
   assert.equal(p.editions.ebook.design.frontMatterMode,'clean');
@@ -75,7 +75,7 @@ test('EPUB spine contains visible nav TOC before first chapter and landmarks ide
   assert.match(nav,/epub:type="bodymatter" href="text\/chapter-001.xhtml"/);
 });
 
-test('universal EPUB packages one internal cover-image and no duplicate HTML cover page', () => {
+test('Kindle EPUB packages one internal cover-image and no duplicate HTML cover page', () => {
   const p = sample(); migrateProject(p);
   const data = buildEpubPackageData({project:p});
   const opf = data.files.get('OEBPS/package.opf');
@@ -84,7 +84,7 @@ test('universal EPUB packages one internal cover-image and no duplicate HTML cov
   assert.equal([...data.files.keys()].some(path=>/cover\.xhtml$/i.test(path)),false);
 });
 
-test('universal preflight blocks a missing cover and passes all five store cards with a compliant cover', () => {
+test('Kindle preflight blocks a missing cover and passes with a compliant cover', () => {
   const missing = sample({cover:false}); migrateProject(missing);
   const bad = runEpubPreflight({project:missing,storyLockOk:true});
   assert.equal(bad.ready,false);
@@ -92,8 +92,8 @@ test('universal preflight blocks a missing cover and passes all five store cards
   const good = sample({cover:true}); migrateProject(good);
   const report = runEpubPreflight({project:good,storyLockOk:true});
   assert.equal(report.ready,true);
-  assert.equal(report.storeReadiness.length,5);
-  assert.equal(report.storeReadiness.every(x=>x.ready),true);
+  assert.equal(report.kdp.ready,true);
+  assert.equal(report.target,'Amazon KDP / Kindle');
 });
 
 test('clean front matter collapses print-only blank paragraphs while preserving every source word', () => {

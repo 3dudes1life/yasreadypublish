@@ -15,7 +15,7 @@ export const DEFAULT_EBOOK_DESIGN = Object.freeze({
   chapterTitleAlignment: 'center',
   chapterTopEm: 4.2,
   chapterAfterEm: 2.4,
-  bodyAlignment: 'left',
+  bodyAlignment: 'reader',
   textMessageIndentEm: 1.2,
   sceneBreakSpaceEm: 1.2,
   tocScope: 'chapters',
@@ -43,7 +43,7 @@ export function normalizeEbookDesign(input = {}) {
   design.chapterTitleAlignment = ['left', 'center', 'right'].includes(design.chapterTitleAlignment) ? design.chapterTitleAlignment : 'center';
   design.chapterTopEm = clamp(design.chapterTopEm, DEFAULT_EBOOK_DESIGN.chapterTopEm, 0, 8);
   design.chapterAfterEm = clamp(design.chapterAfterEm, DEFAULT_EBOOK_DESIGN.chapterAfterEm, 0, 6);
-  design.bodyAlignment = ['left', 'justify'].includes(design.bodyAlignment) ? design.bodyAlignment : 'left';
+  design.bodyAlignment = ['reader', 'left', 'justify'].includes(design.bodyAlignment) ? design.bodyAlignment : 'reader';
   design.textMessageIndentEm = clamp(design.textMessageIndentEm, DEFAULT_EBOOK_DESIGN.textMessageIndentEm, 0, 4);
   design.sceneBreakSpaceEm = clamp(design.sceneBreakSpaceEm, DEFAULT_EBOOK_DESIGN.sceneBreakSpaceEm, 0, 4);
   design.tocScope = design.tocScope === 'all-matter' ? 'all-matter' : 'chapters';

@@ -3,7 +3,7 @@ import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const VERSION = '1.0.6';
+const VERSION = '1.0.7';
 
 function walk(dir) {
   const out = [];
@@ -63,7 +63,7 @@ for (const marker of [
   'invalidateAllEditionProofs',
   'runFinalCheck',
   'Create / Reset Hardcover from Paperback',
-  'Park print editions',
+  'focusEbookOnly',
   'ebookCoverInput',
 ]) {
   if (!main.includes(marker)) throw new Error(`Missing release safety marker: ${marker}`);
@@ -81,6 +81,6 @@ console.log(`- ${dynamic.length} dynamic control families audited`);
 console.log('- no fetch/XHR/WebSocket/sendBeacon manuscript egress paths found');
 const epub = readFileSync(join(ROOT, 'src/lib/epub-export.js'), 'utf8');
 for (const marker of ['epub:type=\"landmarks\"','properties=\"cover-image\"','itemref idref=\"nav\"']) {
-  if (!epub.includes(marker)) throw new Error(`Missing universal EPUB marker: ${marker}`);
+  if (!epub.includes(marker)) throw new Error(`Missing Kindle EPUB marker: ${marker}`);
 }
-console.log('- proof ownership, even-page control, edition invalidation, KDP geometry, and universal EPUB navigation/cover guards present');
+console.log('- proof ownership, even-page control, edition invalidation, KDP geometry, and Kindle EPUB navigation/cover guards present');
