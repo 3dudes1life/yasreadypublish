@@ -3,6 +3,7 @@ import { DEFAULT_PRINT_DESIGN, ensurePrintDesign } from './print-model.js';
 import { DEFAULT_EBOOK_DESIGN, ensureEbookDesign } from './ebook-model.js';
 import { ensureStructureOverrides } from './structure-overrides.js';
 import { ensureEditions, invalidateAllEditionProofs } from './editions.js';
+import { ensurePresentationOverrides } from './presentation-overrides.js';
 
 export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
   const [sourceFileHash, manuscriptHash] = await Promise.all([
@@ -15,8 +16,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   const project = {
     id: crypto.randomUUID(),
-    version: 17,
-    appVersion: '1.0.7',
+    version: 18,
+    appVersion: '1.0.8',
     title: baseName,
     author: '',
     createdAt: now,
@@ -37,6 +38,7 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
       status: 'verified',
     },
     structureOverrides: {},
+    presentationOverrides: { ebook: {}, paperback: {}, hardcover: {} },
     manuscript: {
       blocks: parsed.blocks,
       chapters: parsed.chapters,
@@ -50,6 +52,7 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
     },
   };
   ensureEditions(project);
+  ensurePresentationOverrides(project);
   return project;
 }
 
@@ -61,6 +64,7 @@ export function migrateProject(project) {
   ensurePrintDesign(project);
   ensureEbookDesign(project);
   ensureStructureOverrides(project);
+  ensurePresentationOverrides(project);
 
   if (oldVersion < 2 && !project.design?.print?.templateId) project.design.print = { ...DEFAULT_PRINT_DESIGN };
 
@@ -168,10 +172,18 @@ export function migrateProject(project) {
     if (project.editions?.ebook) project.editions.ebook.lastPreflight = null;
   }
 
+  // 1.0.8 adds Preview Studio presentation overrides. These are edition-scoped
+  // layout metadata only; they never contain or replace manuscript wording.
+  if (oldVersion < 18) {
+    ensurePresentationOverrides(project);
+    if (project.editions?.ebook) project.editions.ebook.lastPreflight = null;
+  }
+
   ensureEbookDesign(project);
   ensureEditions(project);
-  project.version = Math.max(oldVersion, 17);
-  project.appVersion = '1.0.7';
+  ensurePresentationOverrides(project);
+  project.version = Math.max(oldVersion, 18);
+  project.appVersion = '1.0.8';
   return project;
 }
 

@@ -1,4 +1,4 @@
-# YasReady Publish 1.0.7 — Kindle EPUB Preflight
+# YasReady Publish 1.0.8 — Kindle EPUB Preflight
 
 The ebook release gate is now Amazon KDP / Kindle only.
 

@@ -3,7 +3,7 @@ import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const VERSION = '1.0.7';
+const VERSION = '1.0.8';
 
 function walk(dir) {
   const out = [];
@@ -65,6 +65,8 @@ for (const marker of [
   'Create / Reset Hardcover from Paperback',
   'focusEbookOnly',
   'ebookCoverInput',
+  'shareDevicePreview',
+  'applyEbookBlockOverride',
 ]) {
   if (!main.includes(marker)) throw new Error(`Missing release safety marker: ${marker}`);
 }

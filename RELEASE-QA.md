@@ -1,29 +1,33 @@
-# YasReady Publish v1.0.7 — Kindle Focus QA
+# YasReady Publish v1.0.8 — Preview Studio Release QA
 
-## Release goal
+## Automated gate
 
-Make the ebook workflow feel simple enough to use without understanding EPUB internals while tightening the file specifically for Amazon KDP / Kindle.
+- 107 / 107 Node tests PASS
+- Static verification PASS
+- Superman audit PASS
+- 23 application JavaScript modules checked for syntax/import resolution
+- 41 literal button IDs audited
+- 11 dynamic control families audited
+- No `fetch`, XHR, WebSocket, or `sendBeacon` manuscript-egress paths detected
 
-## Acceptance flow
+## Preview Studio regressions covered
 
-1. Open the existing project; migration must not change a manuscript block.
-2. Focus on Ebook / Kindle.
-3. Confirm title and author metadata.
-4. Attach the front cover.
-5. Save & Refresh Preview.
-6. Inspect front matter, visible Table of Contents, Chapter 1, Chapter 5, a middle chapter, and the final chapter.
-7. Review Kindle preflight.
-8. Download the KDP EPUB only when the release gate is green.
-9. Open the exported EPUB in Kindle Previewer before KDP submission.
+- Live cover appears as preview item 0 but is not duplicated as an EPUB XHTML cover page.
+- Preview-only inspectable block markers do not leak into final EPUB XHTML.
+- Clicking visible TOC entries navigates to the intended chapter preview.
+- Per-block formatting overrides change presentation metadata only.
+- Reset-to-theme removes per-block overrides.
+- Body/chapter-title default promotion updates edition presentation without changing source text.
+- Preview selection preserves the reader scroll position across re-render.
+- Device proof contains cover, visible Contents, all reading-order sections, and read-only reader controls.
+- Device proof TOC links navigate to chapter anchors.
+- Device proof contains no contenteditable manuscript editor.
+- Project migration to schema 18 preserves manuscript block IDs, text, and ordering.
 
-## Regression targets
+## Manual/static smoke performed
 
-- Story Lock/source coverage.
-- Chapter 1 through final-chapter paragraph rhythm.
-- Clean reflowable front matter.
-- Visible linked Contents immediately before Chapter 1.
-- Kindle Go To navigation and NCX.
-- One internal cover image, no duplicate HTML cover.
-- Reader-controlled body font size and line height.
-- No multi-store readiness cards or retailer-specific clutter.
-- All literal and dynamic UI controls remain wired.
+The final static site was served through `python3 -m http.server` and `index.html` loaded successfully over HTTP. Full Playwright/browser automation was not available in this environment, so the user's real Book 2 walkthrough remains the black-box acceptance test.
+
+## Release principle
+
+No green automated gate substitutes for inspecting the actual 119k-word Book 2 proof. If the live manuscript exposes a rendering issue, export remains paused until the exact issue is corrected.

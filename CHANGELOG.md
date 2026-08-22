@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.0.8 — Kindle Preview Studio + Private Device Proof
+
+- Adds a live **Cover** item at the start of the Kindle preview when an ebook cover is attached, without adding a duplicate HTML cover page to the final EPUB.
+- Turns the Kindle proof into **Preview Studio**: click a rendered source block to open a read-only Format Inspector instead of a text editor.
+- Adds edition-scoped presentation overrides for spacing before/after, first-line indent, alignment, and indent suppression. Overrides store metadata only; source wording, source order, and Story Lock hashes remain untouched.
+- Adds **Reset to theme**, **Use as all-body default**, and **Use for all chapter titles** controls for fast safe cleanup.
+- Makes the visible Table of Contents interactive inside Preview Studio so chapter links jump to their actual preview sections.
+- Preserves the reader scroll position while selecting or reformatting a block so inspection does not bounce back to the top of a chapter.
+- Adds **Preview on iPhone / iPad** using a self-contained, read-only HTML device proof that can be sent through the Mac Share Sheet/AirDrop or downloaded for transfer. No manuscript is uploaded to a server in this release.
+- The device proof includes cover, front matter, linked Contents, every chapter, next/previous navigation, reading-order navigation, font-size controls, and light/sepia/dark reader appearances.
+- Keeps true expiring web-link/QR sharing out of the static build until a dedicated private backend exists; Superman still requires zero browser manuscript-network-egress primitives.
+- Project schema 18 / app version 1.0.8. Existing projects migrate by creating empty presentation-override buckets only; manuscript blocks remain unchanged.
+- Automated release gate: **107/107 tests passing**, static verification PASS, Superman audit PASS.
+
 ## v1.0.7 — Kindle First + Apple-Easy Ebook Studio
 
 - Removes Apple Books, Kobo, Google Play Books, and NOOK readiness cards from the UI and preflight.

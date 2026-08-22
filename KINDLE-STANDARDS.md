@@ -1,4 +1,4 @@
-# YasReady Publish 1.0.7 — Kindle / KDP Standards
+# YasReady Publish 1.0.8 — Kindle / KDP Standards
 
 This release intentionally targets one ebook output: a reflowable EPUB for Amazon KDP / Kindle. Paperback and hardcover remain separate editions.
 
@@ -26,3 +26,8 @@ KDP recommends approximately 1600 × 2560 pixels for the marketing cover and req
 ## Final acceptance
 
 YasReady preflight is not a substitute for Amazon's converter. The release file should still be opened in Kindle Previewer and inspected on phone, tablet and e-reader views before submission.
+
+
+## Preview Studio safety
+
+The live Preview Studio is a rendering surface, not a manuscript editor. Cover preview is synthetic and must not create a duplicate XHTML cover page. Formatting overrides may alter presentation metadata and final EPUB CSS/inline presentation, but cannot alter source wording. Device proofs are read-only derivatives and remain local/share-sheet files in 1.0.8.

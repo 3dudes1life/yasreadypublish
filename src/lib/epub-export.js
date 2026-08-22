@@ -1,5 +1,6 @@
 import { buildEbookSections, ebookFontStack, ebookTocEntries, normalizeEbookDesign, verifyEbookSourceCoverage } from './ebook-model.js';
 import { blankRenderMode } from './spacing-policy.js';
+import { getBlockPresentationOverride } from './presentation-overrides.js';
 
 function escapeXml(value = '') {
   return String(value)
@@ -59,20 +60,49 @@ function matterParagraphStyle(block, design) {
   return `text-align:${align};text-indent:0;margin:0 0 .18em 0;`;
 }
 
-function renderBlock(block, { blankMode = 'preserve', sectionType = 'chapter', design } = {}) {
+
+function presentationStyle(project, block, sectionType = 'chapter') {
+  const override = getBlockPresentationOverride(project, 'ebook', block?.id);
+  if (!override) return '';
+  const styles = [];
+  if (override.spaceBefore != null) styles.push(`margin-top:${override.spaceBefore}em`);
+  if (override.spaceAfter != null) styles.push(`margin-bottom:${override.spaceAfter}em`);
+  if (override.alignment) styles.push(`text-align:${override.alignment}`);
+  if (override.suppressIndent === true) styles.push('text-indent:0');
+  else if (override.firstLineIndent != null && sectionType === 'chapter') styles.push(`text-indent:${override.firstLineIndent}em`);
+  return styles.join(';');
+}
+
+function mergeInlineStyles(...styles) {
+  return styles.filter(Boolean).join(';');
+}
+
+function previewAttrs(block, previewMode = false) {
+  if (!previewMode || !block?.id) return '';
+  return ` data-yrp-block-id="${escapeXml(block.id)}" tabindex="0"`;
+}
+
+function renderBlock(block, { blankMode = 'preserve', sectionType = 'chapter', design, project = null, previewMode = false } = {}) {
   const id = escapeXml(block.id || '');
+  const attrs = previewAttrs(block, previewMode);
+  const inspectClass = previewMode ? ' yrp-inspectable' : '';
   const content = inlineRuns(block);
-  if (block.kind === 'blank') return `<p id="${id}" class="blank ${blankMode === 'collapse' ? 'collapsed' : blankMode === 'normalize' ? 'normalized' : 'preserved'}"></p>`;
-  if (block.kind === 'chapter-title') return `<h1 id="${id}" class="chapter-title">${content}</h1>`;
+  const overrideStyle = presentationStyle(project, block, sectionType);
+  if (block.kind === 'blank') return `<p id="${id}" class="blank ${blankMode === 'collapse' ? 'collapsed' : blankMode === 'normalize' ? 'normalized' : 'preserved'}"${attrs}></p>`;
+  if (block.kind === 'chapter-title') return `<h1 id="${id}" class="chapter-title${inspectClass}"${attrs}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</h1>`;
   if (block.kind === 'front-back-heading' || block.kind === 'heading') {
-    const style = sectionType === 'chapter' ? '' : matterParagraphStyle(block, design);
-    return `<h2 id="${id}" class="matter-heading"${style ? ` style="${style}"` : ''}>${content}</h2>`;
+    const baseStyle = sectionType === 'chapter' ? '' : matterParagraphStyle(block, design);
+    const style = mergeInlineStyles(baseStyle, overrideStyle);
+    return `<h2 id="${id}" class="matter-heading${inspectClass}"${attrs}${style ? ` style="${style}"` : ''}>${content}</h2>`;
   }
-  if (block.kind === 'scene-break') return `<p id="${id}" class="scene-break">${content}</p>`;
-  if (block.kind === 'text-message') return `<p id="${id}" class="text-message">${content}</p>`;
-  if (sectionType !== 'chapter') return `<p id="${id}" class="matter-body" style="${matterParagraphStyle(block, design)}">${content}</p>`;
-  if (block.kind === 'chapter-opening') return `<p id="${id}" class="body chapter-opening">${content}</p>`;
-  return `<p id="${id}" class="body">${content}</p>`;
+  if (block.kind === 'scene-break') return `<p id="${id}" class="scene-break${inspectClass}"${attrs}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</p>`;
+  if (block.kind === 'text-message') return `<p id="${id}" class="text-message${inspectClass}"${attrs}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</p>`;
+  if (sectionType !== 'chapter') {
+    const style = mergeInlineStyles(matterParagraphStyle(block, design), overrideStyle);
+    return `<p id="${id}" class="matter-body${inspectClass}"${attrs} style="${style}">${content}</p>`;
+  }
+  if (block.kind === 'chapter-opening') return `<p id="${id}" class="body chapter-opening${inspectClass}"${attrs}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</p>`;
+  return `<p id="${id}" class="body${inspectClass}"${attrs}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</p>`;
 }
 
 function stylesheet(designInput) {
@@ -100,6 +130,10 @@ nav[epub\\:type="toc"] h1 { margin:1.2em 0 1.2em; text-align:center; font-size:1
 nav[epub\\:type="toc"] ol { padding-left:1.2em; }
 nav[epub\\:type="toc"] li { margin:.5em 0; }
 nav a { color: inherit; text-decoration: none; }
+.yrp-inspectable { cursor:default; }
+.yrp-selected { outline:2px solid #7565ff; outline-offset:3px; border-radius:2px; }
+.yrp-cover-preview { min-height:72vh; display:grid; place-items:center; padding:1em; }
+.yrp-cover-preview img { display:block; max-width:100%; max-height:78vh; object-fit:contain; box-shadow:0 10px 30px rgba(0,0,0,.18); }
 .hidden-nav { display:none; }
 @media amzn-kf8 { h1.chapter-title { page-break-before: always; } }
 `;
@@ -112,7 +146,7 @@ function sectionXhtml(section, project, design) {
     const blankMode = sectionType === 'chapter'
       ? blankRenderMode({ blocks: section.blocks, index, sectionType, policy: design.bodyBlankPolicy })
       : 'collapse';
-    return renderBlock(block, { blankMode, sectionType, design });
+    return renderBlock(block, { blankMode, sectionType, design, project, previewMode: false });
   }).join('\n');
   const epubType = sectionType === 'chapter' ? 'bodymatter' : sectionType === 'front' ? 'frontmatter' : 'backmatter';
   return `<?xml version="1.0" encoding="utf-8"?>
@@ -274,7 +308,7 @@ export async function buildEpubBlob({ project } = {}) {
 }
 
 function previewTocHtml(toc) {
-  return `<nav epub:type="toc" id="toc" role="doc-toc"><h1>Table of Contents</h1><ol>${toc.map((entry) => `<li><a href="#">${escapeXml(entry.label)}</a></li>`).join('')}</ol></nav>`;
+  return `<nav epub:type="toc" id="toc" role="doc-toc"><h1>Table of Contents</h1><ol>${toc.map((entry) => `<li><a href="#" data-yrp-toc-href="${escapeXml(entry.href)}">${escapeXml(entry.label)}</a></li>`).join('')}</ol></nav>`;
 }
 
 export function buildEbookPreviewHtml({ project, sectionIndex = 0 } = {}) {
@@ -283,6 +317,10 @@ export function buildEbookPreviewHtml({ project, sectionIndex = 0 } = {}) {
   const { sections: sourceSections } = buildEbookSections(project);
   const toc = ebookTocEntries(project, design);
   const items = [...sourceSections];
+  const previewCover = coverInfo(project);
+  if (previewCover) {
+    items.unshift({ id: 'preview-cover', type: 'cover', title: 'Cover', href: '', blocks: [], wordCount: 0, startBlockIndex: null, endBlockIndex: null, synthetic: true, cover: previewCover });
+  }
   if (design.visibleToc) {
     const firstChapter = items.findIndex((item) => item.type === 'chapter');
     const tocItem = { id: 'visible-toc', type: 'toc', title: 'Table of Contents', href: 'nav.xhtml', blocks: [], wordCount: 0, startBlockIndex: null, endBlockIndex: null, synthetic: true };
@@ -290,13 +328,15 @@ export function buildEbookPreviewHtml({ project, sectionIndex = 0 } = {}) {
   }
   const index = Math.max(0, Math.min(Math.max(0, items.length - 1), Number(sectionIndex) || 0));
   const section = items[index] || { id: 'empty', title: 'Empty book', type: 'front', blocks: [] };
-  const html = section.synthetic
-    ? previewTocHtml(toc)
-    : section.blocks.map((block, blockIndex) => {
+  const html = section.type === 'cover' && section.cover
+    ? `<div class="yrp-cover-preview"><img src="${escapeXml(section.cover.dataUrl)}" alt="${escapeXml(project.title || 'Book cover')}" /></div>`
+    : section.synthetic
+      ? previewTocHtml(toc)
+      : section.blocks.map((block, blockIndex) => {
         const blankMode = section.type === 'chapter'
           ? blankRenderMode({ blocks: section.blocks, index: blockIndex, sectionType: section.type, policy: design.bodyBlankPolicy })
           : 'collapse';
-        return renderBlock(block, { blankMode, sectionType: section.type, design });
+        return renderBlock(block, { blankMode, sectionType: section.type, design, project, previewMode: true });
       }).join('\n');
   return {
     index,
@@ -307,4 +347,55 @@ export function buildEbookPreviewHtml({ project, sectionIndex = 0 } = {}) {
     css: stylesheet(design),
     html,
   };
+}
+
+export function buildDevicePreviewHtml({ project } = {}) {
+  if (!project) throw new Error('A publishing project is required.');
+  const design = normalizeEbookDesign(project.editions?.ebook?.design || project.design?.ebook || {});
+  const { sections } = buildEbookSections(project);
+  const toc = ebookTocEntries(project, design);
+  const cover = coverInfo(project);
+  const items = [];
+  if (cover) items.push({ id: 'cover', title: 'Cover', type: 'cover', html: `<div class="yrp-cover-preview"><img src="${escapeXml(cover.dataUrl)}" alt="${escapeXml(project.title || 'Book cover')}" /></div>` });
+  for (const section of sections) {
+    if (design.visibleToc && section.type === 'chapter' && !items.some((item) => item.type === 'toc')) {
+      items.push({ id: 'toc', title: 'Table of Contents', type: 'toc', html: previewTocHtml(toc) });
+    }
+    const body = section.blocks.map((block, index) => {
+      const blankMode = section.type === 'chapter'
+        ? blankRenderMode({ blocks: section.blocks, index, sectionType: section.type, policy: design.bodyBlankPolicy })
+        : 'collapse';
+      return renderBlock(block, { blankMode, sectionType: section.type, design, project, previewMode: false });
+    }).join('\n');
+    items.push({ id: section.id, title: section.title, type: section.type, href: section.href, html: body });
+  }
+  if (design.visibleToc && !items.some((item) => item.type === 'toc')) items.push({ id: 'toc', title: 'Table of Contents', type: 'toc', html: previewTocHtml(toc) });
+
+  const nav = items.map((item, index) => `<button type="button" data-go="${index}">${escapeXml(item.title)}</button>`).join('');
+  const pages = items.map((item, index) => `<article class="reader-item ${index === 0 ? 'active' : ''}" data-item="${index}" data-type="${escapeXml(item.type)}" data-href="${escapeXml(item.href || '')}">${item.html}</article>`).join('\n');
+  const title = escapeXml(project.title || 'YasReady Kindle Preview');
+  const baseCss = stylesheet(design);
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>${title} · Device Preview</title>
+<style>
+${baseCss}
+:root{color-scheme:light dark}*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#ececf0;color:#18181a}.bar,.footer,.drawer{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body.sepia{background:#e9dfc8}.shell{min-height:100vh;display:grid;grid-template-rows:auto 1fr}.bar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:8px;padding:10px max(12px,env(safe-area-inset-left));background:rgba(250,250,252,.92);backdrop-filter:blur(18px);border-bottom:1px solid rgba(0,0,0,.08)}.bar strong{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}.bar button,.bar select{border:1px solid #d7d7dc;border-radius:10px;background:#fff;color:#111;padding:8px 10px;font-weight:700}.reader-wrap{display:grid;grid-template-columns:minmax(0,1fr);padding:18px}.reader-card{width:min(100%,760px);margin:0 auto;background:#fffdf9;color:#18181a;border-radius:14px;box-shadow:0 12px 32px rgba(0,0,0,.14);overflow:hidden}.reader-item{display:none;padding:clamp(22px,6vw,52px);min-height:76vh}.reader-item.active{display:block}.reader-item[data-type="cover"]{padding:18px;background:#2d2d31}.reader-item[data-type="cover"] .yrp-cover-preview{min-height:72vh}.footer{position:sticky;bottom:0;display:flex;justify-content:space-between;gap:8px;padding:10px max(12px,env(safe-area-inset-left));background:rgba(250,250,252,.92);backdrop-filter:blur(18px);border-top:1px solid rgba(0,0,0,.08)}.footer button{border:0;border-radius:10px;padding:10px 14px;background:#171719;color:#fff;font-weight:800}.footer button:disabled{opacity:.35}.drawer{position:fixed;inset:auto 0 0 0;z-index:30;display:none;max-height:70vh;background:#fff;border-radius:18px 18px 0 0;box-shadow:0 -12px 40px rgba(0,0,0,.22);padding:12px 12px calc(12px + env(safe-area-inset-bottom));overflow:auto}.drawer.open{display:block}.drawer header{display:flex;justify-content:space-between;align-items:center;gap:12px}.drawer header button{border:0;background:#eeeef2;border-radius:9px;padding:8px 10px;font-weight:800}.drawer nav{display:grid;gap:6px;margin-top:10px}.drawer nav button{border:0;border-radius:10px;background:#f6f6f8;padding:10px;text-align:left}.reader-card.font-l{font-size:112%}.reader-card.font-xl{font-size:126%}body.dark{background:#111113}.dark .bar,.dark .footer{background:rgba(28,28,31,.94);color:#fff;border-color:#38383c}.dark .bar button,.dark .bar select{background:#2b2b2f;color:#fff;border-color:#48484d}.dark .reader-card{background:#151517;color:#f2f2f4}.dark .drawer{background:#202024;color:#fff}.dark .drawer nav button{background:#303036;color:#fff}@media(max-width:600px){.reader-wrap{padding:0}.reader-card{border-radius:0;box-shadow:none;min-height:calc(100vh - 102px)}.reader-item{min-height:calc(100vh - 102px);padding:28px 22px}.bar{padding-top:calc(10px + env(safe-area-inset-top))}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="bar"><button id="contentsBtn" type="button">Contents</button><strong>${title}</strong><select id="viewMode" aria-label="Reader appearance"><option value="light">Light</option><option value="sepia">Sepia</option><option value="dark">Dark</option></select><select id="fontSize" aria-label="Font size"><option value="m">Aa</option><option value="l">Aa+</option><option value="xl">Aa++</option></select></div>
+  <div class="reader-wrap"><main class="reader-card" id="readerCard">${pages}</main></div>
+  <div class="footer"><button id="prevBtn" type="button">← Previous</button><button id="nextBtn" type="button">Next →</button></div>
+</div>
+<aside class="drawer" id="drawer"><header><strong>Reading Order</strong><button id="closeDrawer" type="button">Done</button></header><nav>${nav}</nav></aside>
+<script>
+(()=>{let index=0;const items=[...document.querySelectorAll('.reader-item')],drawer=document.getElementById('drawer'),card=document.getElementById('readerCard'),prev=document.getElementById('prevBtn'),next=document.getElementById('nextBtn');function show(i){index=Math.max(0,Math.min(items.length-1,i));items.forEach((el,n)=>el.classList.toggle('active',n===index));prev.disabled=index===0;next.disabled=index===items.length-1;window.scrollTo({top:0,behavior:'auto'});}document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>{drawer.classList.remove('open');show(Number(b.dataset.go)||0)}));document.querySelectorAll('[data-yrp-toc-href]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();const href=a.dataset.yrpTocHref;const target=items.findIndex(el=>el.dataset.href===href);if(target>=0)show(target)}));document.getElementById('contentsBtn').addEventListener('click',()=>drawer.classList.add('open'));document.getElementById('closeDrawer').addEventListener('click',()=>drawer.classList.remove('open'));prev.addEventListener('click',()=>show(index-1));next.addEventListener('click',()=>show(index+1));document.getElementById('viewMode').addEventListener('change',e=>{document.body.classList.remove('dark','sepia');if(e.target.value!=='light')document.body.classList.add(e.target.value)});document.getElementById('fontSize').addEventListener('change',e=>{card.classList.remove('font-l','font-xl');if(e.target.value==='l')card.classList.add('font-l');if(e.target.value==='xl')card.classList.add('font-xl')});show(0)})();
+</script>
+</body>
+</html>`;
 }

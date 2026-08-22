@@ -139,3 +139,12 @@ Any source-coverage mismatch still blocks EPUB packaging.
 ## Kindle-first presentation isolation (v1.0.7)
 
 Version 1.0.7 narrows the ebook workspace to Amazon KDP / Kindle. Migration may reset ebook presentation defaults (reader-controlled body alignment/font behavior, linked Contents, clean front matter), but it must never modify `project.manuscript.blocks`, canonical text, paragraph IDs, source order, or the Story Lock hash. KDP preflight and EPUB packaging remain presentation/output layers only.
+
+
+## Preview Studio presentation overrides (v1.0.8)
+
+Preview Studio may attach **presentation metadata** to a source block, scoped independently to ebook, paperback, or hardcover. Allowed ebook override properties are spacing before/after, first-line indent, alignment, and indent suppression. An override must reference an existing source block ID and must never contain replacement manuscript text.
+
+The preview may expose a read-only snippet so an author knows which block is selected, but it must not expose `contenteditable`, a story textarea, or any control that writes to `block.text` or run text. Resetting an override removes presentation metadata only. Promoting a safe visual setting to a theme/default changes edition design metadata only.
+
+The self-contained device proof is a rendered derivative and is read-only. Version 1.0.8 does not upload the manuscript or device proof to a remote preview service; Share Sheet/AirDrop or local download is used instead, preserving the static build's zero-network-manuscript-egress requirement.

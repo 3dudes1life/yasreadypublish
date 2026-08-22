@@ -22,7 +22,7 @@ import { runKdpPreflight } from './lib/preflight-model.js';
 import { buildPrintMasterHtml } from './lib/print-export.js';
 import { normalizeEbookDesign } from './lib/ebook-model.js';
 import { runEpubPreflight } from './lib/ebook-preflight.js';
-import { buildEbookPreviewHtml, buildEpubBlob } from './lib/epub-export.js';
+import { buildEbookPreviewHtml, buildEpubBlob, buildDevicePreviewHtml } from './lib/epub-export.js';
 import { effectiveBlocks, effectiveChapters, effectiveStats, setStructureOverride, structureOverrideSummary, STRUCTURE_OVERRIDE_KINDS } from './lib/structure-overrides.js';
 import { buildPrintTocEntries, printTocSignature, shouldGeneratePrintToc, verifyGeneratedPrintToc } from './lib/print-toc.js';
 import { serializeProjectBackup, parseProjectBackup } from './lib/project-backup.js';
@@ -35,8 +35,12 @@ import {
   setEbookEditionDesign, setPrintEditionDesign, invalidateAllEditionProofs, invalidateEditionProof,
   getEbookCover, setEbookCover, clearEbookCover,
 } from './lib/editions.js';
+import {
+  clearBlockPresentationOverride, countPresentationOverrides, ensurePresentationOverrides,
+  getBlockPresentationOverride, setBlockPresentationOverride,
+} from './lib/presentation-overrides.js';
 
-const VERSION = '1.0.7';
+const VERSION = '1.0.8';
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
 
@@ -62,6 +66,10 @@ const state = {
   backupMessage: '',
   printEdition: 'paperback',
   editionMessage: '',
+  selectedEbookBlockId: '',
+  inspectorMessage: '',
+  devicePreviewMessage: '',
+  ebookFrameScrollY: 0,
 };
 
 const app = document.querySelector('#app');
@@ -789,19 +797,74 @@ function renderExport() {
     </article>`;
 }
 
+function ebookSelectedBlock(project) {
+  const id = state.selectedEbookBlockId;
+  if (!id) return null;
+  return project?.manuscript?.blocks?.find((block) => block.id === id) || null;
+}
+
+function ebookInspectorDefaults(block, design, override) {
+  const kind = block?.kind || 'body';
+  const base = {
+    spaceBefore: '',
+    spaceAfter: kind === 'chapter-title' ? design.chapterAfterEm : kind === 'scene-break' ? design.sceneBreakSpaceEm : design.paragraphGapEm,
+    firstLineIndent: ['body'].includes(kind) ? design.firstLineIndentEm : 0,
+    alignment: kind === 'chapter-title' ? design.chapterTitleAlignment : 'inherit',
+    suppressIndent: kind === 'chapter-opening' || kind === 'text-message' || kind === 'scene-break',
+  };
+  return { ...base, ...(override || {}) };
+}
+
+function renderEbookInspector(project, design) {
+  ensurePresentationOverrides(project);
+  const count = countPresentationOverrides(project, 'ebook');
+  const block = ebookSelectedBlock(project);
+  if (!block) {
+    return `<aside class="ebook-format-inspector empty">
+      <div class="inspector-head"><div><div class="eyebrow">Preview Studio</div><h3>Format Inspector</h3></div><span class="mini-status good">Story Lock safe</span></div>
+      <div class="inspector-empty-icon">↖</div>
+      <strong>Click anything in the Kindle preview</strong>
+      <p>Select a paragraph, chapter heading, text message, or front-matter line. You can adjust presentation metadata without ever editing the words.</p>
+      <div class="inspector-safety">🔒 ${count} custom Kindle override${count === 1 ? '' : 's'} · manuscript text remains read-only</div>
+    </aside>`;
+  }
+  const override = getBlockPresentationOverride(project, 'ebook', block.id);
+  const values = ebookInspectorDefaults(block, design, override);
+  const snippet = block.text?.trim() || '[blank source paragraph]';
+  const isBodyLike = ['body','chapter-opening','text-message'].includes(block.kind);
+  return `<aside class="ebook-format-inspector">
+    <div class="inspector-head"><div><div class="eyebrow">Preview Studio</div><h3>Format Inspector</h3></div><span class="mini-status ${override ? 'needs' : 'good'}">${override ? 'Custom' : 'Theme'}</span></div>
+    ${state.inspectorMessage ? `<div class="inspector-message">${escapeHtml(state.inspectorMessage)}</div>` : ''}
+    <div class="inspector-selected"><small>${escapeHtml(block.kind)} · ${escapeHtml(block.id)}</small><p>${escapeHtml(snippet.slice(0, 220))}${snippet.length > 220 ? '…' : ''}</p></div>
+    <div class="inspector-grid">
+      <label><span>Space before</span><div><input id="ebookOverrideBefore" type="number" min="0" max="6" step="0.05" value="${values.spaceBefore === '' ? '' : values.spaceBefore}"><em>em</em></div></label>
+      <label><span>Space after</span><div><input id="ebookOverrideAfter" type="number" min="0" max="6" step="0.05" value="${values.spaceAfter === '' ? '' : values.spaceAfter}"><em>em</em></div></label>
+      ${isBodyLike ? `<label><span>First-line indent</span><div><input id="ebookOverrideIndent" type="number" min="0" max="4" step="0.05" value="${values.firstLineIndent}"><em>em</em></div></label>` : ''}
+      <label><span>Alignment</span><select id="ebookOverrideAlignment"><option value="inherit" ${values.alignment === 'inherit' ? 'selected' : ''}>Theme / reader</option><option value="left" ${values.alignment === 'left' ? 'selected' : ''}>Left</option><option value="center" ${values.alignment === 'center' ? 'selected' : ''}>Center</option><option value="right" ${values.alignment === 'right' ? 'selected' : ''}>Right</option><option value="justify" ${values.alignment === 'justify' ? 'selected' : ''}>Justify</option></select></label>
+    </div>
+    ${isBodyLike ? `<label class="inspector-check"><input id="ebookOverrideSuppressIndent" type="checkbox" ${values.suppressIndent ? 'checked' : ''}><span><strong>Suppress first-line indent</strong><small>Presentation only; words stay locked.</small></span></label>` : ''}
+    <div class="inspector-actions"><button class="btn primary" id="applyEbookBlockOverride" type="button">Apply to this block</button><button class="btn secondary" id="resetEbookBlockOverride" type="button" ${override ? '' : 'disabled'}>Reset to theme</button></div>
+    ${(['body','chapter-opening','chapter-title'].includes(block.kind)) ? `<button class="btn secondary inspector-default-button" id="applyEbookOverrideAsDefault" type="button">${block.kind === 'chapter-title' ? 'Use for all chapter titles' : 'Use as all-body default'}</button>` : ''}
+    <div class="inspector-safety">🔒 No text editor exists here. ${count} custom Kindle override${count === 1 ? '' : 's'} total.</div>
+  </aside>`;
+}
+
 function renderEbook() {
   const project = state.project;
+  ensurePresentationOverrides(project);
   const design = currentEbookDesign();
   const report = runEpubPreflight({ project, storyLockOk: project.storyLock?.status === 'verified' });
   const preview = buildEbookPreviewHtml({ project, sectionIndex: state.ebookSectionIndex });
   state.ebookSectionIndex = preview.index;
   const cover = getEbookCover(project);
-  const frameHtml = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${preview.css}body{padding:2.2em 2.5em;max-width:42em;margin:0 auto;color:#18181a;background:#fffdf9} @media(max-width:600px){body{padding:1.4em}}</style></head><body>${preview.html}</body></html>`;
+  const frameHtml = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${preview.css}body{padding:2.2em 2.5em;max-width:42em;margin:0 auto;color:#18181a;background:#fffdf9}.yrp-inspectable:hover{outline:1px dashed #aa9fff;outline-offset:3px}@media(max-width:600px){body{padding:1.4em}}</style></head><body>${preview.html}</body></html>`;
   const sectionRows = preview.sections.map((section, index) => {
-    const badge = section.type === 'chapter' ? 'CH' : section.type === 'front' ? 'FR' : section.type === 'back' ? 'BK' : 'TOC';
-    const detail = section.synthetic
-      ? 'Generated linked Contents · no page numbers'
-      : `${formatNumber(section.wordCount)} words · source ${section.startBlockIndex + 1}–${section.endBlockIndex + 1}`;
+    const badge = section.type === 'cover' ? 'CV' : section.type === 'chapter' ? 'CH' : section.type === 'front' ? 'FR' : section.type === 'back' ? 'BK' : 'TOC';
+    const detail = section.type === 'cover'
+      ? 'Live preview · packaged as EPUB cover-image'
+      : section.synthetic
+        ? 'Generated linked Contents · no page numbers'
+        : `${formatNumber(section.wordCount)} words · source ${section.startBlockIndex + 1}–${section.endBlockIndex + 1}`;
     return `
     <button class="ebook-toc-row ${index === preview.index ? 'active' : ''}" data-ebook-section="${index}">
       <span>${badge}</span>
@@ -822,6 +885,7 @@ function renderEbook() {
   const readySteps = setupSteps.filter(Boolean).length;
   const printParked = !project.editions?.paperback?.enabled && !project.editions?.hardcover?.enabled;
   const setupStatus = report.ready ? 'Ready for KDP' : `${report.summary.errors} thing${report.summary.errors === 1 ? '' : 's'} to fix`;
+  const overrideCount = countPresentationOverrides(project, 'ebook');
 
   const step = (ready, icon, label, detail) => `<div class="ebook-step ${ready ? 'done' : ''}"><span>${ready ? '✓' : icon}</span><div><strong>${label}</strong><small>${detail}</small></div></div>`;
 
@@ -831,7 +895,7 @@ function renderEbook() {
         <div class="ebook-studio-title">
           <span class="badge ${report.ready ? 'good' : 'bad'}">${report.ready ? 'KDP EPUB READY' : 'KINDLE SETUP'}</span>
           <h2>Kindle / eBook</h2>
-          <p>One Story-Locked manuscript → one clean reflowable EPUB for Amazon KDP. Paperback and hardcover stay separate.</p>
+          <p>One Story-Locked manuscript → one clean reflowable EPUB for Amazon KDP. Preview it, tune presentation safely, then export.</p>
         </div>
         <div class="ebook-top-actions">
           <button class="btn secondary" id="focusEbookOnly" type="button" ${printParked ? 'disabled' : ''}>${printParked ? 'Print editions parked' : 'Focus on ebook'}</button>
@@ -852,7 +916,7 @@ function renderEbook() {
 
       <div class="ebook-steps">
         ${step(metadataReady, '1', 'Metadata', metadataReady ? 'Title, author, language set' : 'Finish book metadata')}
-        ${step(coverReady, '2', 'Cover', coverReady ? 'Internal Kindle cover attached' : 'Attach front cover')}
+        ${step(coverReady, '2', 'Cover', coverReady ? 'Live preview + EPUB cover attached' : 'Attach front cover')}
         ${step(navReady, '3', 'Navigation', navReady ? `${report.chapterEntries} chapters + linked Contents` : 'Contents needs attention')}
         ${step(lockReady, '4', 'Story Lock', lockReady ? `${formatNumber(project.manuscript.stats.words)} locked words verified` : 'Verification required')}
       </div>
@@ -862,7 +926,7 @@ function renderEbook() {
           <div class="ebook-card-head"><div><div class="eyebrow">Cover</div><h3>Kindle cover</h3></div><span class="mini-status ${coverReady ? 'good' : 'needs'}">${coverReady ? 'Ready' : 'Needed'}</span></div>
           ${coverSummary}
           <div class="ebook-cover-actions"><input id="ebookCoverInput" type="file" accept="image/jpeg,image/png" hidden><button class="btn secondary" id="chooseEbookCover" type="button">${cover ? 'Replace cover' : 'Choose cover'}</button>${cover ? '<button class="btn danger" id="removeEbookCover" type="button">Remove</button>' : ''}</div>
-          <p class="ebook-helper">YasReady packages one internal cover image and never adds a duplicate HTML cover page.</p>
+          <p class="ebook-helper">The cover now appears as item 1 in Preview Studio, while the EPUB still packages it correctly as one cover-image without a duplicate HTML cover page.</p>
         </section>
 
         <section class="ebook-setup-card ebook-core-card">
@@ -881,6 +945,11 @@ function renderEbook() {
         </section>
       </div>
 
+      <div class="ebook-device-card">
+        <div><div class="eyebrow">Device proof</div><h3>Read it on your iPhone or iPad before export</h3><p>Creates a standalone, read-only Kindle-style proof with the cover, Contents, front matter, and every chapter. Nothing is uploaded by YasReady.</p>${state.devicePreviewMessage ? `<small>${escapeHtml(state.devicePreviewMessage)}</small>` : ''}</div>
+        <div class="ebook-device-actions"><button class="btn primary" id="shareDevicePreview" type="button">Preview on iPhone / iPad</button><button class="btn secondary" id="downloadDevicePreview" type="button">Download device proof</button></div>
+      </div>
+
       <details class="ebook-advanced">
         <summary><span><strong>Advanced typography</strong><small>Tres Amigos defaults are already loaded. Change these only if the preview needs it.</small></span><b>⌄</b></summary>
         <div class="ebook-settings-grid ebook-settings-advanced">
@@ -893,20 +962,21 @@ function renderEbook() {
       </details>
 
       <div class="ebook-summary-grid">
-        <div><b>${report.sections}</b><span>Reading-order files</span></div>
+        <div><b>${preview.sections.length}</b><span>Preview items</span></div>
         <div><b>${report.chapterEntries}</b><span>Chapter links</span></div>
         <div><b>${report.tocEntries}</b><span>TOC links</span></div>
-        <div><b>${project.manuscript.stats.words.toLocaleString()}</b><span>Locked words</span></div>
+        <div><b>${overrideCount}</b><span>Custom format fixes</span></div>
       </div>
     </article>
 
     <article class="panel ebook-workbench-panel">
-      <div class="panel-head"><div><div class="eyebrow">Kindle reflow preview</div><h2>${escapeHtml(preview.section.title)}</h2><p>Reading item ${preview.index + 1} of ${preview.sections.length}. Use the left rail to inspect front matter, Contents, early chapters, middle chapters, and the ending.</p></div><div class="ebook-section-buttons"><button class="btn small secondary" id="prevEbookSection" ${preview.index <= 0 ? 'disabled' : ''}>← Previous</button><button class="btn small secondary" id="nextEbookSection" ${preview.index >= preview.sections.length - 1 ? 'disabled' : ''}>Next →</button></div></div>
-      <div class="ebook-workbench">
+      <div class="panel-head"><div><div class="eyebrow">Kindle Preview Studio</div><h2>${escapeHtml(preview.section.title)}</h2><p>Reading item ${preview.index + 1} of ${preview.sections.length}. Cover is a live preview item; click story blocks to make safe presentation-only adjustments.</p></div><div class="ebook-section-buttons"><button class="btn small secondary" id="prevEbookSection" ${preview.index <= 0 ? 'disabled' : ''}>← Previous</button><button class="btn small secondary" id="nextEbookSection" ${preview.index >= preview.sections.length - 1 ? 'disabled' : ''}>Next →</button></div></div>
+      <div class="ebook-workbench preview-studio-grid">
         <aside class="ebook-toc"><div class="ebook-toc-head"><strong>Reading Order</strong><span>${preview.sections.length} items</span></div><div class="ebook-toc-list">${sectionRows}</div></aside>
-        <div class="ebook-reader-shell"><iframe class="ebook-reader" title="Kindle reflowable preview" srcdoc="${escapeHtml(frameHtml)}"></iframe></div>
+        <div class="ebook-reader-shell"><iframe id="ebookPreviewFrame" class="ebook-reader" title="Kindle reflowable preview" srcdoc="${escapeHtml(frameHtml)}"></iframe></div>
+        ${renderEbookInspector(project, design)}
       </div>
-      <div class="notice info"><strong>Kindle navigation:</strong> YasReady creates both the Kindle Go To navigation and a visible linked Contents page before Chapter 1. The ebook contains no fixed print page numbers.</div>
+      <div class="notice info"><strong>Preview editing is presentation-only:</strong> clicking a paragraph never creates a text cursor. Overrides are stored outside Story Lock and are included in the final EPUB so preview and export stay aligned.</div>
     </article>
 
     <article class="panel ebook-preflight-panel">
@@ -1069,10 +1139,10 @@ function bindDynamicEvents() {
   });
 
   document.querySelector('#newImport')?.addEventListener('click', () => {
-    state.project = null; state.preview = null; state.ebookSectionIndex = 0; state.ebookMessage = ''; state.finalCheck = null; state.backupMessage = ''; state.activeView = 'import'; state.error = ''; renderShell();
+    state.project = null; state.preview = null; state.ebookSectionIndex = 0; state.selectedEbookBlockId = ''; state.inspectorMessage = ''; state.ebookMessage = ''; state.finalCheck = null; state.backupMessage = ''; state.activeView = 'import'; state.error = ''; renderShell();
   });
   document.querySelector('#libraryImport')?.addEventListener('click', () => {
-    state.project = null; state.preview = null; state.ebookSectionIndex = 0; state.ebookMessage = ''; state.finalCheck = null; state.backupMessage = ''; state.activeView = 'import'; state.error = ''; renderShell();
+    state.project = null; state.preview = null; state.ebookSectionIndex = 0; state.selectedEbookBlockId = ''; state.inspectorMessage = ''; state.ebookMessage = ''; state.finalCheck = null; state.backupMessage = ''; state.activeView = 'import'; state.error = ''; renderShell();
   });
   document.querySelector('#saveMetadata')?.addEventListener('click', saveProjectMetadata);
   document.querySelector('#verifyLock')?.addEventListener('click', verifyLock);
@@ -1106,6 +1176,11 @@ function bindDynamicEvents() {
   document.querySelector('#removeEbookCover')?.addEventListener('click', removeEbookCover);
   document.querySelector('#downloadEpub')?.addEventListener('click', downloadEpub);
   document.querySelector('#downloadEpubPreflight')?.addEventListener('click', downloadEpubPreflight);
+  document.querySelector('#shareDevicePreview')?.addEventListener('click', shareDevicePreview);
+  document.querySelector('#downloadDevicePreview')?.addEventListener('click', downloadDevicePreview);
+  document.querySelector('#applyEbookBlockOverride')?.addEventListener('click', applyEbookBlockOverride);
+  document.querySelector('#applyEbookOverrideAsDefault')?.addEventListener('click', applyEbookOverrideAsDefault);
+  document.querySelector('#resetEbookBlockOverride')?.addEventListener('click', resetEbookBlockOverride);
   document.querySelector('#prevEbookSection')?.addEventListener('click', () => jumpEbookSection(state.ebookSectionIndex - 1));
   document.querySelector('#nextEbookSection')?.addEventListener('click', () => jumpEbookSection(state.ebookSectionIndex + 1));
   document.querySelectorAll('[data-ebook-section]').forEach((button) => button.addEventListener('click', () => jumpEbookSection(Number(button.dataset.ebookSection))));
@@ -1177,6 +1252,8 @@ function bindDynamicEvents() {
     state.preview = null;
     state.spreadIndex = 0;
     state.ebookSectionIndex = 0;
+    state.selectedEbookBlockId = '';
+    state.inspectorMessage = '';
     state.ebookMessage = '';
     state.finalCheck = null;
     state.backupMessage = '';
@@ -1190,6 +1267,7 @@ function bindDynamicEvents() {
     state.projects = await listProjects();
     updateMain();
   }));
+  bindEbookFrameInspector();
 }
 
 
@@ -1359,6 +1437,8 @@ async function applyStructureRepair(blockId, kind) {
     state.preview = null;
     state.spreadIndex = 0;
     state.ebookSectionIndex = 0;
+    state.selectedEbookBlockId = '';
+    state.inspectorMessage = '';
     state.finalCheck = null;
     state.repairMessage = kind
       ? `Structure metadata updated for ${blockId}. Story text was not changed.`
@@ -1415,6 +1495,8 @@ async function importFile(file) {
     state.preview = null;
     state.spreadIndex = 0;
     state.ebookSectionIndex = 0;
+    state.selectedEbookBlockId = '';
+    state.inspectorMessage = '';
     state.ebookMessage = '';
     state.activeView = 'import';
   } catch (error) {
@@ -1655,6 +1737,8 @@ async function importEbookCover(file) {
     });
     state.project.updatedAt = new Date().toISOString();
     state.finalCheck = null;
+    state.ebookSectionIndex = 0;
+    state.selectedEbookBlockId = '';
     state.ebookMessage = `Ebook cover attached: ${file.name} (${width} × ${height}px). Cover artwork lives outside Story Lock.`;
     await saveProject(state.project);
     state.projects = await listProjects();
@@ -1692,7 +1776,156 @@ function jumpEbookSection(index) {
   if (!state.project) return;
   const preview = buildEbookPreviewHtml({ project: state.project, sectionIndex: index });
   state.ebookSectionIndex = preview.index;
+  state.selectedEbookBlockId = '';
+  state.inspectorMessage = '';
+  state.ebookFrameScrollY = 0;
   updateMain();
+}
+
+function bindEbookFrameInspector() {
+  const frame = document.querySelector('#ebookPreviewFrame');
+  if (!frame) return;
+  const attach = () => {
+    const doc = frame.contentDocument;
+    if (!doc) return;
+    const selectedId = state.selectedEbookBlockId;
+    try { frame.contentWindow?.scrollTo(0, state.ebookFrameScrollY || 0); } catch {}
+    doc.querySelectorAll('[data-yrp-toc-href]').forEach((anchor) => anchor.addEventListener('click', (event) => {
+      event.preventDefault();
+      const href = anchor.dataset.yrpTocHref;
+      const preview = buildEbookPreviewHtml({ project: state.project, sectionIndex: state.ebookSectionIndex });
+      const target = preview.sections.findIndex((item) => item.href === href);
+      if (target >= 0) jumpEbookSection(target);
+    }));
+    doc.querySelectorAll('[data-yrp-block-id]').forEach((element) => {
+      if (element.dataset.yrpBlockId === selectedId) element.classList.add('yrp-selected');
+      const select = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        try { state.ebookFrameScrollY = frame.contentWindow?.scrollY || 0; } catch { state.ebookFrameScrollY = 0; }
+        state.selectedEbookBlockId = element.dataset.yrpBlockId || '';
+        state.inspectorMessage = '';
+        updateMain();
+      };
+      element.addEventListener('click', select);
+      element.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') select(event);
+      });
+    });
+  };
+  frame.addEventListener('load', attach, { once: true });
+  try { if (frame.contentDocument?.readyState === 'complete') attach(); } catch {}
+}
+
+async function applyEbookBlockOverride() {
+  if (!state.project || !state.selectedEbookBlockId) return;
+  const value = (id) => document.querySelector(`#${id}`)?.value ?? '';
+  const suppress = document.querySelector('#ebookOverrideSuppressIndent');
+  setBlockPresentationOverride(state.project, 'ebook', state.selectedEbookBlockId, {
+    spaceBefore: value('ebookOverrideBefore'),
+    spaceAfter: value('ebookOverrideAfter'),
+    firstLineIndent: value('ebookOverrideIndent'),
+    alignment: value('ebookOverrideAlignment') || 'inherit',
+    suppressIndent: suppress ? suppress.checked : undefined,
+  });
+  invalidateEditionProof(state.project, 'ebook', { clearPageCount: false });
+  state.project.updatedAt = new Date().toISOString();
+  state.finalCheck = null;
+  state.inspectorMessage = 'Presentation override saved. Story wording was not changed.';
+  await saveProject(state.project);
+  state.projects = await listProjects();
+  updateMain();
+}
+
+async function applyEbookOverrideAsDefault() {
+  if (!state.project || !state.selectedEbookBlockId) return;
+  const block = ebookSelectedBlock(state.project);
+  if (!block) return;
+  const value = (id) => document.querySelector(`#${id}`)?.value ?? '';
+  const current = currentEbookDesign();
+  const next = { ...current };
+  const numeric = (id) => { const raw = value(id); if (raw === '') return null; const n = Number(raw); return Number.isFinite(n) ? n : null; };
+  const before = numeric('ebookOverrideBefore');
+  const after = numeric('ebookOverrideAfter');
+  const indent = numeric('ebookOverrideIndent');
+  const alignment = value('ebookOverrideAlignment');
+  if (block.kind === 'chapter-title') {
+    if (before != null) next.chapterTopEm = before;
+    if (after != null) next.chapterAfterEm = after;
+    if (['left','center','right'].includes(alignment)) next.chapterTitleAlignment = alignment;
+    state.inspectorMessage = 'Chapter-title defaults updated for the entire Kindle edition.';
+  } else if (['body','chapter-opening'].includes(block.kind)) {
+    if (after != null) next.paragraphGapEm = after;
+    if (indent != null) next.firstLineIndentEm = indent;
+    if (['left','justify'].includes(alignment)) next.bodyAlignment = alignment;
+    state.inspectorMessage = 'Body defaults updated for the entire Kindle edition.';
+  } else return;
+  setEbookEditionDesign(state.project, next);
+  clearBlockPresentationOverride(state.project, 'ebook', state.selectedEbookBlockId);
+  state.project.updatedAt = new Date().toISOString();
+  state.finalCheck = null;
+  await saveProject(state.project);
+  state.projects = await listProjects();
+  updateMain();
+}
+
+async function resetEbookBlockOverride() {
+  if (!state.project || !state.selectedEbookBlockId) return;
+  clearBlockPresentationOverride(state.project, 'ebook', state.selectedEbookBlockId);
+  invalidateEditionProof(state.project, 'ebook', { clearPageCount: false });
+  state.project.updatedAt = new Date().toISOString();
+  state.finalCheck = null;
+  state.inspectorMessage = 'This block is back on the Tres Amigos ebook theme.';
+  await saveProject(state.project);
+  state.projects = await listProjects();
+  updateMain();
+}
+
+async function devicePreviewHtmlVerified() {
+  if (!state.project) throw new Error('Open a publishing project first.');
+  const lock = await verifyProjectStoryLock(state.project);
+  if (!lock.ok) throw new Error('Story Lock failed. Device preview was blocked.');
+  return buildDevicePreviewHtml({ project: state.project });
+}
+
+async function downloadDevicePreview() {
+  try {
+    const html = await devicePreviewHtmlVerified();
+    downloadTextFile(`${safeExportBaseName()}-kindle-device-preview.html`, html, 'text/html;charset=utf-8');
+    state.devicePreviewMessage = 'Device proof downloaded. AirDrop or open that HTML file on your iPhone/iPad for a reader-only proof.';
+    updateMain();
+  } catch (error) {
+    console.error(error);
+    alert(error?.message || 'Device preview could not be created safely.');
+  }
+}
+
+async function shareDevicePreview() {
+  try {
+    const html = await devicePreviewHtmlVerified();
+    const file = new File([html], `${safeExportBaseName()}-kindle-preview.html`, { type: 'text/html' });
+    if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: `${state.project.title} · Kindle Preview`,
+          text: 'Private YasReady reader proof. Open the HTML file in Safari on the device.',
+        });
+        state.devicePreviewMessage = 'Shared a private reader proof through the Mac Share Sheet. YasReady did not upload the manuscript.';
+      } catch (error) {
+        if (error?.name === 'AbortError') return;
+        downloadTextFile(file.name, html, 'text/html;charset=utf-8');
+        state.devicePreviewMessage = 'The Share Sheet could not send this HTML file, so YasReady downloaded the same private device proof instead. AirDrop it to your iPhone/iPad.';
+      }
+    } else {
+      downloadTextFile(file.name, html, 'text/html;charset=utf-8');
+      state.devicePreviewMessage = 'This browser cannot share files directly, so YasReady downloaded the device proof instead. AirDrop that file to your iPhone/iPad.';
+    }
+    updateMain();
+  } catch (error) {
+    console.error(error);
+    alert(error?.message || 'Device preview could not be shared safely.');
+  }
 }
 
 async function ensureEpubReady() {

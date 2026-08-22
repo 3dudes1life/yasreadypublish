@@ -37,8 +37,8 @@ test('1.0.6 migration enables visible chapters-only TOC and clean front matter w
   const p = sample();
   const before = JSON.stringify(p.manuscript.blocks);
   migrateProject(p);
-  assert.equal(p.version,17);
-  assert.equal(p.appVersion,'1.0.7');
+  assert.equal(p.version,18);
+  assert.equal(p.appVersion,'1.0.8');
   assert.equal(p.editions.ebook.design.visibleToc,true);
   assert.equal(p.editions.ebook.design.tocScope,'chapters');
   assert.equal(p.editions.ebook.design.frontMatterMode,'clean');
@@ -98,7 +98,9 @@ test('Kindle preflight blocks a missing cover and passes with a compliant cover'
 
 test('clean front matter collapses print-only blank paragraphs while preserving every source word', () => {
   const p = sample(); migrateProject(p);
-  const preview = buildEbookPreviewHtml({project:p,sectionIndex:0});
+  const firstPass = buildEbookPreviewHtml({project:p,sectionIndex:0});
+  const frontIndex = firstPass.sections.findIndex(x=>x.type==='front');
+  const preview = buildEbookPreviewHtml({project:p,sectionIndex:frontIndex});
   assert.match(preview.html,/Copyright © 2026 3Dudes1Life Creative/);
   assert.match(preview.html,/All rights reserved\./);
   assert.match(preview.html,/blank collapsed/);
