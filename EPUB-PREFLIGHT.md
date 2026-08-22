@@ -1,41 +1,83 @@
-# YasReady Publish 1.0.5 — EPUB / Kindle Preflight
+# YasReady Publish 1.0.6 — Universal EPUB Preflight
 
-YasReady Publish 1.0.5 keeps print and ebook as separate presentation engines over the same Story-Locked source. EPUB does **not** inherit fixed-page concepts such as trim size, gutters, folios, running headers, or intentional blank versos.
+Version 1.0.6 is the ebook-first acceptance build. Print editions can be parked while the reflowable EPUB is completed.
 
-## Export gate
+## Blocking export checks
 
-EPUB export is blocked when:
+Universal EPUB export is blocked when any of the following is true:
 
-- Story Lock does not match the canonical imported manuscript hash.
-- Ebook source mapping does not include every source paragraph exactly once and in original source order.
-- No chapter starts were safely detected.
+- Story Lock no longer matches the canonical imported manuscript hash.
+- Ebook source mapping does not include every source paragraph exactly once, in source order, with identical text.
+- Chapter navigation is incomplete.
+- The visible linked Table of Contents is disabled.
 - Book title metadata is blank.
-- The ebook language tag is invalid.
-- DOCX image assets are present, because image packaging is not yet silently approximated.
-- No reflowable sections or clickable navigation entries can be created.
+- Language metadata is invalid.
+- An internal JPEG/PNG ebook cover has not been attached.
+- The internal cover exceeds Apple Books’ 5.6-million-pixel interior-image limit.
+- The cover short side is below Google Play Books’ 640px minimum.
+- DOCX image assets are present but unsupported by the current manuscript-image packager; export fails closed rather than silently omitting them.
 
-Blank author metadata is a warning rather than fabricated metadata. Publish never invents an author name.
+A cover short side below 1400px is currently a quality warning rather than a universal hard failure.
 
-## EPUB package
+## Navigation package
 
-The generated `.epub` contains:
+The generated EPUB contains:
 
-- uncompressed root `mimetype`
-- `META-INF/container.xml`
-- EPUB 3 `OEBPS/package.opf`
-- EPUB 3 navigation document `OEBPS/nav.xhtml`
-- legacy `OEBPS/toc.ncx` for broad reader compatibility
-- ebook-only CSS
-- reading-order XHTML sections for front matter, chapters, and recognized back matter
+- EPUB 3 `nav.xhtml` with `<nav epub:type="toc">`
+- the same navigation document in the OPF manifest as `properties="nav"`
+- the visible navigation document inserted in the **spine immediately before Chapter 1**
+- hidden landmarks pointing to the Table of Contents and the first chapter / Begin Reading location
+- legacy `toc.ncx` for broad/older reader compatibility
+- chapter links with no fixed page numbers
 
-The OPF embeds the canonical manuscript SHA-256 as YasReady audit metadata.
+For novels, the default visible/logical TOC includes chapters only. `Chapters + front/back headings` remains available for books that need it.
 
-## Story Lock behavior
+## Front matter
 
-Ebook settings can change typography and reflow behavior only. Immediately before packaging, the canonical manuscript SHA-256 is recalculated. The section builder then verifies that every imported source block appears exactly once, in the original order, with the exact same text.
+`Clean ebook layout` is the default. It:
 
-Metadata-only Structure Repair may change the structural role of a source block without changing its wording, runs, ID, order, or hash input. Word tables and manual Word page breaks are surfaced for review because a reflowable ebook does not preserve Word page geometry.
+- preserves every source word, punctuation mark, run, block ID, and order
+- preserves headings and emphasis
+- collapses print-only blank source paragraphs visually
+- avoids carrying printed-page positioning into a reflowable reader
 
-## 1.0 Final Check
+The blank source blocks still exist in Story Lock/source coverage; only their ebook presentation height changes.
 
-The Project Home Final Check evaluates the EPUB gate alongside paperback production. “Superman Ready” requires both engines to pass their software checks. A final device/Kindle Previewer review remains part of commercial acceptance.
+`Use bounded source spacing` is optional. New DOCX imports capture paragraph alignment/spacing metadata to support that mode without trusting unbounded Word page geometry.
+
+## Cover package
+
+The attached front cover is stored as ebook-edition artwork outside Story Lock and included in the EPUB manifest with `properties="cover-image"`. YasReady deliberately does **not** generate an additional HTML cover page, preventing duplicate-cover behavior on Kindle.
+
+## Store readiness cards
+
+The app currently evaluates a common universal EPUB against five major delivery targets:
+
+- **Amazon Kindle** — logical TOC, visible linked TOC, landmarks, reflowable text, internal cover.
+- **Apple Books** — EPUB navigation, metadata, reflowable spine, cover-image packaging, 5.6M-pixel interior-image ceiling.
+- **Kobo Writing Life** — reflowable content, built-in chapter navigation, linked Contents page, validation-oriented structure.
+- **Google Play Books** — EPUB navigation and embedded front cover, with 640px minimum short-side cover check.
+- **B&N NOOK** — NCX compatibility, linked Contents, OPF manifest/spine, reflowable XHTML, cover metadata.
+
+Passing a card means YasReady’s structural checks for that retailer are green; it does not replace the retailer’s own ingestion/preview validation.
+
+## Final commercial acceptance
+
+Before upload, use the final EPUB in actual reader tooling and verify:
+
+1. Copyright/front matter
+2. Dedication
+3. visible Table of Contents
+4. every TOC link
+5. reader/menu TOC
+6. Chapter 1
+7. a formerly problematic early chapter such as Chapter 5
+8. a middle chapter
+9. final chapter
+10. cover rendering
+11. smart quotes/dashes/special characters
+12. text-message styling
+13. scene breaks
+14. font-size changes and device rotation where available
+
+The recommended external validator is the current EPUBCheck release.

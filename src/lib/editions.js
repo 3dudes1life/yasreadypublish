@@ -45,6 +45,7 @@ export function ensureEditions(project) {
     enabled: project.editions.ebook?.enabled !== false,
     type: 'ebook',
     design: normalizeEbookDesign(project.editions.ebook?.design || legacyEbook),
+    cover: project.editions.ebook?.cover || null,
     lastPreflight: project.editions.ebook?.lastPreflight || null,
   };
   project.editions.activePrint = PRINT_EDITION_TYPES.includes(project.editions.activePrint) ? project.editions.activePrint : 'paperback';
@@ -142,4 +143,21 @@ export function invalidateAllEditionProofs(project, { clearPageCounts = true } =
   ensureEditions(project);
   for (const type of EDITION_TYPES) invalidateEditionProof(project, type, { clearPageCount: clearPageCounts });
   return project;
+}
+
+
+export function setEbookCover(project, cover) {
+  ensureEditions(project);
+  project.editions.ebook.cover = cover || null;
+  invalidateEditionProof(project, 'ebook', { clearPageCount: false });
+  return project.editions.ebook.cover;
+}
+
+export function clearEbookCover(project) {
+  return setEbookCover(project, null);
+}
+
+export function getEbookCover(project) {
+  ensureEditions(project);
+  return project.editions.ebook.cover || null;
 }

@@ -18,6 +18,9 @@ export const DEFAULT_EBOOK_DESIGN = Object.freeze({
   bodyAlignment: 'left',
   textMessageIndentEm: 1.2,
   sceneBreakSpaceEm: 1.2,
+  tocScope: 'chapters',
+  visibleToc: true,
+  frontMatterMode: 'clean',
 });
 
 const clamp = (value, fallback, min, max) => {
@@ -34,7 +37,7 @@ export function normalizeEbookDesign(input = {}) {
   design.lineHeight = clamp(design.lineHeight, DEFAULT_EBOOK_DESIGN.lineHeight, 1, 2.2);
   design.firstLineIndentEm = clamp(design.firstLineIndentEm, DEFAULT_EBOOK_DESIGN.firstLineIndentEm, 0, 3);
   design.paragraphGapEm = clamp(design.paragraphGapEm, DEFAULT_EBOOK_DESIGN.paragraphGapEm, 0, 2);
-  design.bodyBlankPolicy = ['normalize','preserve','collapse'].includes(design.bodyBlankPolicy) ? design.bodyBlankPolicy : (design.collapseBodyBlankParagraphs === false ? 'preserve' : 'normalize');
+  design.bodyBlankPolicy = ['normalize','preserve','collapse'].includes(design.bodyBlankPolicy) ? design.bodyBlankPolicy : (design.collapseBodyBlankParagraphs === false ? 'preserve' : 'collapse');
   design.bodyBlankSpaceEm = clamp(design.bodyBlankSpaceEm, DEFAULT_EBOOK_DESIGN.bodyBlankSpaceEm, 0, 2);
   delete design.collapseBodyBlankParagraphs;
   design.chapterTitleAlignment = ['left', 'center', 'right'].includes(design.chapterTitleAlignment) ? design.chapterTitleAlignment : 'center';
@@ -43,6 +46,9 @@ export function normalizeEbookDesign(input = {}) {
   design.bodyAlignment = ['left', 'justify'].includes(design.bodyAlignment) ? design.bodyAlignment : 'left';
   design.textMessageIndentEm = clamp(design.textMessageIndentEm, DEFAULT_EBOOK_DESIGN.textMessageIndentEm, 0, 4);
   design.sceneBreakSpaceEm = clamp(design.sceneBreakSpaceEm, DEFAULT_EBOOK_DESIGN.sceneBreakSpaceEm, 0, 4);
+  design.tocScope = design.tocScope === 'all-matter' ? 'all-matter' : 'chapters';
+  design.visibleToc = design.visibleToc !== false;
+  design.frontMatterMode = design.frontMatterMode === 'source' ? 'source' : 'clean';
   design.themeId = String(design.themeId || DEFAULT_EBOOK_DESIGN.themeId);
   design.name = String(design.name || DEFAULT_EBOOK_DESIGN.name);
   return design;
@@ -123,9 +129,11 @@ export function buildEbookSections(project) {
   return { sections, structure };
 }
 
-export function ebookTocEntries(project) {
+export function ebookTocEntries(project, designInput = null) {
+  const design = normalizeEbookDesign(designInput || project?.editions?.ebook?.design || project?.design?.ebook || {});
   return buildEbookSections(project).sections
-    .filter((section) => section.includeInToc && section.blocks.some((block) => block.kind !== 'blank'))
+    .filter((section) => section.blocks.some((block) => block.kind !== 'blank'))
+    .filter((section) => section.type === 'chapter' || (design.tocScope === 'all-matter' && section.includeInToc))
     .map((section, index) => ({
       id: `nav-${index + 1}`,
       label: section.title,

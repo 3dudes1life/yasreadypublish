@@ -20,8 +20,8 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
   throw new Error('index.html is not wired to the self-contained static runtime.');
 }
 const main = readFileSync('src/main.js', 'utf8');
-for (const marker of ["const VERSION = '1.0.5'", 'Run Final Check', 'Download Project Backup', 'Ebook / Kindle', 'Structure Repair', 'generated-toc-entry', 'One Story Lock · separate outputs', 'bodyBlankPolicy']) {
-  if (!main.includes(marker)) throw new Error(`1.0.5 production workspace is missing: ${marker}`);
+for (const marker of ["const VERSION = '1.0.6'", 'Run Final Check', 'Download Project Backup', 'Ebook / Kindle', 'Structure Repair', 'generated-toc-entry', 'One Story Lock · separate outputs', 'bodyBlankPolicy']) {
+  if (!main.includes(marker)) throw new Error(`1.0.6 production workspace is missing: ${marker}`);
 }
 const printModel = readFileSync('src/lib/print-model.js', 'utf8');
 if (!printModel.includes("tocTitle: 'Table of Contents'") || !printModel.includes('printToc: true') || !printModel.includes("tocStartSide: 'left'") || !printModel.includes('paragraphGap: 0.12,') || !printModel.includes("bodyBlankPolicy: 'collapse'")) {
@@ -36,7 +36,11 @@ for (const dynamicBinding of ['[data-go-view]','[data-open-project]','[data-dele
 }
 
 const project = readFileSync('src/lib/project.js', 'utf8');
-if (!project.includes("appVersion: '1.0.5'") || !project.includes('version: 15') || !project.includes('ensureEditions(project)')) {
-  throw new Error('Project schema was not migrated to 1.0.5 safety state.');
+if (!project.includes("appVersion: '1.0.6'") || !project.includes('version: 16') || !project.includes('ensureEditions(project)')) {
+  throw new Error('Project schema was not migrated to 1.0.6 safety state.');
 }
-console.log('YasReady Publish v1.0.5 static verification passed.');
+const epub = readFileSync('src/lib/epub-export.js', 'utf8');
+for (const marker of ['epub:type=\"landmarks\"','properties=\"cover-image\"','itemref idref=\"nav\"','Table of Contents']) {
+  if (!epub.includes(marker)) throw new Error(`Universal EPUB hardening is missing: ${marker}`);
+}
+console.log('YasReady Publish v1.0.6 static verification passed.');

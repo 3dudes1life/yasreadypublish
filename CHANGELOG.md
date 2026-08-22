@@ -1,5 +1,19 @@
 # YasReady Publish Changelog
 
+## v1.0.6 — Ebook Focus + Universal EPUB Hardening
+
+- Locks the immediate release workflow to **ebook first**: Paperback and Hardcover can be parked without deleting their saved edition settings.
+- Fixes Book 2 front-matter reflow by separating chapter-body rhythm from front/back matter presentation. `Clean ebook layout` collapses print-only blank spacing while preserving every source word, run, block ID, order, and Story Lock hash input.
+- Adds an actual visible, linked **Table of Contents** in the EPUB reading order immediately before Chapter 1.
+- Retains EPUB 3 logical navigation (`nav.xhtml`) and legacy `toc.ncx`, and adds landmarks for **Table of Contents** and **Begin Reading**.
+- Novel TOC defaults to **chapters only**, avoiding copyright/legal/dedication clutter; an all-matter option remains available.
+- Adds internal JPEG/PNG ebook cover attachment, packages it as OPF `cover-image`, and deliberately avoids a duplicate HTML cover page. Cover artwork remains edition metadata outside Story Lock.
+- Adds major-store readiness cards for Amazon Kindle, Apple Books, Kobo Writing Life, Google Play Books, and B&N NOOK.
+- Adds cover dimension checks used by the universal release gate: Apple interior-image 5.6M-pixel ceiling, Google 640px short-side minimum, and a 1400px+ quality target.
+- Captures bounded Word paragraph layout metadata on new DOCX imports for future source-aware front-matter rendering; existing projects use Clean mode without requiring re-import.
+- Project schema 16 / app version 1.0.6. Migration changes ebook presentation settings and invalidates stale ebook preflight only; manuscript blocks remain byte-for-byte/text-for-text unchanged.
+- Automated release gate: **96/96 tests passing**, static verification PASS, Superman audit PASS.
+
 ## v1.0.5 — Superman QA Hardening
 
 - Hardening release focused on release-blocking bugs and stale-state safety rather than new publishing features.

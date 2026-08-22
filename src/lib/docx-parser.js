@@ -147,6 +147,31 @@ function paragraphStyle(paragraph, styles) {
   };
 }
 
+
+function paragraphLayout(paragraph) {
+  const pPr = firstChildByLocalName(paragraph, 'pPr');
+  const alignment = getAttr(firstChildByLocalName(pPr, 'jc'), 'val') || '';
+  const spacing = firstChildByLocalName(pPr, 'spacing');
+  const indent = firstChildByLocalName(pPr, 'ind');
+  const num = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  return {
+    alignment,
+    spaceBeforeTwips: num(getAttr(spacing, 'before')),
+    spaceAfterTwips: num(getAttr(spacing, 'after')),
+    lineTwips: num(getAttr(spacing, 'line')),
+    lineRule: getAttr(spacing, 'lineRule') || '',
+    leftTwips: num(getAttr(indent, 'left') ?? getAttr(indent, 'start')),
+    rightTwips: num(getAttr(indent, 'right') ?? getAttr(indent, 'end')),
+    firstLineTwips: num(getAttr(indent, 'firstLine')),
+    hangingTwips: num(getAttr(indent, 'hanging')),
+    keepNext: Boolean(firstChildByLocalName(pPr, 'keepNext')),
+    pageBreakBefore: Boolean(firstChildByLocalName(pPr, 'pageBreakBefore')),
+  };
+}
+
 function paragraphNumbering(paragraph, numbering) {
   const pPr = firstChildByLocalName(paragraph, 'pPr');
   const numPr = firstChildByLocalName(pPr, 'numPr');
@@ -221,6 +246,7 @@ export async function parseDocx(arrayBuffer) {
     const { text, runs } = paragraphTextAndRuns(element);
     const style = paragraphStyle(element, styles);
     const numberingInfo = paragraphNumbering(element, numbering);
+    const layout = paragraphLayout(element);
     const draft = { text, styleName: style.name };
     const kind = classifyParagraph(draft, previousNonEmpty);
 
@@ -232,6 +258,7 @@ export async function parseDocx(arrayBuffer) {
       runs,
       style,
       numbering: numberingInfo,
+      layout,
       wordCount: countWords(text),
     };
     blocks.push(block);

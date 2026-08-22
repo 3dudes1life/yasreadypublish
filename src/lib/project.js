@@ -15,8 +15,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   const project = {
     id: crypto.randomUUID(),
-    version: 15,
-    appVersion: '1.0.5',
+    version: 16,
+    appVersion: '1.0.6',
     title: baseName,
     author: '',
     createdAt: now,
@@ -133,12 +133,26 @@ export function migrateProject(project) {
     invalidateAllEditionProofs(project);
   }
 
+  // 1.0.6 focuses the ebook pipeline: visible in-book TOC, universal-store
+  // navigation defaults, and clean front-matter reflow. No manuscript block is changed.
+  if (oldVersion < 16) {
+    ensureEditions(project);
+    const ebook = project.editions?.ebook?.design;
+    if (ebook) {
+      if (ebook.visibleToc == null) ebook.visibleToc = true;
+      if (!ebook.tocScope) ebook.tocScope = 'chapters';
+      if (!ebook.frontMatterMode) ebook.frontMatterMode = 'clean';
+      project.design.ebook = { ...ebook };
+    }
+    if (project.editions?.ebook) project.editions.ebook.lastPreflight = null;
+  }
+
   ensurePrintDesign(project);
   ensureEbookDesign(project);
   ensureEditions(project);
 
-  project.version = Math.max(oldVersion, 15);
-  project.appVersion = '1.0.5';
+  project.version = Math.max(oldVersion, 16);
+  project.appVersion = '1.0.6';
   return project;
 }
 

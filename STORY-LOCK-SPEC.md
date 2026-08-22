@@ -121,3 +121,16 @@ Story Lock proves the manuscript text; proof ownership separately proves that a 
 If any of those values changes, the existing proof is stale and print preflight must block export until pagination is rebuilt. Changing presentation state invalidates proof/preflight metadata but never changes the canonical manuscript hash or source blocks.
 
 A terminal blank page inserted solely to make the physical page count even is generated presentation metadata. It contains no manuscript text and is excluded from Story Lock reconstruction.
+
+
+## Ebook Focus generated-navigation + cover isolation (v1.0.6)
+
+Version 1.0.6 adds a visible generated ebook Table of Contents, EPUB landmarks, and an internal ebook cover asset. None of these are manuscript prose.
+
+- The visible TOC labels are derived from source chapter headings and link to source-backed sections.
+- Logical EPUB navigation, NCX, landmarks, OPF metadata, and spine ordering are generated package metadata outside canonical manuscript hashing.
+- Clean front-matter reflow may collapse the **visual height** of blank source paragraphs, but those blank source blocks remain present in exact source coverage and in Story Lock order.
+- Ebook cover artwork is stored under edition metadata and packaged as a `cover-image`; it is not inserted into canonical manuscript text.
+- Parking Paperback/Hardcover changes enabled-edition state only and cannot delete or rewrite manuscript blocks.
+
+Any source-coverage mismatch still blocks EPUB packaging.

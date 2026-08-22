@@ -40,7 +40,7 @@ test('chapter starts become separate reflowable sections', () => {
 });
 
 test('ebook TOC includes chapters and recognized matter headings', () => {
-  const toc = ebookTocEntries(project());
+  const toc = ebookTocEntries(project(), { tocScope: 'all-matter' });
   assert.ok(toc.some((entry) => entry.label === 'Chapter 1: Home'));
   assert.ok(toc.some((entry) => entry.label === 'Chapter 2: Morning'));
   assert.ok(toc.some((entry) => entry.label === 'About the Authors'));

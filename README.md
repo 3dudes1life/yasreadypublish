@@ -1,77 +1,76 @@
-# YasReady Publish v1.0.5
-
-**v1.0.5:** Superman QA hardening. Print proofs are now cryptographically tied to the exact edition/design/structure state that produced them; stale proofs are blocked, print page counts are forced even under YasReady control, edition preflight state invalidates correctly, and the whole app runs through an expanded button/import/safety audit. The 1.0.4 whole-book spacing correction remains intact.
+# YasReady Publish v1.0.6
 
 Private, local-first manuscript-to-book production for YasReady.
 
 **Prime directive:** format the book; never rewrite the story.
 
-## 1.0 workflow
+## Release focus
 
-1. **Import** a finished Microsoft Word `.docx` manuscript.
-2. **Story Lock** fingerprints the canonical manuscript text with SHA-256.
-3. **Review structure**: chapters, front/back matter, texts, scene breaks, and metadata-only repairs.
-4. **Choose editions**: paperback, hardcover, ebook, or any combination.
-5. **Design each physical edition independently** with reusable themes, including `Tres Amigos Series · Book 1`.
-6. **Build Print Preview** using fixed single pages, mirrored margins, right-hand chapter starts, generated Contents, folios, and controlled blank pages.
-7. **Print Export** runs edition-specific KDP preflight, opens the fixed-page production master, performs final overflow validation, and launches the system **Save as PDF** flow.
-8. **Ebook / Kindle** builds a separate reflowable EPUB 3 with clickable navigation.
-9. **Final Check** verifies Story Lock plus every enabled edition in one run.
+Version 1.0.6 intentionally focuses on finishing the **reflowable ebook edition first**. Paperback and Hardcover remain in the project but can be parked while EPUB is proofed and hardened. This keeps one Story-Locked master manuscript while letting each edition own its own production rules.
 
-## What makes 1.0.5 stable
+## Ebook Focus Mode
 
-- Guided Project Home with a clear manuscript → structure → editions → design → proof → export path.
-- **Superman Ready Final Check** evaluates only the editions you enabled.
-- Every print preview carries a **proof signature** tied to edition type, Story Lock hash, metadata, structure overrides, and normalized design. Changing any of those makes the old proof ineligible for export.
-- Paperback and hardcover keep independent trim, gutter, pagination, generated Contents numbers, page counts, and preflight state.
-- Physical proofs are forced to an **even total page count** with a YasReady-controlled terminal blank when necessary.
-- Tres Amigos whole-book rhythm is renderer-owned: 0.12 in paragraph spacing in print and 0.7 em in ebook across all chapters, while empty source paragraphs remain preserved by Story Lock but do not randomly change visual rhythm.
-- Portable **Project Backup / Restore** re-verifies Story Lock before a restored project is accepted.
-- `npm run verify` runs the automated test suite, static verification, and the **Superman audit**.
-- Superman audit checks JavaScript syntax/import resolution, button wiring, dynamic control families, version consistency, critical safety guards, and confirms no fetch/XHR/WebSocket/sendBeacon manuscript-egress path exists in the app source.
-- Project schema 15 / app version 1.0.5.
-- Story wording remains read-only throughout the publishing UI.
+Open **Ebook / Kindle** and use **Park print editions** to make the current acceptance run ebook-only. No print design or proof is deleted; those editions can be re-enabled later.
 
-## Paperback engine
+The ebook workspace now includes:
 
-- 6×9 default trim.
-- Mirrored left/right margins.
-- Page-count-aware KDP inside-margin gate.
-- Right-hand odd-page chapter starts.
-- Intentional blank versos with no header or folio.
-- Automatic print Table of Contents using final printed page numbers.
-- Book 1-style page numbers in the actual fixed-page print master.
-- Optional running headers with chapter-opening suppression.
-- Source bold/italic/underline/strike/small-caps rendering.
-- Final fixed-page overflow check before the system Print / Save as PDF dialog is enabled.
+- a reflowable EPUB 3 engine
+- a visible linked **Table of Contents** immediately before Chapter 1
+- EPUB 3 logical navigation via `nav.xhtml`
+- legacy `toc.ncx` compatibility navigation
+- EPUB landmarks for **Table of Contents** and **Begin Reading**
+- chapters-only novel TOC by default, with optional front/back-matter entries
+- clean front-matter reflow that removes print-only blank spacing without changing source words
+- independent chapter-body paragraph rhythm so inconsistent Word blank paragraphs cannot alter later chapters
+- internal JPEG/PNG ebook cover packaging as OPF `cover-image`
+- no duplicate HTML cover page
+- store-readiness cards for Amazon Kindle, Apple Books, Kobo Writing Life, Google Play Books, and B&N NOOK
+- exact source-coverage verification before packaging
+- Story Lock SHA-256 embedded as YasReady audit metadata
 
-The current print exporter is intentionally **text-first / no bleed**. DOCX image assets block print export rather than being silently omitted.
+## Recommended Book 2 ebook settings
 
-## EPUB / Kindle engine
+- **Publisher / imprint:** `3Dudes1Life Creative`
+- **Visible Table of Contents:** Yes — before Chapter 1
+- **TOC entries:** Chapters only
+- **Front matter reflow:** Clean ebook layout
+- **Chapter blank lines:** Collapse source blank lines
+- **Reader font behavior:** Reader default
+- Attach the final front-cover JPEG or PNG before release.
 
-- EPUB 3 reflowable package.
-- `nav.xhtml` + `toc.ncx` navigation.
-- Clickable chapter and recognized matter links.
-- Separate ebook typography controls.
-- No print gutters, fixed pages, folios, running headers, or blank versos.
-- Source-coverage verification requires every source paragraph exactly once and in source order.
-- Story Lock hash embedded in package metadata.
+## Front matter behavior
 
-DOCX image assets currently block EPUB export rather than being silently omitted.
+Word documents often use repeated blank paragraphs to position copyright, legal, dedication, or title-page text on a printed page. Those empty paragraphs are still present in the Story-Locked source, but **Clean ebook layout** gives them zero visual height in reflowable front/back matter. This prevents a print-layout copyright page from becoming a badly spaced ebook page.
+
+The words, punctuation, inline emphasis, block order, IDs, and Story Lock input are unchanged. Authors who truly need Word-derived spacing can select **Use bounded source spacing**; new imports capture paragraph alignment/spacing metadata for that mode.
+
+## Table of Contents behavior
+
+The EPUB contains two reader experiences from the same chapter map:
+
+1. **Visible Contents page** — a linked reading-order item placed before Chapter 1.
+2. **Reader navigation** — the EPUB 3 `toc nav`, plus legacy NCX support.
+
+Ebook TOC entries never contain fixed print page numbers. Reflowable page positions depend on device size and reader settings.
+
+## Cover behavior
+
+The attached ebook cover is edition artwork, not manuscript text. YasReady packages it as the EPUB `cover-image`. The preflight checks JPEG/PNG type, dimensions, Apple interior-image pixel ceiling, Google minimum cover size, and a broad 1400px+ short-side quality target.
+
+The marketing/store cover may still be uploaded separately where a retailer supports or requires that workflow.
 
 ## Story Lock
 
-The canonical manuscript is the ordered source paragraph text joined with a paragraph separator and fingerprinted at import. Presentation metadata lives separately.
+The canonical manuscript is the ordered source paragraph text fingerprinted with SHA-256 at import. Presentation metadata lives separately.
 
 YasReady may change:
 
-- page geometry
-- typography
-- pagination
-- generated Table of Contents
-- folios and running headers
-- metadata-only paragraph classification
-- EPUB packaging / navigation
+- reflowable typography and spacing
+- chapter/front/back matter classification metadata
+- visible/logical navigation
+- cover packaging
+- EPUB metadata and container files
+- print geometry/pagination when print editions are later resumed
 
 YasReady may **not** silently change:
 
@@ -79,11 +78,31 @@ YasReady may **not** silently change:
 - punctuation
 - capitalization
 - paragraph order
-- text-message wording
 - dialogue
+- text-message wording
 - story content
 
-If an operation cannot safely preserve source coverage, export is blocked.
+If exact source coverage cannot be verified, export is blocked.
+
+## Current release gate
+
+Run:
+
+```bash
+npm run verify
+```
+
+Version 1.0.6 currently passes:
+
+- **96 / 96 automated tests**
+- static JavaScript verification
+- Superman audit
+- 22 application JS module syntax/import checks
+- 36 literal button wiring checks
+- 11 dynamic control-family checks
+- browser-source scan showing no `fetch`, XHR, WebSocket, or `sendBeacon` manuscript-egress path
+
+This is a software gate, not a claim that no browser/runtime bug can ever exist. The commercial acceptance gate remains a real-device pass of the final EPUB.
 
 ## Run locally
 
@@ -94,21 +113,12 @@ npm run dev
 
 Open `http://localhost:4173`.
 
-No `npm install` is required for the application runtime. JSZip is vendored in `public/vendor/`.
+No `npm install` is required for the application runtime. JSZip is vendored under `public/vendor/`.
 
 ## GitHub Pages
 
-The app uses relative static paths and can run from a repository subpath such as:
+The app uses relative static paths and can run from:
 
 `https://3dudes1life.github.io/yasreadypublish/`
 
-## KDP production note
-
-The built-in no-bleed preflight follows the current KDP paperback thresholds used by the 1.0 release: single-page interiors, 7 pt minimum text, at least 0.25 in outside margin, and inside margins that increase with page count. For 501–700 pages the current KDP inside minimum is 0.75 in. Always re-check KDP requirements if Amazon changes its manufacturing specifications.
-
-See `KDP-PREFLIGHT.md`, `EPUB-PREFLIGHT.md`, `STORY-LOCK-SPEC.md`, and `RELEASE-QA.md`.
-
-
-## 1.0.1 Book 2 proof corrections
-
-The Tres Amigos template now uses no extra paragraph-after gap and begins generated print Contents on a left-hand page so the TOC reads as a facing spread before the blank verso and right-hand Chapter 1 opening. These are design-layer corrections only; Story Lock manuscript text is unchanged.
+See `EBOOK-PREFLIGHT.md`, `EBOOK-STANDARDS.md`, `STORY-LOCK-SPEC.md`, `KDP-PREFLIGHT.md`, and `RELEASE-QA.md`.

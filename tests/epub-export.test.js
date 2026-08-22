@@ -31,6 +31,7 @@ function sampleProject({ images = 0, author = 'D.C.W.' } = {}) {
       metadata: { imageCount: images },
     },
     design: { ebook: { language: 'en', publisher: '3Dudes1Life Creative' } },
+    editions: { ebook: { enabled: true, design: { language: 'en', publisher: '3Dudes1Life Creative' }, cover: { fileName:'cover.jpg', mimeType:'image/jpeg', fileSize:1234, width:1600, height:2560, dataUrl:'data:image/jpeg;base64,/9j/2Q==' } } },
   };
 }
 
