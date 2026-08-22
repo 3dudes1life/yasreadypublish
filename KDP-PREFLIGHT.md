@@ -44,3 +44,11 @@ The KDP Previewer and a human review of the exported PDF remain the final manufa
 ## 1.0 Final Check
 
 Project Home exposes **Run Final Check**, which re-verifies Story Lock, builds the current paperback preview, evaluates paperback preflight, evaluates EPUB preflight, and reports a single guided readiness state. “Superman Ready” means both software production gates passed; it does not replace visual proofing of the final commercial files.
+
+## v1.0.3 edition-specific page-count gate
+
+YasReady now evaluates the active physical edition independently.
+
+- Paperback: current working KDP page-count gate remains 24–828 pages where supported by the chosen trim/ink/paper combination.
+- Hardcover: KDP case-laminate hardcover currently supports 75–550 pages for the supported trim sizes used by this formatter. A hardcover proof above 550 pages is blocked even if the paperback edition is valid.
+- Paperback and hardcover never share generated Contents page numbers; each edition is repaginated from the same Story-Locked manuscript.

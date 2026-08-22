@@ -1,3 +1,14 @@
+## 1.0.3 edition + spacing acceptance
+
+- [x] One body blank between prose paragraphs renders one normalized spacer.
+- [x] Consecutive blank paragraphs render only one spacer in Normalize mode.
+- [x] Chapter-title and scene-break spacing are not doubled by blank normalization.
+- [x] EPUB retains all blank source blocks while visually normalizing duplicate blank runs.
+- [x] Paperback and Hardcover edition designs remain independent.
+- [x] Ebook-only projects are supported with both print editions disabled.
+- [x] Story Lock manuscript content remains byte-for-byte unchanged through migration and edition changes.
+- [x] 69/69 automated tests + static verification pass.
+
 # YasReady Publish 1.0 — Release QA
 
 ## Automated gate

@@ -2,6 +2,7 @@ import { sha256Hex } from './hash.js';
 import { DEFAULT_PRINT_DESIGN, ensurePrintDesign } from './print-model.js';
 import { DEFAULT_EBOOK_DESIGN, ensureEbookDesign } from './ebook-model.js';
 import { ensureStructureOverrides } from './structure-overrides.js';
+import { ensureEditions } from './editions.js';
 
 export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
   const [sourceFileHash, manuscriptHash] = await Promise.all([
@@ -12,10 +13,10 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
   const now = new Date().toISOString();
   const baseName = file.name.replace(/\.docx$/i, '');
 
-  return {
+  const project = {
     id: crypto.randomUUID(),
-    version: 12,
-    appVersion: '1.0.2',
+    version: 13,
+    appVersion: '1.0.3',
     title: baseName,
     author: '',
     createdAt: now,
@@ -48,30 +49,46 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
       ebook: { ...DEFAULT_EBOOK_DESIGN },
     },
   };
+  ensureEditions(project);
+  return project;
 }
 
 export function migrateProject(project) {
   if (!project) return project;
   const oldVersion = Number(project.version) || 1;
+  const preNormalizePrintCollapse = project.design?.print?.collapseBodyBlankParagraphs;
+  const preNormalizeEbookCollapse = project.design?.ebook?.collapseBodyBlankParagraphs;
   ensurePrintDesign(project);
   ensureEbookDesign(project);
   ensureStructureOverrides(project);
-  // Existing projects retain user-set geometry. New projects receive the calibrated template.
+
   if (oldVersion < 2 && !project.design?.print?.templateId) project.design.print = { ...DEFAULT_PRINT_DESIGN };
-  // 1.0.1 fixes two Book 1 calibration mistakes without changing manuscript content:
-  // the old 0.333in paragraph gap was far too large, and generated Contents must begin on a left page.
+
   if (oldVersion < 11 && project.design?.print?.templateId === 'tres-amigos-book1') {
     if (Math.abs(Number(project.design.print.paragraphGap) - 0.333) < 0.0001) project.design.print.paragraphGap = 0;
     if (!project.design.print.tocStartSide) project.design.print.tocStartSide = 'left';
   }
-  // 1.0.2 adds a presentation-only rule that collapses accidental empty DOCX paragraphs inside chapter bodies.
-  // Empty source blocks remain in the locked manuscript and coverage checks; only their rendered height becomes zero.
-  if (oldVersion < 12) {
-    if (project.design?.print?.collapseBodyBlankParagraphs == null) project.design.print.collapseBodyBlankParagraphs = true;
-    if (project.design?.ebook?.collapseBodyBlankParagraphs == null) project.design.ebook.collapseBodyBlankParagraphs = true;
+
+  // 1.0.3 corrects the over-aggressive 1.0.2 blank-line hotfix. Instead of
+  // deleting all visual blank lines, body blank runs are normalized to one
+  // standard spacer while extra consecutive blanks collapse. Source blocks stay intact.
+  if (oldVersion < 13) {
+    const legacyPrintCollapse = preNormalizePrintCollapse;
+    const legacyEbookCollapse = preNormalizeEbookCollapse;
+    if (!project.design.print.bodyBlankPolicy) project.design.print.bodyBlankPolicy = legacyPrintCollapse === false ? 'preserve' : 'normalize';
+    if (project.design.print.bodyBlankSpace == null) project.design.print.bodyBlankSpace = 0.12;
+    if (!project.design.ebook.bodyBlankPolicy) project.design.ebook.bodyBlankPolicy = legacyEbookCollapse === false ? 'preserve' : 'normalize';
+    if (project.design.ebook.bodyBlankSpaceEm == null) project.design.ebook.bodyBlankSpaceEm = 0.7;
+    delete project.design.print.collapseBodyBlankParagraphs;
+    delete project.design.ebook.collapseBodyBlankParagraphs;
   }
-  project.version = Math.max(oldVersion, 12);
-  project.appVersion = '1.0.2';
+
+  ensurePrintDesign(project);
+  ensureEbookDesign(project);
+  ensureEditions(project);
+
+  project.version = Math.max(oldVersion, 13);
+  project.appVersion = '1.0.3';
   return project;
 }
 

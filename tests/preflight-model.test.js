@@ -63,3 +63,11 @@ test('image assets block text-first no-bleed export instead of being silently dr
   assert.equal(report.ready, false);
   assert.equal(report.checks.find((item) => item.id === 'images').status, 'error');
 });
+
+test('hardcover preflight uses independent KDP 75–550 page limit', () => {
+  const tooLong = runKdpPreflight({ project: sampleProject(), preview: samplePreview(551), storyLockOk: true, editionType: 'hardcover' });
+  assert.equal(tooLong.ready, false);
+  assert.equal(tooLong.checks.find((item) => item.id === 'page-count').status, 'error');
+  const valid = runKdpPreflight({ project: sampleProject(), preview: samplePreview(550), storyLockOk: true, editionType: 'hardcover' });
+  assert.equal(valid.checks.find((item) => item.id === 'page-count').status, 'pass');
+});

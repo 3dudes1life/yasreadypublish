@@ -19,7 +19,7 @@ function check(id, label, status, message, meta = {}) {
   return { id, label, status, message, ...meta };
 }
 
-export function runKdpPreflight({ project, preview, storyLockOk = true } = {}) {
+export function runKdpPreflight({ project, preview, storyLockOk = true, editionType = 'paperback' } = {}) {
   const design = normalizePrintDesign(project?.design?.print || preview?.design || {});
   const pages = preview?.pages || [];
   const pageCount = pages.length;
@@ -29,6 +29,10 @@ export function runKdpPreflight({ project, preview, storyLockOk = true } = {}) {
   const tocMode = shouldGeneratePrintToc(project, design);
   const tocIntegrity = verifyGeneratedPrintToc({ project, preview, design });
   const checks = [];
+  const isHardcover = editionType === 'hardcover';
+  const editionLabel = isHardcover ? 'Hardcover' : 'Paperback';
+  const minPages = isHardcover ? 75 : 24;
+  const maxPages = isHardcover ? 550 : 828;
 
   checks.push(check(
     'story-lock',
@@ -51,17 +55,17 @@ export function runKdpPreflight({ project, preview, storyLockOk = true } = {}) {
     'Trim size',
     design.trimWidth === 6 && design.trimHeight === 9 ? 'pass' : 'warning',
     design.trimWidth === 6 && design.trimHeight === 9
-      ? '6 × 9 in trim is ready for the standard KDP paperback selection.'
+      ? `6 × 9 in trim is supported for this KDP ${editionLabel.toLowerCase()} edition.`
       : `${design.trimWidth} × ${design.trimHeight} in is custom in this build. Confirm the same trim size in KDP.`,
   ));
 
   checks.push(check(
     'page-count',
-    'Paperback page count',
-    pageCount >= 24 && pageCount <= 828 ? 'pass' : 'error',
-    pageCount >= 24 && pageCount <= 828
-      ? `${pageCount} pages is inside the 24–828 working range used by this KDP preflight.`
-      : `${pageCount || 0} pages is outside the 24–828 working range used by this KDP preflight.`,
+    `${editionLabel} page count`,
+    pageCount >= minPages && pageCount <= maxPages ? 'pass' : 'error',
+    pageCount >= minPages && pageCount <= maxPages
+      ? `${pageCount} pages is inside the ${minPages}–${maxPages} KDP ${editionLabel.toLowerCase()} range used by this preflight.`
+      : `${pageCount || 0} pages is outside the ${minPages}–${maxPages} KDP ${editionLabel.toLowerCase()} range used by this preflight.`,
   ));
 
   checks.push(check(
@@ -196,6 +200,7 @@ export function runKdpPreflight({ project, preview, storyLockOk = true } = {}) {
     pageCount,
     requiredInsideMargin: requiredInside,
     design,
+    editionType,
     generatedAt: new Date().toISOString(),
   };
 }

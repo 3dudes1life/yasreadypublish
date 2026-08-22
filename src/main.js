@@ -26,9 +26,14 @@ import { effectiveBlocks, effectiveChapters, effectiveStats, setStructureOverrid
 import { buildPrintTocEntries, printTocSignature, shouldGeneratePrintToc, verifyGeneratedPrintToc } from './lib/print-toc.js';
 import { serializeProjectBackup, parseProjectBackup } from './lib/project-backup.js';
 import { buildPublishReadiness } from './lib/readiness-model.js';
-import { shouldCollapseSourceBlank } from './lib/spacing-policy.js';
+import { blankRenderMode } from './lib/spacing-policy.js';
+import {
+  activePrintEdition, copyPaperbackDesignToHardcover, editionLabel, ensureEditions,
+  getEbookEditionDesign, getPrintEditionDesign, setActivePrintEdition, setEditionEnabled,
+  setEbookEditionDesign, setPrintEditionDesign,
+} from './lib/editions.js';
 
-const VERSION = '1.0.2';
+const VERSION = '1.0.3';
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
 
@@ -52,6 +57,8 @@ const state = {
   repairMessage: '',
   finalCheck: null,
   backupMessage: '',
+  printEdition: 'paperback',
+  editionMessage: '',
 };
 
 const app = document.querySelector('#app');
@@ -81,8 +88,29 @@ function formatNumber(value) {
   return new Intl.NumberFormat().format(value || 0);
 }
 
+function currentPrintEditionType() {
+  if (!state.project) return state.printEdition || 'paperback';
+  ensureEditions(state.project);
+  const preferred = state.printEdition || state.project.editions.activePrint || 'paperback';
+  if (state.project.editions[preferred]?.enabled) return preferred;
+  return state.project.editions.paperback?.enabled ? 'paperback' : state.project.editions.hardcover?.enabled ? 'hardcover' : preferred;
+}
+
 function currentDesign() {
-  return normalizePrintDesign(state.project?.design?.print || {});
+  if (!state.project) return normalizePrintDesign({});
+  const type = currentPrintEditionType();
+  return getPrintEditionDesign(state.project, type);
+}
+
+function saveCurrentPrintDesign(design) {
+  const type = currentPrintEditionType();
+  setPrintEditionDesign(state.project, type, design);
+  state.project.editions.activePrint = type;
+  state.project.design.template = design.name || 'Custom';
+}
+
+function currentEbookDesign() {
+  return state.project ? getEbookEditionDesign(state.project) : normalizeEbookDesign({});
 }
 
 function renderShell() {
@@ -98,7 +126,7 @@ function renderShell() {
         <div>
           <div class="eyebrow">Private publishing studio</div>
           <h1>Publish beautifully.<br>Protect every word.</h1>
-          <p>YasReady Publish 1.0 turns a finished DOCX into a production-ready paperback and reflowable EPUB through one guided workflow, while Story Lock keeps the manuscript itself immutable.</p>
+          <p>YasReady Publish turns one finished DOCX into whichever editions you choose—paperback, hardcover, ebook, or any combination—while Story Lock keeps the manuscript itself immutable.</p>
         </div>
         <div class="story-lock-pill"><span class="dot"></span> Story Lock is mandatory</div>
       </section>
@@ -113,6 +141,8 @@ function renderShell() {
 
 function renderSidebar() {
   const hasProject = Boolean(state.project);
+  if (hasProject) ensureEditions(state.project);
+  const hasPrintEdition = hasProject && (state.project.editions.paperback.enabled || state.project.editions.hardcover.enabled);
   return `
     <aside class="sidebar">
       <div class="sidebar-head"><strong>${hasProject ? escapeHtml(state.project.title) : 'Publish workspace'}</strong><span>${hasProject ? 'Follow the path from manuscript → proof → export. Advanced tools stay available without cluttering the core workflow.' : 'Start with one finished DOCX. Publish handles structure and presentation; Story Lock protects the words.'}</span></div>
@@ -122,12 +152,13 @@ function renderSidebar() {
         ${navButton('chapters', '☷', 'Contents', !hasProject)}
         ${navButton('matter', '§', 'Book Matter', !hasProject)}
         ${navButton('repair', '⚙', 'Structure Repair', !hasProject)}
-        <div class="nav-group-label">Paperback</div>
-        ${navButton('design', 'Aa', 'Design', !hasProject)}
-        ${navButton('print', '▣', 'Print Preview', !hasProject)}
-        ${navButton('export', '⇩', 'KDP Export', !hasProject)}
+        ${navButton('editions', '◫', 'Editions', !hasProject)}
+        <div class="nav-group-label">${hasProject ? (hasPrintEdition ? escapeHtml(editionLabel(currentPrintEditionType())) : 'Print disabled') : 'Print edition'}</div>
+        ${navButton('design', 'Aa', 'Design', !hasProject || !hasPrintEdition)}
+        ${navButton('print', '▣', 'Print Preview', !hasProject || !hasPrintEdition)}
+        ${navButton('export', '⇩', 'Print Export', !hasProject || !hasPrintEdition)}
         <div class="nav-group-label">Digital</div>
-        ${navButton('ebook', 'e', 'Ebook / Kindle', !hasProject)}
+        ${navButton('ebook', 'e', 'Ebook / Kindle', !hasProject || (hasProject && !state.project.editions?.ebook?.enabled))}
         <div class="nav-group-label">Inspect</div>
         ${navButton('navigator', '⌘', 'Navigator', !hasProject)}
         ${navButton('source', '≡', 'Source', !hasProject)}
@@ -148,6 +179,7 @@ function renderMain() {
   if (state.activeView === 'chapters') return renderChapters();
   if (state.activeView === 'matter') return renderMatter();
   if (state.activeView === 'repair') return renderRepair();
+  if (state.activeView === 'editions') return renderEditions();
   if (state.activeView === 'navigator') return renderNavigator();
   if (state.activeView === 'design') return renderDesign();
   if (state.activeView === 'print') return renderPrint();
@@ -172,7 +204,7 @@ function renderImport() {
       </div>
     </article>
     <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">1.0 production foundation</div><h2>One finished manuscript. Two production outputs.</h2><p>Import once, review structure, choose the series design, proof the paperback, then export print and Kindle files from the same Story-Locked source.</p></div></div>
+      <div class="panel-head"><div><div class="eyebrow">1.0.3 production foundation</div><h2>One finished manuscript. Choose your editions.</h2><p>Import once, then enable paperback, hardcover, ebook, or any combination. Each edition gets its own presentation rules while Story Lock remains one source of truth.</p></div></div>
       <div class="summary-grid six">
         <div class="stat"><b>✓</b><span>Read DOCX</span></div>
         <div class="stat"><b>✓</b><span>Story Lock</span></div>
@@ -196,6 +228,11 @@ function renderProject() {
   const completed = readiness.steps.filter((step) => step.status === 'complete').length;
   const percent = Math.round((completed / readiness.steps.length) * 100);
   const final = state.finalCheck;
+  ensureEditions(p);
+  const hasPrintEdition = p.editions.paperback.enabled || p.editions.hardcover.enabled;
+  const nextView = hasPrintEdition ? (state.preview ? 'export' : 'design') : p.editions.ebook.enabled ? 'ebook' : 'editions';
+  const nextTitle = hasPrintEdition ? (state.preview ? 'Go to Print Export' : `Continue to ${editionLabel(currentPrintEditionType())} Design`) : p.editions.ebook.enabled ? 'Continue to Ebook / Kindle' : 'Choose an Edition';
+  const nextDetail = hasPrintEdition ? (state.preview ? 'Review print preflight and create the fixed-page master' : 'Choose the series template and page geometry') : p.editions.ebook.enabled ? 'Review reflowable settings and EPUB preflight' : 'Enable paperback, hardcover, or ebook';
   const statusIcon = (status) => status === 'complete' ? '✓' : status === 'blocked' ? '!' : '→';
   const statusLabel = (status) => status === 'complete' ? 'Ready' : status === 'blocked' ? 'Needs attention' : 'Next';
   return `
@@ -209,7 +246,7 @@ function renderProject() {
       </div>
       <div class="lock-card compact-lock-card">
         <div class="lock-shield">◆</div>
-        <div><strong>Exact-story protection is active</strong><p>The canonical manuscript hash is checked before pagination, paperback export, EPUB packaging, project backup restore, and Final Check.</p></div>
+        <div><strong>Exact-story protection is active</strong><p>The canonical manuscript hash is checked before pagination, every enabled edition export, project backup restore, and Final Check.</p></div>
         <div class="lock-hash">SHA-256<br>${escapeHtml(shortHash(p.source.manuscriptHash, 18))}</div>
       </div>
       <div class="project-meta-grid">
@@ -226,10 +263,10 @@ function renderProject() {
       </div>
       ${stats.chapters === 0 ? `<div class="notice error"><strong>No chapter titles were auto-detected.</strong> Publish will not guess where chapters begin. Use Structure Repair or Source before pagination.</div>` : ''}
       ${state.backupMessage ? `<div class="notice success">${escapeHtml(state.backupMessage)}</div>` : ''}
-      ${final ? `<div class="final-check-banner ${final.allReady ? 'ready' : 'attention'}"><div class="final-check-mark">${final.allReady ? '✓' : '!'}</div><div><strong>${final.allReady ? 'Superman Ready' : 'Final Check found work to do'}</strong><p>${final.allReady ? 'Story Lock, paperback preflight, and EPUB preflight all passed in the same final verification run.' : `${final.printErrors || 0} paperback blocker(s) · ${final.ebookErrors || 0} ebook blocker(s). Nothing was exported or altered.`}</p></div><button class="btn secondary" id="runFinalCheckAgain" type="button">Run again</button></div>` : ''}
+      ${final ? `<div class="final-check-banner ${final.allReady ? 'ready' : 'attention'}"><div class="final-check-mark">${final.allReady ? '✓' : '!'}</div><div><strong>${final.allReady ? 'Superman Ready' : 'Final Check found work to do'}</strong><p>${final.allReady ? 'Story Lock and every enabled edition passed in the same final verification run.' : `${final.printErrors || 0} paperback blocker(s) · ${final.ebookErrors || 0} ebook blocker(s). Nothing was exported or altered.`}</p></div><button class="btn secondary" id="runFinalCheckAgain" type="button">Run again</button></div>` : ''}
       <div class="primary-actions">
-        <button class="btn primary big-action" id="runFinalCheck" type="button"><span>⚡</span><div><strong>Run Final Check</strong><small>Verify Story Lock + print + Kindle readiness</small></div></button>
-        <button class="btn secondary big-action" data-go-view="${state.preview ? 'export' : 'design'}" type="button"><span>${state.preview ? '⇩' : 'Aa'}</span><div><strong>${state.preview ? 'Go to KDP Export' : 'Continue to Design'}</strong><small>${state.preview ? 'Review paperback preflight and create PDF master' : 'Choose the series template and page geometry'}</small></div></button>
+        <button class="btn primary big-action" id="runFinalCheck" type="button"><span>⚡</span><div><strong>Run Final Check</strong><small>Verify Story Lock + all enabled editions</small></div></button>
+        <button class="btn secondary big-action" data-go-view="${nextView}" type="button"><span>${hasPrintEdition ? (state.preview ? '⇩' : 'Aa') : p.editions.ebook.enabled ? 'e' : '◫'}</span><div><strong>${escapeHtml(nextTitle)}</strong><small>${escapeHtml(nextDetail)}</small></div></button>
       </div>
     </article>
     <article class="panel safety-backup-panel">
@@ -440,7 +477,7 @@ function renderDesign() {
       ${changedRows.length ? `<div class="calibration-diff"><div class="calibration-diff-head"><strong>${changedRows.length} setting${changedRows.length === 1 ? '' : 's'} differ from Book 1</strong><button class="btn ghost" id="applyTresTemplate">Restore exact Book 1 profile</button></div>${changedRows.map((row) => `<div class="calibration-row"><span>${escapeHtml(row.label)}</span><b>${escapeHtml(formatCalibrationValue(row.actual, row.unit))}</b><em>Book 1: ${escapeHtml(formatCalibrationValue(row.target, row.unit))}</em></div>`).join('')}</div>` : `<div class="notice success"><strong>Exact Book 1 design profile loaded.</strong> All ${calibration.total} tracked presentation settings match the saved Tres Amigos reference.</div>`}
       <div class="design-layout">
         <section class="design-card">
-          <div class="eyebrow">Page geometry</div><h3>Paperback</h3>
+          <div class="eyebrow">Page geometry</div><h3>${escapeHtml(editionLabel(currentPrintEditionType()))}</h3>
           <div class="field-grid two">
             ${designNumberField('trimWidth', 'Trim width', d.trimWidth, '0.1', '4', '12')}
             ${designNumberField('trimHeight', 'Trim height', d.trimHeight, '0.1', '5', '15')}
@@ -462,7 +499,7 @@ function renderDesign() {
             ${designNumberField('lineHeight', 'Line height', d.lineHeight, '0.01', '1', '2', '×')}
             ${designNumberField('firstLineIndent', 'First-line indent', d.firstLineIndent, '0.01', '0', '1')}
             ${designNumberField('paragraphGap', 'Paragraph gap', d.paragraphGap, '0.01', '0', '0.75')}
-            <label class="toggle-row compact"><input type="checkbox" id="collapseBodyBlankParagraphs" ${d.collapseBodyBlankParagraphs ? 'checked' : ''}><span><strong>Collapse empty body lines</strong><small>Ignores accidental blank paragraphs inside chapters without changing Story Lock.</small></span></label>
+            <label class="design-field"><span>Blank paragraph handling</span><select id="bodyBlankPolicy"><option value="normalize" ${d.bodyBlankPolicy === 'normalize' ? 'selected' : ''}>Normalize each blank run to one spacer</option><option value="preserve" ${d.bodyBlankPolicy === 'preserve' ? 'selected' : ''}>Preserve every source blank line</option><option value="collapse" ${d.bodyBlankPolicy === 'collapse' ? 'selected' : ''}>Collapse all body blank lines</option></select><small>Normalize keeps one intentional-looking breathing space while preventing doubled/tripled DOCX blanks.</small></label>${designNumberField('bodyBlankSpace', 'Normalized blank space', d.bodyBlankSpace, '0.01', '0', '0.5')}
             ${designNumberField('chapterTitleSize', 'Chapter title', d.chapterTitleSize, '0.25', '9', '28', 'pt')}
             ${designNumberField('chapterTopSpace', 'Chapter top space', d.chapterTopSpace, '0.01', '0', '2.5')}
             ${designNumberField('chapterAfterSpace', 'After chapter title', d.chapterAfterSpace, '0.01', '0', '1.5')}
@@ -578,7 +615,7 @@ function renderPrint() {
           </div>
         </div>
       </div>
-      <div class="notice success preview-note"><strong>Print production path:</strong> this page map feeds KDP Preflight and the fixed single-page print master. Generated TOC numbers are verified against this final page map; intentional blank versos suppress both running headers and folios.${preview.collapsedBodyBlanks ? ` <strong>${formatNumber(preview.collapsedBodyBlanks)} empty source spacer paragraph${preview.collapsedBodyBlanks === 1 ? '' : 's'} collapsed inside chapters</strong> without changing Story Lock.` : ''}</div>
+      <div class="notice success preview-note"><strong>Print production path:</strong> this page map feeds KDP Preflight and the fixed single-page print master. Generated TOC numbers are verified against this final page map; intentional blank versos suppress both running headers and folios.${preview.normalizedBodyBlankRuns ? ` <strong>${formatNumber(preview.normalizedBodyBlankRuns)} source blank run${preview.normalizedBodyBlankRuns === 1 ? '' : 's'} normalized to one spacer</strong>` : ''}${preview.collapsedBodyBlanks ? ` and ${formatNumber(preview.collapsedBodyBlanks)} extra blank paragraph${preview.collapsedBodyBlanks === 1 ? '' : 's'} visually collapsed` : ''}. Story Lock text remains unchanged.</div>
     </article>`;
 }
 
@@ -696,7 +733,7 @@ function renderBookPage(page, design) {
 
 function currentPreflight(storyLockOk = true) {
   if (!state.project || !state.preview) return null;
-  return runKdpPreflight({ project: state.project, preview: state.preview, storyLockOk });
+  return runKdpPreflight({ project: state.project, preview: state.preview, storyLockOk, editionType: currentPrintEditionType() });
 }
 
 function renderPreflightCheck(item) {
@@ -708,7 +745,7 @@ function renderExport() {
   if (!state.preview) {
     return `
       <article class="panel">
-        <div class="panel-head"><div><span class="badge good">Story Lock required</span><h2>KDP paperback</h2><p>YasReady needs one frozen pagination pass before it can validate the physical book.</p></div></div>
+        <div class="panel-head"><div><span class="badge good">Story Lock required</span><h2>${escapeHtml(editionLabel(currentPrintEditionType()))} export</h2><p>YasReady needs one frozen pagination pass before it can validate this physical edition.</p></div></div>
         <div class="preview-empty">
           <div class="spread-icon"><span></span><span></span></div>
           <h3>Build your proof first</h3>
@@ -722,15 +759,15 @@ function renderExport() {
   const readyClass = report.ready ? 'ready' : 'blocked';
   return `
     <article class="panel export-panel">
-      <div class="panel-head"><div><span class="badge ${report.ready ? 'good' : 'bad'}">${report.ready ? 'PAPERBACK READY' : 'EXPORT BLOCKED'}</span><h2>KDP paperback</h2><p>${report.pageCount} single pages · ${report.design.trimWidth} × ${report.design.trimHeight} in · no-bleed text interior</p></div><button class="btn secondary" id="buildPreviewForExport" type="button">Rebuild proof</button></div>
+      <div class="panel-head"><div><span class="badge ${report.ready ? 'good' : 'bad'}">${report.ready ? `${editionLabel(currentPrintEditionType()).toUpperCase()} READY` : 'EXPORT BLOCKED'}</span><h2>${escapeHtml(editionLabel(currentPrintEditionType()))} export</h2><p>${report.pageCount} single pages · ${report.design.trimWidth} × ${report.design.trimHeight} in · no-bleed text interior</p></div><button class="btn secondary" id="buildPreviewForExport" type="button">Rebuild proof</button></div>
       <div class="preflight-hero ${readyClass}">
         <div class="preflight-ring"><b>${report.summary.passes}</b><span>passes</span></div>
-        <div><h3>${report.ready ? 'The physical-book gate passed.' : `${report.summary.errors} blocking issue${report.summary.errors === 1 ? '' : 's'} found.`}</h3><p>${report.ready ? 'Create Paperback PDF opens a final fixed-page master, checks every page for overflow after fonts load, then opens the system print dialog for Save as PDF.' : 'Fix the blocking checks below and rebuild the proof. YasReady will not export around a failed gate.'}</p></div>
+        <div><h3>${report.ready ? 'The physical-book gate passed.' : `${report.summary.errors} blocking issue${report.summary.errors === 1 ? '' : 's'} found.`}</h3><p>${report.ready ? `Create ${editionLabel(currentPrintEditionType())} PDF opens a final fixed-page master, checks every page for overflow after fonts load, then opens the system print dialog for Save as PDF.` : 'Fix the blocking checks below and rebuild the proof. YasReady will not export around a failed gate.'}</p></div>
         <div class="preflight-counts"><span class="pass">${report.summary.passes} pass</span><span class="warning">${report.summary.warnings} warning</span><span class="error">${report.summary.errors} error</span></div>
       </div>
       <div class="export-primary-card ${report.ready ? 'ready' : 'blocked'}">
-        <div><div class="eyebrow">Final paperback file</div><h3>${report.ready ? 'Create the PDF you upload to KDP' : 'PDF creation is locked until preflight passes'}</h3><p>Page numbers, running headers, generated Contents, right-hand chapter starts, blank versos, mirrored margins, and Story-Locked text are all baked into the fixed-page master.</p></div>
-        <button class="btn primary export-main-button" id="createPaperbackPdf" type="button" ${report.ready ? '' : 'disabled'}>Create Paperback PDF</button>
+        <div><div class="eyebrow">Final ${escapeHtml(editionLabel(currentPrintEditionType()).toLowerCase())} file</div><h3>${report.ready ? 'Create the PDF you upload to KDP' : 'PDF creation is locked until preflight passes'}</h3><p>Page numbers, running headers, generated Contents, right-hand chapter starts, blank versos, mirrored margins, and Story-Locked text are all baked into the fixed-page master.</p></div>
+        <button class="btn primary export-main-button" id="createPaperbackPdf" type="button" ${report.ready ? '' : 'disabled'}>Create ${escapeHtml(editionLabel(currentPrintEditionType()))} PDF</button>
       </div>
       <div class="preflight-list">${report.checks.map(renderPreflightCheck).join('')}</div>
       <div class="export-actions">
@@ -745,7 +782,7 @@ function renderExport() {
 
 function renderEbook() {
   const project = state.project;
-  const design = normalizeEbookDesign(project.design?.ebook || {});
+  const design = currentEbookDesign();
   const report = runEpubPreflight({ project, storyLockOk: project.storyLock?.status === 'verified' });
   const preview = buildEbookPreviewHtml({ project, sectionIndex: state.ebookSectionIndex });
   state.ebookSectionIndex = preview.index;
@@ -772,7 +809,7 @@ function renderEbook() {
         <label class="design-field"><span>Line height</span><input id="ebookLineHeight" type="number" min="1" max="2.2" step="0.01" value="${design.lineHeight}"></label>
         <label class="design-field"><span>First-line indent</span><div class="number-wrap"><input id="ebookFirstIndent" type="number" min="0" max="3" step="0.05" value="${design.firstLineIndentEm}"><em>em</em></div></label>
         <label class="design-field"><span>Paragraph gap</span><div class="number-wrap"><input id="ebookParagraphGap" type="number" min="0" max="2" step="0.05" value="${design.paragraphGapEm}"><em>em</em></div></label>
-        <label class="toggle-row compact"><input type="checkbox" id="ebookCollapseBodyBlankParagraphs" ${design.collapseBodyBlankParagraphs ? 'checked' : ''}><span><strong>Collapse empty chapter lines</strong><small>Keeps accidental blank DOCX paragraphs from becoming Kindle spacing.</small></span></label>
+        <label class="design-field"><span>Blank paragraph handling</span><select id="ebookBodyBlankPolicy"><option value="normalize" ${design.bodyBlankPolicy === 'normalize' ? 'selected' : ''}>Normalize each blank run to one spacer</option><option value="preserve" ${design.bodyBlankPolicy === 'preserve' ? 'selected' : ''}>Preserve every source blank line</option><option value="collapse" ${design.bodyBlankPolicy === 'collapse' ? 'selected' : ''}>Collapse all body blank lines</option></select><small>Normalize prevents giant Kindle gaps without smashing all breathing room together.</small></label><label class="design-field"><span>Normalized blank space</span><div class="number-wrap"><input id="ebookBodyBlankSpace" type="number" min="0" max="2" step="0.05" value="${design.bodyBlankSpaceEm}"><em>em</em></div></label>
         <label class="design-field"><span>Chapter title alignment</span><select id="ebookChapterAlignment"><option value="left" ${design.chapterTitleAlignment === 'left' ? 'selected' : ''}>Left</option><option value="center" ${design.chapterTitleAlignment === 'center' ? 'selected' : ''}>Center</option><option value="right" ${design.chapterTitleAlignment === 'right' ? 'selected' : ''}>Right</option></select></label>
       </div>
       <div class="action-row"><button class="btn primary" id="saveEbookSettings">Save Ebook Settings</button><button class="btn secondary" id="downloadEpubPreflight">Download EPUB Preflight</button><button class="btn primary" id="downloadEpub" ${report.ready ? '' : 'disabled'}>Download .EPUB</button></div>
@@ -811,6 +848,92 @@ function renderSource() {
           <div class="block-text">${block.text ? escapeHtml(block.text) : '<span style="color:#aaa">[blank paragraph]</span>'}</div>
         </div>`).join('')}</div>
       ${blocks.length > 1200 ? `<div class="notice info" style="margin-top:12px">For browser performance this inspector shows the first 1,200 matching paragraphs. The entire manuscript remains stored in the project.</div>` : ''}
+    </article>`;
+}
+
+
+
+async function updateEditionEnabled(type, enabled) {
+  if (!state.project) return;
+  ensureEditions(state.project);
+  setEditionEnabled(state.project, type, enabled);
+  if (type === 'paperback' || type === 'hardcover') {
+    const anyPrint = state.project.editions.paperback.enabled || state.project.editions.hardcover.enabled;
+    if (enabled) {
+      state.printEdition = type;
+      setActivePrintEdition(state.project, type);
+    } else if (anyPrint) {
+      state.printEdition = state.project.editions.activePrint;
+    }
+    state.preview = null;
+    state.spreadIndex = 0;
+  }
+  state.finalCheck = null;
+  state.project.updatedAt = new Date().toISOString();
+  state.editionMessage = `${editionLabel(type)} ${enabled ? 'enabled' : 'disabled'}. The master manuscript and Story Lock were not changed.`;
+  await saveProject(state.project);
+  state.projects = await listProjects();
+  updateMain();
+}
+
+async function workOnPrintEdition(type) {
+  if (!state.project) return;
+  ensureEditions(state.project);
+  if (!state.project.editions[type]?.enabled) return;
+  setActivePrintEdition(state.project, type);
+  state.printEdition = type;
+  state.preview = null;
+  state.spreadIndex = 0;
+  state.finalCheck = null;
+  state.editionMessage = `Now working on ${editionLabel(type)}. Its page count, TOC numbers, gutters, and PDF are independent.`;
+  state.project.updatedAt = new Date().toISOString();
+  await saveProject(state.project);
+  state.activeView = 'design';
+  updateMain();
+}
+
+async function copyPaperbackIntoHardcover() {
+  if (!state.project) return;
+  ensureEditions(state.project);
+  copyPaperbackDesignToHardcover(state.project);
+  state.project.updatedAt = new Date().toISOString();
+  state.preview = null;
+  state.finalCheck = null;
+  state.editionMessage = 'Hardcover enabled and given a copy of the paperback design. Pagination remains independent.';
+  await saveProject(state.project);
+  state.projects = await listProjects();
+  updateMain();
+}
+
+function renderEditions() {
+  ensureEditions(state.project);
+  const editions = state.project.editions;
+  const active = currentPrintEditionType();
+  const card = (type, icon, copy) => {
+    const edition = editions[type];
+    const print = type !== 'ebook';
+    const pageCount = print ? edition.lastPageCount : null;
+    const activeClass = print && active === type ? ' active' : '';
+    return `<section class="edition-card${activeClass}">
+      <div class="edition-card-head"><span class="edition-icon">${icon}</span><div><h3>${escapeHtml(editionLabel(type))}</h3><p>${escapeHtml(copy)}</p></div><label class="edition-toggle"><input type="checkbox" data-edition-enabled="${type}" ${edition.enabled ? 'checked' : ''}><span>${edition.enabled ? 'ON' : 'OFF'}</span></label></div>
+      <div class="edition-card-meta">${print ? `<span>${edition.design.trimWidth}×${edition.design.trimHeight} in</span><span>${pageCount ? `${formatNumber(pageCount)} last proof pages` : 'No proof yet'}</span>` : '<span>Reflowable EPUB 3</span><span>No fixed print pages</span>'}</div>
+      <div class="edition-card-actions">${print ? `<button class="btn ${active === type ? 'primary' : 'secondary'}" data-work-edition="${type}" ${edition.enabled ? '' : 'disabled'}>${active === type ? 'Working on this edition' : `Work on ${escapeHtml(editionLabel(type))}`}</button>` : `<button class="btn secondary" data-go-view="ebook" ${edition.enabled ? '' : 'disabled'}>Open Ebook / Kindle</button>`}</div>
+    </section>`;
+  };
+  return `
+    <article class="panel">
+      <div class="panel-head"><div><span class="badge good">One Story Lock · separate outputs</span><h2>Editions</h2><p>Create only the formats you need. Paperback, hardcover, and ebook share one locked manuscript but keep independent production settings and pagination.</p></div></div>
+      ${state.editionMessage ? `<div class="notice success">${escapeHtml(state.editionMessage)}</div>` : ''}
+      <div class="edition-grid">
+        ${card('paperback', 'P', 'Independent paperback trim, gutter, Contents page numbers, folios, and final PDF.')}
+        ${card('hardcover', 'H', 'Independent hardcover geometry and pagination. It never reuses paperback page numbers.')}
+        ${card('ebook', 'e', 'Reflowable Kindle/EPUB output with clickable navigation and no fixed print folios.')}
+      </div>
+      <div class="edition-tools">
+        <div><strong>Make hardcover look like paperback without sharing pagination</strong><p>Copies only the current paperback design choices into Hardcover, then Hardcover repaginates independently.</p></div>
+        <button class="btn secondary" id="copyPaperbackToHardcover" type="button">Create / Reset Hardcover from Paperback</button>
+      </div>
+      <div class="notice info"><strong>Important:</strong> edition settings live beside the manuscript, not inside it. Switching formats can change trim, gutter, blank pages, TOC page numbers, and final page count without changing one character of Story Lock.</div>
     </article>`;
 }
 
@@ -875,6 +998,9 @@ function bindDynamicEvents() {
   document.querySelector('#restoreBackupButton')?.addEventListener('click', () => document.querySelector('#restoreBackupInput')?.click());
   document.querySelector('#restoreBackupInput')?.addEventListener('change', (event) => event.target.files?.[0] && restoreProjectBackup(event.target.files[0]));
   document.querySelector('#saveDesign')?.addEventListener('click', saveDesign);
+  document.querySelector('#copyPaperbackToHardcover')?.addEventListener('click', copyPaperbackIntoHardcover);
+  document.querySelectorAll('[data-edition-enabled]').forEach((input) => input.addEventListener('change', () => updateEditionEnabled(input.dataset.editionEnabled, input.checked)));
+  document.querySelectorAll('[data-work-edition]').forEach((button) => button.addEventListener('click', () => workOnPrintEdition(button.dataset.workEdition)));
   document.querySelector('#applyTresTemplate')?.addEventListener('click', applyTresAmigosTemplate);
   document.querySelector('#saveCustomTheme')?.addEventListener('click', saveCurrentCustomTheme);
   document.querySelector('#importThemeButton')?.addEventListener('click', () => document.querySelector('#themeFileInput')?.click());
@@ -957,6 +1083,8 @@ function bindDynamicEvents() {
   document.querySelectorAll('[data-open-project]').forEach((button) => button.addEventListener('click', async () => {
     const loaded = await loadProject(button.dataset.openProject);
     state.project = migrateProject(loaded);
+    ensureEditions(state.project);
+    state.printEdition = activePrintEdition(state.project);
     await saveProject(state.project);
     state.preview = null;
     state.spreadIndex = 0;
@@ -979,34 +1107,76 @@ function bindDynamicEvents() {
 
 async function runFinalCheck() {
   if (!state.project) return;
+  ensureEditions(state.project);
   if (effectiveStats(state.project).chapters === 0) {
-    state.finalCheck = { allReady: false, printErrors: 1, ebookErrors: 1 };
+    state.finalCheck = { allReady: false, printErrors: 1, ebookErrors: state.project.editions.ebook.enabled ? 1 : 0 };
     state.activeView = 'import';
     updateMain();
     return;
   }
   state.busy = true;
-  state.busyMessage = 'Running Final Check across Story Lock, paperback, and EPUB…';
+  state.busyMessage = 'Running Final Check across Story Lock and every enabled edition…';
   updateMain();
   try {
     const lock = await verifyProjectStoryLock(state.project);
     state.project.storyLock.status = lock.ok ? 'verified' : 'failed';
     state.project.storyLock.verifiedAt = lock.ok ? new Date().toISOString() : state.project.storyLock.verifiedAt;
     if (!lock.ok) {
-      state.finalCheck = { allReady: false, printErrors: 1, ebookErrors: 1, storyLockOk: false };
+      state.finalCheck = { allReady: false, printErrors: 1, ebookErrors: state.project.editions.ebook.enabled ? 1 : 0, storyLockOk: false };
       await saveProject(state.project);
       return;
     }
-    if (!state.preview) state.preview = await paginateProject(state.project);
-    const printReport = runKdpPreflight({ project: state.project, preview: state.preview, storyLockOk: true });
-    const ebookReport = runEpubPreflight({ project: state.project, storyLockOk: true });
+
+    const originalPrint = currentPrintEditionType();
+    const printTypes = ['paperback', 'hardcover'].filter((type) => state.project.editions[type].enabled);
+    const printReports = {};
+    const previews = {};
+    let printErrors = 0;
+    let printWarnings = 0;
+    for (const type of printTypes) {
+      setActivePrintEdition(state.project, type);
+      state.printEdition = type;
+      const preview = await paginateProject(state.project);
+      previews[type] = preview;
+      state.project.editions[type].lastPageCount = preview.pages.length;
+      state.project.editions[type].lastBuiltAt = new Date().toISOString();
+      const report = runKdpPreflight({ project: state.project, preview, storyLockOk: true, editionType: type });
+      printReports[type] = report;
+      printErrors += report.summary.errors;
+      printWarnings += report.summary.warnings;
+    }
+
+    const restoreType = state.project.editions[originalPrint]?.enabled ? originalPrint : printTypes[0] || 'paperback';
+    if (state.project.editions[restoreType]?.enabled) {
+      setActivePrintEdition(state.project, restoreType);
+      state.printEdition = restoreType;
+      state.preview = previews[restoreType] || null;
+    } else {
+      state.preview = null;
+    }
+
+    let ebookReport = null;
+    let ebookErrors = 0;
+    let ebookWarnings = 0;
+    if (state.project.editions.ebook.enabled) {
+      ebookReport = runEpubPreflight({ project: state.project, storyLockOk: true });
+      ebookErrors = ebookReport.summary.errors;
+      ebookWarnings = ebookReport.summary.warnings;
+    }
+
+    const enabledCount = printTypes.length + (state.project.editions.ebook.enabled ? 1 : 0);
+    const allReady = enabledCount > 0
+      && Object.values(printReports).every((report) => report.ready)
+      && (!state.project.editions.ebook.enabled || ebookReport?.ready);
     state.finalCheck = {
-      allReady: Boolean(printReport.ready && ebookReport.ready),
+      allReady: Boolean(allReady),
       storyLockOk: true,
-      printErrors: printReport.summary.errors,
-      printWarnings: printReport.summary.warnings,
-      ebookErrors: ebookReport.summary.errors,
-      ebookWarnings: ebookReport.summary.warnings,
+      printErrors,
+      printWarnings,
+      ebookErrors,
+      ebookWarnings,
+      editionReports: Object.fromEntries(Object.entries(printReports).map(([type, report]) => [type, { ready: report.ready, pageCount: report.pageCount, errors: report.summary.errors, warnings: report.summary.warnings }])),
+      ebookReady: ebookReport?.ready ?? null,
       checkedAt: new Date().toISOString(),
     };
     await saveProject(state.project);
@@ -1043,7 +1213,9 @@ async function restoreProjectBackup(file) {
   try {
     const restored = await parseProjectBackup(await file.text());
     await saveProject(restored);
-    state.project = restored;
+    state.project = migrateProject(restored);
+    ensureEditions(state.project);
+    state.printEdition = activePrintEdition(state.project);
     state.projects = await listProjects();
     state.preview = null;
     state.spreadIndex = 0;
@@ -1120,6 +1292,8 @@ async function importFile(file) {
     const project = await createProjectFromImport({ file, arrayBuffer, parsed });
     await saveProject(project);
     state.project = project;
+    ensureEditions(state.project);
+    state.printEdition = activePrintEdition(state.project);
     state.projects = await listProjects();
     state.preview = null;
     state.spreadIndex = 0;
@@ -1266,7 +1440,7 @@ async function downloadPrintMaster() {
     return;
   }
   const html = buildPrintMasterHtml({ project: state.project, preview: state.preview, manuscriptHash: state.project.source.manuscriptHash });
-  downloadTextFile(`${safeExportBaseName()}-print-master.html`, html, 'text/html;charset=utf-8');
+  downloadTextFile(`${safeExportBaseName()}-${currentPrintEditionType()}-print-master.html`, html, 'text/html;charset=utf-8');
 }
 
 function downloadPreflightReport() {
@@ -1280,13 +1454,13 @@ function downloadPreflightReport() {
     manuscriptSha256: state.project.source.manuscriptHash,
     ...report,
   };
-  downloadTextFile(`${safeExportBaseName()}-kdp-preflight.json`, JSON.stringify(payload, null, 2));
+  downloadTextFile(`${safeExportBaseName()}-${currentPrintEditionType()}-preflight.json`, JSON.stringify(payload, null, 2));
 }
 
 
 function readEbookForm() {
   const value = (id) => document.querySelector(`#${id}`)?.value;
-  const base = normalizeEbookDesign(state.project?.design?.ebook || {});
+  const base = currentEbookDesign();
   return normalizeEbookDesign({
     ...base,
     language: value('ebookLanguage') ?? base.language,
@@ -1296,7 +1470,8 @@ function readEbookForm() {
     lineHeight: value('ebookLineHeight') ?? base.lineHeight,
     firstLineIndentEm: value('ebookFirstIndent') ?? base.firstLineIndentEm,
     paragraphGapEm: value('ebookParagraphGap') ?? base.paragraphGapEm,
-    collapseBodyBlankParagraphs: document.querySelector('#ebookCollapseBodyBlankParagraphs')?.checked ?? base.collapseBodyBlankParagraphs,
+    bodyBlankPolicy: value('ebookBodyBlankPolicy') ?? base.bodyBlankPolicy,
+    bodyBlankSpaceEm: value('ebookBodyBlankSpace') ?? base.bodyBlankSpaceEm,
     chapterTitleAlignment: value('ebookChapterAlignment') ?? base.chapterTitleAlignment,
   });
 }
@@ -1304,7 +1479,7 @@ function readEbookForm() {
 async function saveEbookSettings() {
   if (!state.project) return;
   state.project.design = state.project.design || {};
-  state.project.design.ebook = readEbookForm();
+  setEbookEditionDesign(state.project, readEbookForm());
   state.project.updatedAt = new Date().toISOString();
   state.finalCheck = null;
   state.ebookMessage = 'Ebook settings saved. Story wording and Story Lock hash were not changed.';
@@ -1339,7 +1514,7 @@ async function downloadEpub() {
   if (!state.project) return;
   state.finalCheck = null;
   state.project.design = state.project.design || {};
-  state.project.design.ebook = readEbookForm();
+  setEbookEditionDesign(state.project, readEbookForm());
   state.project.updatedAt = new Date().toISOString();
   await saveProject(state.project);
 
@@ -1369,7 +1544,7 @@ async function downloadEpub() {
 async function downloadEpubPreflight() {
   if (!state.project) return;
   state.project.design = state.project.design || {};
-  state.project.design.ebook = readEbookForm();
+  setEbookEditionDesign(state.project, readEbookForm());
   const lock = await verifyProjectStoryLock(state.project);
   const report = runEpubPreflight({ project: state.project, storyLockOk: lock.ok });
   const payload = {
@@ -1398,7 +1573,7 @@ async function applyThemeFromLibrary(id, kind = 'built-in') {
     design = applyTemplate(id);
     name = design.name;
   }
-  state.project.design.print = design;
+  saveCurrentPrintDesign(design);
   state.project.design.template = name;
   state.project.updatedAt = new Date().toISOString();
   state.preview = null;
@@ -1475,7 +1650,8 @@ function readDesignForm() {
     lineHeight: value('lineHeight') ?? base.lineHeight,
     firstLineIndent: value('firstLineIndent') ?? base.firstLineIndent,
     paragraphGap: value('paragraphGap') ?? base.paragraphGap,
-    collapseBodyBlankParagraphs: document.querySelector('#collapseBodyBlankParagraphs')?.checked ?? base.collapseBodyBlankParagraphs,
+    bodyBlankPolicy: value('bodyBlankPolicy') ?? base.bodyBlankPolicy,
+    bodyBlankSpace: value('bodyBlankSpace') ?? base.bodyBlankSpace,
     chapterTitleSize: value('chapterTitleSize') ?? base.chapterTitleSize,
     chapterTitleAlignment: value('chapterTitleAlignment') ?? base.chapterTitleAlignment,
     chapterTopSpace: value('chapterTopSpace') ?? base.chapterTopSpace,
@@ -1507,8 +1683,9 @@ function readDesignForm() {
 
 async function saveDesign() {
   if (!state.project) return;
-  state.project.design.print = readDesignForm();
-  state.project.design.template = state.project.design.print.name || 'Custom';
+  const savedDesign = readDesignForm();
+  saveCurrentPrintDesign(savedDesign);
+  state.project.design.template = savedDesign.name || 'Custom';
   state.project.updatedAt = new Date().toISOString();
   state.preview = null;
   state.spreadIndex = 0;
@@ -1686,6 +1863,7 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
   let current = null;
   let blankVersos = 0;
   let collapsedBodyBlanks = 0;
+  let normalizedBodyBlankRuns = 0;
   let chapterStarts = 0;
   let chaptersOnRight = 0;
   let firstChapterPhysicalPage = null;
@@ -1722,6 +1900,7 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
       tocPageNumber: meta.tocPageNumber ?? null,
       tocTargetId: meta.tocTargetId || null,
       collapsedBlank: Boolean(meta.collapsedBlank),
+      normalizedBlank: Boolean(meta.normalizedBlank),
     });
     current.usedPx += height;
   };
@@ -1754,18 +1933,26 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
     tocInserted = true;
   };
 
-  const placeTextBlock = (block) => {
+  const placeTextBlock = (block, blockPosition) => {
     const kind = block.kind;
     const text = block.text;
     const suppressIndent = kind === 'chapter-opening' || previousNonEmptyKind === 'scene-break' || previousNonEmptyKind === 'chapter-title';
     if (kind === 'blank') {
       ensurePage();
       const sectionType = matterSectionForBlockIndex(block.index, structure);
-      const collapseBlank = shouldCollapseSourceBlank({ block, sectionType, enabled: design.collapseBodyBlankParagraphs });
-      const height = collapseBlank ? 0 : measureFragment(rig, design, kind, '', false, true, true);
-      if (collapseBlank) collapsedBodyBlanks += 1;
+      const blankMode = blankRenderMode({ blocks, index: blockPosition, sectionType, policy: design.bodyBlankPolicy });
+      const height = blankMode === 'collapse'
+        ? 0
+        : blankMode === 'normalize'
+          ? design.bodyBlankSpace * CSS_PX_PER_INCH
+          : measureFragment(rig, design, kind, '', false, true, true);
+      if (blankMode === 'collapse') collapsedBodyBlanks += 1;
+      if (blankMode === 'normalize') normalizedBodyBlankRuns += 1;
       if (height > remaining() && current.fragments.length) newPage();
-      addFragment(block, '', kind, false, height, { startOffset: 0, endOffset: 0, isFinalPiece: true, suppressIndent: true, collapsedBlank: collapseBlank });
+      addFragment(block, '', kind, false, height, {
+        startOffset: 0, endOffset: 0, isFinalPiece: true, suppressIndent: true,
+        collapsedBlank: blankMode === 'collapse', normalizedBlank: blankMode === 'normalize',
+      });
       return;
     }
 
@@ -1842,7 +2029,7 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
         if (firstChapterPhysicalPage == null) firstChapterPhysicalPage = current.number;
         if (current.side === 'right') chaptersOnRight += 1;
       }
-      placeTextBlock(block);
+      placeTextBlock(block, i);
       if (block.kind !== 'blank') previousNonEmptyKind = block.kind;
       if (i && i % 250 === 0) await new Promise((resolve) => requestAnimationFrame(resolve));
     }
@@ -1871,6 +2058,7 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
     pages,
     blankVersos,
     collapsedBodyBlanks,
+    normalizedBodyBlankRuns,
     chapterStarts,
     chaptersOnRight,
     firstChapterPhysicalPage,
@@ -1928,6 +2116,11 @@ async function buildPreview() {
   try {
     state.preview = await paginateProject(state.project);
     state.spreadIndex = 0;
+    ensureEditions(state.project);
+    const editionType = currentPrintEditionType();
+    state.project.editions[editionType].lastPageCount = state.preview.pages.length;
+    state.project.editions[editionType].lastBuiltAt = new Date().toISOString();
+    await saveProject(state.project);
   } catch (error) {
     console.error(error);
     alert(error?.message || 'Print preview could not be built safely.');

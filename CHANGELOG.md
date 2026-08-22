@@ -1,3 +1,15 @@
+## v1.0.3 — Edition Manager + Spacing Normalization
+
+- Replaces the over-aggressive 1.0.2 all-blank collapse with a three-mode presentation policy: Normalize, Preserve, or Collapse.
+- Tres Amigos defaults to Normalize: one run of source blank paragraphs renders as one standard spacer; extra consecutive blanks collapse visually.
+- Applies the same safe normalization to EPUB/Kindle while retaining every source blank block in Story Lock and source coverage.
+- Adds independent Paperback, Hardcover, and Ebook editions under one locked master manuscript.
+- Paperback and Hardcover now maintain separate geometry and pagination so page numbers and generated Contents are never shared accidentally.
+- Adds Create / Reset Hardcover from Paperback to copy design only, not pagination.
+- Final Check now evaluates every enabled edition instead of assuming paperback + ebook are always required.
+- Project schema 13; existing v1.0.2 projects migrate without changing manuscript text.
+- 69/69 automated tests pass.
+
 ## v1.0.2 — Body Spacing Consistency Hotfix
 
 - Collapses truly empty DOCX paragraphs inside chapter bodies by default for print and EPUB.
