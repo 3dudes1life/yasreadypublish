@@ -19,7 +19,7 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
   throw new Error('index.html is not wired to the self-contained static runtime.');
 }
 const main = readFileSync('src/main.js', 'utf8');
-for (const marker of ["const VERSION = '1.0.1'", 'Run Final Check', 'Create Paperback PDF', 'Download Project Backup', 'Ebook / Kindle', 'Structure Repair', 'generated-toc-entry']) {
+for (const marker of ["const VERSION = '1.0.2'", 'Run Final Check', 'Create Paperback PDF', 'Download Project Backup', 'Ebook / Kindle', 'Structure Repair', 'generated-toc-entry']) {
   if (!main.includes(marker)) throw new Error(`1.0 production workspace is missing: ${marker}`);
 }
 const printModel = readFileSync('src/lib/print-model.js', 'utf8');
@@ -35,7 +35,7 @@ for (const dynamicBinding of ['[data-go-view]','[data-open-project]','[data-dele
 }
 
 const project = readFileSync('src/lib/project.js', 'utf8');
-if (!project.includes("appVersion: '1.0.1'") || !project.includes('version: 11')) {
-  throw new Error('Project schema was not migrated to 1.0.1.');
+if (!project.includes("appVersion: '1.0.2'") || !project.includes('version: 12')) {
+  throw new Error('Project schema was not migrated to 1.0.2.');
 }
-console.log('YasReady Publish v1.0.1 static verification passed.');
+console.log('YasReady Publish v1.0.2 static verification passed.');

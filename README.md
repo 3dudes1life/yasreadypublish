@@ -1,4 +1,4 @@
-# YasReady Publish v1.0.1
+# YasReady Publish v1.0.2
 
 Private, local-first manuscript-to-book production for YasReady.
 
@@ -15,14 +15,14 @@ Private, local-first manuscript-to-book production for YasReady.
 7. **Ebook / Kindle** builds a separate reflowable EPUB 3 with clickable navigation.
 8. **Final Check** verifies Story Lock + paperback + EPUB readiness together.
 
-## What makes 1.0.1 stable
+## What makes 1.0.2 stable
 
 - Guided Project Home with a clear manuscript → structure → design → proof → paperback → ebook path.
 - **Superman Ready Final Check** for one-button release readiness.
 - Portable **Project Backup / Restore**. Restore re-verifies Story Lock before saving anything.
 - Sidebar and workflow controls re-render when project state changes, eliminating stale/disabled navigation after import.
 - Full literal-button binding audit in `npm run verify`.
-- Project schema 11 / app version 1.0.1.
+- Project schema 12 / app version 1.0.2.
 - Story wording remains read-only throughout the publishing UI.
 
 ## Paperback engine

@@ -1,4 +1,5 @@
 import { buildEbookSections, ebookFontStack, ebookTocEntries, normalizeEbookDesign, verifyEbookSourceCoverage } from './ebook-model.js';
+import { shouldCollapseSourceBlank } from './spacing-policy.js';
 
 function escapeXml(value = '') {
   return String(value)
@@ -28,10 +29,10 @@ function inlineRuns(block) {
   }).join('');
 }
 
-function renderBlock(block) {
+function renderBlock(block, { collapseBlank = false } = {}) {
   const id = escapeXml(block.id || '');
   const content = inlineRuns(block);
-  if (block.kind === 'blank') return `<p id="${id}" class="blank"></p>`;
+  if (block.kind === 'blank') return `<p id="${id}" class="blank${collapseBlank ? ' collapsed' : ''}"></p>`;
   if (block.kind === 'chapter-title') return `<h1 id="${id}" class="chapter-title">${content}</h1>`;
   if (block.kind === 'front-back-heading' || block.kind === 'heading') return `<h2 id="${id}" class="matter-heading">${content}</h2>`;
   if (block.kind === 'scene-break') return `<p id="${id}" class="scene-break">${content}</p>`;
@@ -53,6 +54,7 @@ h2.matter-heading { margin: 2.6em 0 1.4em; font-size: 1.3em; line-height: 1.2; p
 p.scene-break { margin: ${design.sceneBreakSpaceEm}em 0; text-indent: 0; text-align: center; }
 p.text-message { margin-left: ${design.textMessageIndentEm}em; margin-right: ${design.textMessageIndentEm}em; text-indent: 0; }
 p.blank { min-height: .7em; }
+p.blank.collapsed { display: none; min-height: 0; margin: 0; padding: 0; }
 .small-caps { font-variant: small-caps; }
 .underline { text-decoration: underline; }
 nav ol { padding-left: 1.3em; }
@@ -64,7 +66,7 @@ nav a { color: inherit; text-decoration: none; }
 
 function sectionXhtml(section, project, design) {
   const title = escapeXml(section.title || project.title || 'Book');
-  const body = section.blocks.map(renderBlock).join('\n');
+  const body = section.blocks.map((block) => renderBlock(block, { collapseBlank: shouldCollapseSourceBlank({ block, sectionType: section.type, enabled: design.collapseBodyBlankParagraphs }) })).join('\n');
   return `<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="${escapeXml(design.language)}" lang="${escapeXml(design.language)}">
@@ -186,7 +188,7 @@ export function buildEbookPreviewHtml({ project, sectionIndex = 0 } = {}) {
   const toc = ebookTocEntries(project);
   const index = Math.max(0, Math.min(Math.max(0, sections.length - 1), Number(sectionIndex) || 0));
   const section = sections[index] || { id: 'empty', title: 'Empty book', type: 'front', blocks: [] };
-  const body = section.blocks.map(renderBlock).join('\n');
+  const body = section.blocks.map((block) => renderBlock(block, { collapseBlank: shouldCollapseSourceBlank({ block, sectionType: section.type, enabled: design.collapseBodyBlankParagraphs }) })).join('\n');
   return {
     index,
     section,

@@ -1,3 +1,12 @@
+## v1.0.2 — Body Spacing Consistency Hotfix
+
+- Collapses truly empty DOCX paragraphs inside chapter bodies by default for print and EPUB.
+- Preserves every empty source block in Story Lock and exact-source coverage; only presentation height is suppressed.
+- Front matter blank spacing remains untouched.
+- Adds print and ebook toggles for authors who intentionally want blank body lines rendered.
+- Fixes zero-height blank rendering in the browser proof so collapsed blanks do not reappear as 6px gaps.
+- Migrates existing 1.0/1.0.1 projects without changing manuscript text.
+
 ## v1.0.1 — Book 2 Proof Hotfix
 
 - Corrected the Tres Amigos body paragraph gap from 0.333 in to 0 in. Paragraphs now use first-line indentation without the accidental oversized vertical gaps seen in the first full Book 2 proof.

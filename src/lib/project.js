@@ -14,8 +14,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   return {
     id: crypto.randomUUID(),
-    version: 11,
-    appVersion: '1.0.1',
+    version: 12,
+    appVersion: '1.0.2',
     title: baseName,
     author: '',
     createdAt: now,
@@ -64,8 +64,14 @@ export function migrateProject(project) {
     if (Math.abs(Number(project.design.print.paragraphGap) - 0.333) < 0.0001) project.design.print.paragraphGap = 0;
     if (!project.design.print.tocStartSide) project.design.print.tocStartSide = 'left';
   }
-  project.version = Math.max(oldVersion, 11);
-  project.appVersion = '1.0.1';
+  // 1.0.2 adds a presentation-only rule that collapses accidental empty DOCX paragraphs inside chapter bodies.
+  // Empty source blocks remain in the locked manuscript and coverage checks; only their rendered height becomes zero.
+  if (oldVersion < 12) {
+    if (project.design?.print?.collapseBodyBlankParagraphs == null) project.design.print.collapseBodyBlankParagraphs = true;
+    if (project.design?.ebook?.collapseBodyBlankParagraphs == null) project.design.ebook.collapseBodyBlankParagraphs = true;
+  }
+  project.version = Math.max(oldVersion, 12);
+  project.appVersion = '1.0.2';
   return project;
 }
 

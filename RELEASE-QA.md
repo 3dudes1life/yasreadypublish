@@ -58,3 +58,12 @@ This does not prove that no future browser/runtime bug can ever exist; it is des
 - Tres Amigos paragraph gap regression: fixed to 0 in and migration tested.
 - Generated Contents parity: left-page start helper tested.
 - Existing 1.0 project migration preserves exact manuscript block text.
+
+
+## 1.0.2 chapter-spacing hotfix
+
+- Regression target: a manuscript can contain empty DOCX paragraphs beginning partway through the book without changing prose.
+- Print pagination retains those source blocks for Story Lock but collapses their rendered height inside chapter body only.
+- EPUB retains the corresponding empty XHTML element/id but marks it collapsed so Kindle does not create visible spacer lines.
+- Front/back matter blank paragraphs remain renderable.
+- Both print and ebook expose an opt-out toggle for intentional blank-line layouts.

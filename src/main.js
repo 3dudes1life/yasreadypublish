@@ -26,8 +26,9 @@ import { effectiveBlocks, effectiveChapters, effectiveStats, setStructureOverrid
 import { buildPrintTocEntries, printTocSignature, shouldGeneratePrintToc, verifyGeneratedPrintToc } from './lib/print-toc.js';
 import { serializeProjectBackup, parseProjectBackup } from './lib/project-backup.js';
 import { buildPublishReadiness } from './lib/readiness-model.js';
+import { shouldCollapseSourceBlank } from './lib/spacing-policy.js';
 
-const VERSION = '1.0.1';
+const VERSION = '1.0.2';
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
 
@@ -461,6 +462,7 @@ function renderDesign() {
             ${designNumberField('lineHeight', 'Line height', d.lineHeight, '0.01', '1', '2', '×')}
             ${designNumberField('firstLineIndent', 'First-line indent', d.firstLineIndent, '0.01', '0', '1')}
             ${designNumberField('paragraphGap', 'Paragraph gap', d.paragraphGap, '0.01', '0', '0.75')}
+            <label class="toggle-row compact"><input type="checkbox" id="collapseBodyBlankParagraphs" ${d.collapseBodyBlankParagraphs ? 'checked' : ''}><span><strong>Collapse empty body lines</strong><small>Ignores accidental blank paragraphs inside chapters without changing Story Lock.</small></span></label>
             ${designNumberField('chapterTitleSize', 'Chapter title', d.chapterTitleSize, '0.25', '9', '28', 'pt')}
             ${designNumberField('chapterTopSpace', 'Chapter top space', d.chapterTopSpace, '0.01', '0', '2.5')}
             ${designNumberField('chapterAfterSpace', 'After chapter title', d.chapterAfterSpace, '0.01', '0', '1.5')}
@@ -576,7 +578,7 @@ function renderPrint() {
           </div>
         </div>
       </div>
-      <div class="notice success preview-note"><strong>Print production path:</strong> this page map feeds KDP Preflight and the fixed single-page print master. Generated TOC numbers are verified against this final page map; intentional blank versos suppress both running headers and folios.</div>
+      <div class="notice success preview-note"><strong>Print production path:</strong> this page map feeds KDP Preflight and the fixed single-page print master. Generated TOC numbers are verified against this final page map; intentional blank versos suppress both running headers and folios.${preview.collapsedBodyBlanks ? ` <strong>${formatNumber(preview.collapsedBodyBlanks)} empty source spacer paragraph${preview.collapsedBodyBlanks === 1 ? '' : 's'} collapsed inside chapters</strong> without changing Story Lock.` : ''}</div>
     </article>`;
 }
 
@@ -654,7 +656,7 @@ function renderBookPage(page, design) {
   const fragments = page.intentionalBlank
     ? `<div class="intentional-blank">Intentional blank verso<br><small>Kept blank so the next chapter opens on the right.</small></div>`
     : page.fragments.map((fragment) => {
-      if (fragment.kind === 'blank') return `<div class="print-fragment blank-space" style="height:${(fragment.previewHeight || 6) * (px / PREVIEW_PX_PER_INCH)}px"></div>`;
+      if (fragment.kind === 'blank') return `<div class="print-fragment blank-space" style="height:${(fragment.previewHeight ?? 6) * (px / PREVIEW_PX_PER_INCH)}px"></div>`;
       if (fragment.kind === 'generated-toc-title') {
         const tocTitlePx = design.tocTitleSize * (96 / 72) * (px / 96);
         return `<div class="print-fragment generated-toc-title" style="padding-top:${design.tocTopSpace * px}px;padding-bottom:${design.tocAfterTitleSpace * px}px;font-size:${tocTitlePx}px;text-align:center;line-height:1.15">${escapeHtml(fragment.text)}</div>`;
@@ -770,6 +772,7 @@ function renderEbook() {
         <label class="design-field"><span>Line height</span><input id="ebookLineHeight" type="number" min="1" max="2.2" step="0.01" value="${design.lineHeight}"></label>
         <label class="design-field"><span>First-line indent</span><div class="number-wrap"><input id="ebookFirstIndent" type="number" min="0" max="3" step="0.05" value="${design.firstLineIndentEm}"><em>em</em></div></label>
         <label class="design-field"><span>Paragraph gap</span><div class="number-wrap"><input id="ebookParagraphGap" type="number" min="0" max="2" step="0.05" value="${design.paragraphGapEm}"><em>em</em></div></label>
+        <label class="toggle-row compact"><input type="checkbox" id="ebookCollapseBodyBlankParagraphs" ${design.collapseBodyBlankParagraphs ? 'checked' : ''}><span><strong>Collapse empty chapter lines</strong><small>Keeps accidental blank DOCX paragraphs from becoming Kindle spacing.</small></span></label>
         <label class="design-field"><span>Chapter title alignment</span><select id="ebookChapterAlignment"><option value="left" ${design.chapterTitleAlignment === 'left' ? 'selected' : ''}>Left</option><option value="center" ${design.chapterTitleAlignment === 'center' ? 'selected' : ''}>Center</option><option value="right" ${design.chapterTitleAlignment === 'right' ? 'selected' : ''}>Right</option></select></label>
       </div>
       <div class="action-row"><button class="btn primary" id="saveEbookSettings">Save Ebook Settings</button><button class="btn secondary" id="downloadEpubPreflight">Download EPUB Preflight</button><button class="btn primary" id="downloadEpub" ${report.ready ? '' : 'disabled'}>Download .EPUB</button></div>
@@ -1293,6 +1296,7 @@ function readEbookForm() {
     lineHeight: value('ebookLineHeight') ?? base.lineHeight,
     firstLineIndentEm: value('ebookFirstIndent') ?? base.firstLineIndentEm,
     paragraphGapEm: value('ebookParagraphGap') ?? base.paragraphGapEm,
+    collapseBodyBlankParagraphs: document.querySelector('#ebookCollapseBodyBlankParagraphs')?.checked ?? base.collapseBodyBlankParagraphs,
     chapterTitleAlignment: value('ebookChapterAlignment') ?? base.chapterTitleAlignment,
   });
 }
@@ -1471,6 +1475,7 @@ function readDesignForm() {
     lineHeight: value('lineHeight') ?? base.lineHeight,
     firstLineIndent: value('firstLineIndent') ?? base.firstLineIndent,
     paragraphGap: value('paragraphGap') ?? base.paragraphGap,
+    collapseBodyBlankParagraphs: document.querySelector('#collapseBodyBlankParagraphs')?.checked ?? base.collapseBodyBlankParagraphs,
     chapterTitleSize: value('chapterTitleSize') ?? base.chapterTitleSize,
     chapterTitleAlignment: value('chapterTitleAlignment') ?? base.chapterTitleAlignment,
     chapterTopSpace: value('chapterTopSpace') ?? base.chapterTopSpace,
@@ -1680,6 +1685,7 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
   const pages = [];
   let current = null;
   let blankVersos = 0;
+  let collapsedBodyBlanks = 0;
   let chapterStarts = 0;
   let chaptersOnRight = 0;
   let firstChapterPhysicalPage = null;
@@ -1715,6 +1721,7 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
       tocTitle: meta.tocTitle || null,
       tocPageNumber: meta.tocPageNumber ?? null,
       tocTargetId: meta.tocTargetId || null,
+      collapsedBlank: Boolean(meta.collapsedBlank),
     });
     current.usedPx += height;
   };
@@ -1753,9 +1760,12 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
     const suppressIndent = kind === 'chapter-opening' || previousNonEmptyKind === 'scene-break' || previousNonEmptyKind === 'chapter-title';
     if (kind === 'blank') {
       ensurePage();
-      const height = measureFragment(rig, design, kind, '', false, true, true);
+      const sectionType = matterSectionForBlockIndex(block.index, structure);
+      const collapseBlank = shouldCollapseSourceBlank({ block, sectionType, enabled: design.collapseBodyBlankParagraphs });
+      const height = collapseBlank ? 0 : measureFragment(rig, design, kind, '', false, true, true);
+      if (collapseBlank) collapsedBodyBlanks += 1;
       if (height > remaining() && current.fragments.length) newPage();
-      addFragment(block, '', kind, false, height, { startOffset: 0, endOffset: 0, isFinalPiece: true, suppressIndent: true });
+      addFragment(block, '', kind, false, height, { startOffset: 0, endOffset: 0, isFinalPiece: true, suppressIndent: true, collapsedBlank: collapseBlank });
       return;
     }
 
@@ -1860,6 +1870,7 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
     design: { ...design },
     pages,
     blankVersos,
+    collapsedBodyBlanks,
     chapterStarts,
     chaptersOnRight,
     firstChapterPhysicalPage,

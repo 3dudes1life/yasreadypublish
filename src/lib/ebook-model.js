@@ -10,6 +10,7 @@ export const DEFAULT_EBOOK_DESIGN = Object.freeze({
   lineHeight: 1.42,
   firstLineIndentEm: 1.35,
   paragraphGapEm: 0,
+  collapseBodyBlankParagraphs: true,
   chapterTitleAlignment: 'center',
   chapterTopEm: 4.2,
   chapterAfterEm: 2.4,
@@ -32,6 +33,7 @@ export function normalizeEbookDesign(input = {}) {
   design.lineHeight = clamp(design.lineHeight, DEFAULT_EBOOK_DESIGN.lineHeight, 1, 2.2);
   design.firstLineIndentEm = clamp(design.firstLineIndentEm, DEFAULT_EBOOK_DESIGN.firstLineIndentEm, 0, 3);
   design.paragraphGapEm = clamp(design.paragraphGapEm, DEFAULT_EBOOK_DESIGN.paragraphGapEm, 0, 2);
+  design.collapseBodyBlankParagraphs = design.collapseBodyBlankParagraphs !== false;
   design.chapterTitleAlignment = ['left', 'center', 'right'].includes(design.chapterTitleAlignment) ? design.chapterTitleAlignment : 'center';
   design.chapterTopEm = clamp(design.chapterTopEm, DEFAULT_EBOOK_DESIGN.chapterTopEm, 0, 8);
   design.chapterAfterEm = clamp(design.chapterAfterEm, DEFAULT_EBOOK_DESIGN.chapterAfterEm, 0, 6);

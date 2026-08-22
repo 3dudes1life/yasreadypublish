@@ -14,6 +14,7 @@ export const TRES_AMIGOS_TEMPLATE = Object.freeze({
   bodyAlignment: 'left',
   firstLineIndent: 0.5,
   paragraphGap: 0,
+  collapseBodyBlankParagraphs: true,
   chapterStarts: 'right',
   chapterTopSpace: 0.82,
   chapterAfterSpace: 1.08,
@@ -124,6 +125,7 @@ export function normalizePrintDesign(input = {}) {
   merged.lineHeight = number(merged.lineHeight, 1.10, 1, 2);
   merged.firstLineIndent = number(merged.firstLineIndent, 0.5, 0, 1);
   merged.paragraphGap = number(merged.paragraphGap, 0, 0, 0.75);
+  merged.collapseBodyBlankParagraphs = merged.collapseBodyBlankParagraphs !== false;
   merged.chapterTopSpace = number(merged.chapterTopSpace, 0.82, 0, 2.5);
   merged.chapterAfterSpace = number(merged.chapterAfterSpace, 1.08, 0, 1.5);
   merged.chapterTitleSize = number(merged.chapterTitleSize, 14, 9, 28);
@@ -225,6 +227,7 @@ const CALIBRATION_FIELDS = Object.freeze([
   ['bodyAlignment', 'Body alignment', 'text'],
   ['firstLineIndent', 'First-line indent', 'in'],
   ['paragraphGap', 'Paragraph gap', 'in'],
+  ['collapseBodyBlankParagraphs', 'Collapse empty body lines', 'text'],
   ['chapterTopSpace', 'Chapter top space', 'in'],
   ['chapterAfterSpace', 'Chapter after space', 'in'],
   ['chapterTitleSize', 'Chapter title size', 'pt'],
