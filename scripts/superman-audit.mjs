@@ -3,7 +3,7 @@ import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const VERSION = '1.0.11';
+const VERSION = '1.0.12';
 
 function walk(dir) {
   const out = [];
@@ -73,6 +73,8 @@ for (const marker of [
   'undoEbookFormatting',
   'redoEbookFormatting',
   'commitLiveEbookOverride',
+  'saveEbookSemanticStyles',
+  'ebookOverrideSemanticRole',
 ]) {
   if (!main.includes(marker)) throw new Error(`Missing release safety marker: ${marker}`);
 }
@@ -98,6 +100,10 @@ for (const marker of ['auditEpubPackage','audit-preview-leak','audit-cover','det
 const ebookModel = readFileSync(join(ROOT, 'src/lib/ebook-model.js'), 'utf8');
 if (!ebookModel.includes('matterSectionHeading') || !ebookModel.includes('detectEbookPlaceholders')) throw new Error('Kindle front-matter/placeholder hardening is missing.');
 const kindleQuality = readFileSync(join(ROOT, 'src/lib/kindle-quality.js'), 'utf8');
-for (const marker of ['scanKindleQuality','enhancedTypesettingAudit','kindleTorturePresets']) if (!kindleQuality.includes(marker)) throw new Error(`Missing Kindle Pro quality marker: ${marker}`);
-for (const marker of ['Kindle Pro consistency scan','3-View Torture Test','referencePt','toggleKindleQaMatrix']) if (!main.includes(marker)) throw new Error(`Missing Kindle Pro UI marker: ${marker}`);
-console.log('- proof ownership, edition invalidation, Kindle front matter, finished EPUB audit, calibrated preview, and whole-book QA guards present');
+for (const marker of ['scanKindleQuality','enhancedTypesettingAudit','kindleTorturePresets','semanticRoleCounts']) if (!kindleQuality.includes(marker)) throw new Error(`Missing Kindle Pro quality marker: ${marker}`);
+for (const marker of ['Kindle Pro consistency scan','3-View Torture Test','referencePt','toggleKindleQaMatrix','Semantic Style Palette','Content style']) if (!main.includes(marker)) throw new Error(`Missing Kindle Pro UI marker: ${marker}`);
+const semanticStyles = readFileSync(join(ROOT, 'src/lib/semantic-styles.js'), 'utf8');
+for (const marker of ['EBOOK_SEMANTIC_ROLES','semanticRoleForBlock','semanticRoleCounts']) if (!semanticStyles.includes(marker)) throw new Error(`Missing semantic style marker: ${marker}`);
+const docxParser = readFileSync(join(ROOT, 'src/lib/docx-parser.js'), 'utf8');
+for (const marker of ['footnotes.xml','endnotes.xml','loadMediaAssets','mediaRefs','canonicalizeManuscriptV2']) if (!docxParser.includes(marker)) throw new Error(`Missing semantic import marker: ${marker}`);
+console.log('- proof ownership, edition invalidation, semantic Kindle styles, safe note/media import, finished EPUB audit, calibrated preview, and whole-book QA guards present');

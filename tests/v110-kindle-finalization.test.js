@@ -101,14 +101,14 @@ test('1.0.10 Kindle simulator defaults to color and enables grayscale only when 
   assert.equal(kindlePreviewTokens({...normal,simulateEink:true}).grayscale,true);
 });
 
-test('1.0.10 migration reaches schema 20 while preserving manuscript blocks exactly', () => {
+test('1.0.10 migration reaches current schema while preserving manuscript blocks exactly', () => {
   const raw = sample();
   raw.version = 19;
   raw.appVersion = '1.0.9';
   const before = JSON.stringify(raw.manuscript.blocks);
   migrateProject(raw);
-  assert.equal(raw.version,20);
-  assert.equal(raw.appVersion,'1.0.11');
+  assert.equal(raw.version,21);
+  assert.equal(raw.appVersion,'1.0.12');
   assert.equal(JSON.stringify(raw.manuscript.blocks),before);
 });
 

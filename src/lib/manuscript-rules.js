@@ -49,3 +49,19 @@ export function detectChapters(blocks) {
   }
   return chapters;
 }
+
+
+/**
+ * Canonical v2 adds note text and embedded-media fingerprints to the exact
+ * paragraph stream. Existing projects remain on canonical v1 until reimported.
+ */
+export function canonicalizeManuscriptV2(blocks = [], notes = [], media = []) {
+  const body = canonicalizeBlocks(blocks);
+  const notePart = notes
+    .map((note) => `${note.type || 'note'}:${note.id ?? ''}:${(note.paragraphs || []).map((p) => p.text || '').join('\u2029')}`)
+    .join('\u241e');
+  const mediaPart = media
+    .map((asset) => `${asset.id || ''}:${asset.sha256 || ''}:${asset.fileName || ''}`)
+    .join('\u241e');
+  return `${body}\u241dNOTES\u241d${notePart}\u241dMEDIA\u241d${mediaPart}`;
+}

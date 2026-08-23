@@ -1,6 +1,7 @@
 import { buildEbookSections, ebookFontStack, ebookTocEntries, matterSectionHeading, normalizeEbookDesign, verifyEbookSourceCoverage } from './ebook-model.js';
 import { blankRenderMode } from './spacing-policy.js';
 import { getBlockPresentationOverride } from './presentation-overrides.js';
+import { semanticRoleForBlock } from './semantic-styles.js';
 
 function escapeXml(value = '') {
   return String(value)
@@ -16,10 +17,45 @@ function safeIdentifier(project) {
   return `urn:uuid:${raw || 'yasready-publish'}`;
 }
 
-function inlineRuns(block) {
-  if (!block?.runs?.length || block.runs.map((run) => run.text).join('') !== block.text) return escapeXml(block?.text || '').replaceAll('\n', '<br/>');
-  return block.runs.map((run) => {
-    let value = escapeXml(run.text).replaceAll('\n', '<br/>');
+function noteLookup(project) {
+  const notes = project?.manuscript?.notes || [];
+  const lookup = new Map();
+  const sequenceByKey = new Map();
+  let sequence = 0;
+  for (const note of notes) {
+    const key = `${note.type || 'footnote'}:${String(note.id ?? '')}`;
+    lookup.set(key, note);
+    sequence += 1;
+    sequenceByKey.set(key, sequence);
+  }
+  return { lookup, sequenceByKey };
+}
+
+function xmlIdPart(value = '') {
+  const safe = String(value || '').replace(/[^A-Za-z0-9_.-]+/g, '-').replace(/^-+|-+$/g, '');
+  return safe || 'block';
+}
+
+function noteReferenceId(block, noteRef, runIndex = 0) {
+  return `noteref-${xmlIdPart(noteRef?.type || 'footnote')}-${xmlIdPart(String(noteRef?.id ?? ''))}-${xmlIdPart(block?.id || '')}-${runIndex + 1}`;
+}
+
+function inlineRuns(block, project = null, noteContext = null) {
+  const runs = block?.runs || [];
+  const textMatches = runs.map((run) => run.text || '').join('') === String(block?.text || '');
+  if (!runs.length || !textMatches) return escapeXml(block?.text || '').replaceAll('\n', '<br/>');
+  const context = noteContext || noteLookup(project);
+  return runs.map((run, runIndex) => {
+    if (run.noteRef) {
+      const key = `${run.noteRef.type || 'footnote'}:${String(run.noteRef.id ?? '')}`;
+      const note = context.lookup.get(key);
+      const number = context.sequenceByKey.get(key);
+      if (!note || !number) return '';
+      const targetId = `note-${escapeXml(run.noteRef.type || 'footnote')}-${escapeXml(String(run.noteRef.id ?? ''))}`;
+      const refId = escapeXml(noteReferenceId(block, run.noteRef, runIndex));
+      return `<a epub:type="noteref" class="note-ref" id="${refId}" href="#${targetId}"><sup>${number}</sup></a>`;
+    }
+    let value = escapeXml(run.text || '').replaceAll('\n', '<br/>');
     if (!value) return '';
     if (run.smallCaps) value = `<span class="small-caps">${value}</span>`;
     if (run.strike) value = `<s>${value}</s>`;
@@ -28,6 +64,40 @@ function inlineRuns(block) {
     if (run.bold) value = `<strong>${value}</strong>`;
     return value;
   }).join('');
+}
+
+function safeMediaExtension(asset = {}) {
+  const mime = String(asset.mimeType || '').toLowerCase();
+  if (mime === 'image/png') return 'png';
+  if (mime === 'image/gif') return 'gif';
+  if (mime === 'image/svg+xml') return 'svg';
+  if (mime === 'image/webp') return 'webp';
+  if (mime === 'image/bmp') return 'bmp';
+  if (mime === 'image/tiff') return 'tiff';
+  return 'jpg';
+}
+
+function manuscriptMediaInfo(project) {
+  return (project?.manuscript?.media || []).map((asset, index) => ({
+    ...asset,
+    manifestId: `manuscript-image-${index + 1}`,
+    href: `images/manuscript-${String(index + 1).padStart(3, '0')}.${safeMediaExtension(asset)}`,
+  }));
+}
+
+function renderMediaForBlock(block, project, previewMode = false) {
+  const refs = block?.mediaRefs || [];
+  if (!refs.length) return '';
+  const assets = new Map(manuscriptMediaInfo(project).map((asset) => [asset.id, asset]));
+  return refs.map((ref) => {
+    const asset = assets.get(ref.mediaId);
+    if (!asset) return '';
+    const src = previewMode ? asset.dataUrl : `../${asset.href}`;
+    const alt = String(ref.altText || '').trim();
+    const altAttr = alt ? ` alt="${escapeXml(alt)}"` : ' alt=""';
+    const decorative = alt ? '' : ' role="presentation"';
+    return `<figure class="inline-image"><img src="${escapeXml(src)}"${altAttr}${decorative} /></figure>`;
+  }).join('\n');
 }
 
 function normalizedAlignment(value = '') {
@@ -82,27 +152,50 @@ function previewAttrs(block, previewMode = false) {
   return ` data-yrp-block-id="${escapeXml(block.id)}" tabindex="0"`;
 }
 
+function sceneOrnamentHtml(content, design) {
+  const treatment = design?.sceneBreakTreatment || 'source';
+  if (treatment === 'source') return content;
+  const ornament = treatment === 'dots' ? '• • •' : treatment === 'diamond' ? '◆' : '* * *';
+  return `<span class="scene-source-hidden">${content}</span><span class="scene-ornament" aria-hidden="true">${escapeXml(ornament)}</span>`;
+}
+
 function renderBlock(block, { blankMode = 'preserve', sectionType = 'chapter', design, project = null, previewMode = false } = {}) {
   const id = escapeXml(block.id || '');
   const attrs = previewAttrs(block, previewMode);
   const inspectClass = previewMode ? ' yrp-inspectable' : '';
-  const content = inlineRuns(block);
+  const content = inlineRuns(block, project);
   const overrideStyle = presentationStyle(project, block, sectionType);
+  const media = renderMediaForBlock(block, project, previewMode);
+
+  if (media) {
+    const textPart = String(block.text || '').trim()
+      ? `<p class="body media-caption">${content}</p>`
+      : '';
+    return `<div id="${id}" class="media-block${inspectClass}"${attrs}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${media}${textPart}</div>`;
+  }
+
   if (block.kind === 'blank') return `<p id="${id}" class="blank ${blankMode === 'collapse' ? 'collapsed' : blankMode === 'normalize' ? 'normalized' : 'preserved'}"${attrs}></p>`;
   if (block.kind === 'chapter-title') return `<h1 id="${id}" class="chapter-title${inspectClass}"${attrs}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</h1>`;
-  if (block.kind === 'front-back-heading' || (block.kind === 'heading' && sectionType === 'chapter') || (sectionType !== 'chapter' && matterSectionHeading(block, sectionType))) {
-    const baseStyle = sectionType === 'chapter' ? '' : matterParagraphStyle(block, design);
+  if (sectionType !== 'chapter' && (block.kind === 'front-back-heading' || matterSectionHeading(block, sectionType))) {
+    const baseStyle = matterParagraphStyle(block, design);
     const style = mergeInlineStyles(baseStyle, overrideStyle);
     return `<h2 id="${id}" class="matter-heading${inspectClass}"${attrs}${style ? ` style="${style}"` : ''}>${content}</h2>`;
   }
-  if (block.kind === 'scene-break') return `<p id="${id}" class="scene-break${inspectClass}"${attrs}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</p>`;
-  if (block.kind === 'text-message') return `<p id="${id}" class="text-message${inspectClass}"${attrs}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</p>`;
   if (sectionType !== 'chapter') {
     const style = mergeInlineStyles(matterParagraphStyle(block, design), overrideStyle);
     return `<p id="${id}" class="matter-body${inspectClass}"${attrs} style="${style}">${content}</p>`;
   }
-  if (block.kind === 'chapter-opening') return `<p id="${id}" class="body chapter-opening${inspectClass}"${attrs}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</p>`;
-  return `<p id="${id}" class="body${inspectClass}"${attrs}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</p>`;
+
+  const role = semanticRoleForBlock(project, block, sectionType);
+  const semanticAttr = ` data-yrp-semantic-role="${escapeXml(role)}"`;
+  if (role === 'subhead') return `<h2 id="${id}" class="subhead${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</h2>`;
+  if (role === 'block-quote') return `<blockquote id="${id}" class="block-quote${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}><p>${content}</p></blockquote>`;
+  if (role === 'written-note') return `<aside id="${id}" class="written-note${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}><p>${content}</p></aside>`;
+  if (role === 'verse') return `<p id="${id}" class="verse${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</p>`;
+  if (role === 'scene-break') return `<p id="${id}" class="scene-break${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${sceneOrnamentHtml(content, design)}</p>`;
+  if (role === 'text-message') return `<p id="${id}" class="text-message${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</p>`;
+  const openingClass = block.kind === 'chapter-opening' ? ' chapter-opening' : '';
+  return `<p id="${id}" class="body${openingClass}${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</p>`;
 }
 
 
@@ -126,7 +219,7 @@ function startsLowercase(text = '') {
 }
 
 function renderMatterInlineBlock(block, { project, sectionType, previewMode }) {
-  const content = inlineRuns(block);
+  const content = inlineRuns(block, project);
   const id = escapeXml(block.id || '');
   const inspectClass = previewMode ? ' yrp-inspectable' : '';
   const attrs = previewAttrs(block, previewMode);
@@ -143,14 +236,15 @@ function hiddenMatterBlank(block, previewMode = false) {
 function renderCleanMatterSection(section, project, design, previewMode = false) {
   const blocks = section.blocks || [];
   if (section.role === 'title') {
-    const visible = blocks.filter((block) => block.kind !== 'blank');
+    const visible = blocks.filter((block) => block.kind !== 'blank' || block.mediaRefs?.length);
     const lines = visible.map((block, index) => {
+      if (block.mediaRefs?.length) return renderBlock(block, { blankMode:'collapse', sectionType:section.type, design, project, previewMode });
       const id = escapeXml(block.id || '');
       const attrs = previewAttrs(block, previewMode);
       const inspectClass = previewMode ? ' yrp-inspectable' : '';
       const cls = index === 0 ? 'matter-title-primary' : index === 1 ? 'matter-title-secondary' : index === 2 ? 'matter-title-byline' : 'matter-title-line';
       const style = presentationStyle(project, block, section.type);
-      return `<p id="${id}" class="${cls}${inspectClass}"${attrs}${style ? ` style="${style}"` : ''}>${inlineRuns(block)}</p>`;
+      return `<p id="${id}" class="${cls}${inspectClass}"${attrs}${style ? ` style="${style}"` : ''}>${inlineRuns(block, project)}</p>`;
     });
     const blanks = blocks.filter((block) => block.kind === 'blank').map((block) => hiddenMatterBlank(block, previewMode));
     return `<div class="matter-title-page">${lines.join('\n')}${blanks.join('')}</div>`;
@@ -167,6 +261,13 @@ function renderCleanMatterSection(section, project, design, previewMode = false)
   };
 
   for (const block of blocks) {
+    if (block.mediaRefs?.length) {
+      flush();
+      if (pendingBlanks.length) out.push(pendingBlanks.map((blank) => hiddenMatterBlank(blank, previewMode)).join(''));
+      pendingBlanks = [];
+      out.push(renderBlock(block, { blankMode:'collapse', sectionType:section.type, design, project, previewMode }));
+      continue;
+    }
     if (block.kind === 'blank') {
       pendingBlanks.push(block);
       continue;
@@ -197,16 +298,44 @@ function renderCleanMatterSection(section, project, design, previewMode = false)
   return `<div class="matter-clean matter-${escapeXml(section.role || section.type)}">${out.join('\n')}</div>`;
 }
 
-function renderSectionBody(section, project, design, previewMode = false) {
-  if (section.type !== 'chapter' && design.frontMatterMode === 'clean') {
-    return renderCleanMatterSection(section, project, design, previewMode);
+function noteParagraphHtml(paragraph, project) {
+  const block = { text: paragraph?.text || '', runs: paragraph?.runs || [] };
+  return `<p>${inlineRuns(block, project)}</p>`;
+}
+
+function sectionNotesHtml(section, project) {
+  const context = noteLookup(project);
+  const references = new Map();
+  for (const block of section.blocks || []) {
+    (block.runs || []).forEach((run, runIndex) => {
+      if (!run.noteRef) return;
+      const key = `${run.noteRef.type || 'footnote'}:${String(run.noteRef.id ?? '')}`;
+      if (!references.has(key) && context.lookup.has(key)) references.set(key, noteReferenceId(block, run.noteRef, runIndex));
+    });
   }
-  return (section.blocks || []).map((block, index) => {
-    const blankMode = section.type === 'chapter'
-      ? blankRenderMode({ blocks:section.blocks, index, sectionType:section.type, policy:design.bodyBlankPolicy })
-      : 'collapse';
-    return renderBlock(block, { blankMode, sectionType:section.type, design, project, previewMode });
+  if (!references.size) return '';
+  const asides = [...references.entries()].map(([key, firstRefId]) => {
+    const note = context.lookup.get(key);
+    const number = context.sequenceByKey.get(key);
+    const id = `note-${escapeXml(note.type)}-${escapeXml(String(note.id))}`;
+    const refId = escapeXml(firstRefId);
+    const epubType = note.type === 'endnote' ? 'endnote' : 'footnote';
+    const body = (note.paragraphs || []).map((paragraph) => noteParagraphHtml(paragraph, project)).join('');
+    return `<aside epub:type="${epubType}" class="ebook-note" id="${id}"><a class="note-backref" href="#${refId}" aria-label="Back to note reference">${number}.</a>${body}</aside>`;
   }).join('\n');
+  return `<section class="ebook-notes" aria-label="Notes">${asides}</section>`;
+}
+
+function renderSectionBody(section, project, design, previewMode = false) {
+  const body = section.type !== 'chapter' && design.frontMatterMode === 'clean'
+    ? renderCleanMatterSection(section, project, design, previewMode)
+    : (section.blocks || []).map((block, index) => {
+      const blankMode = section.type === 'chapter'
+        ? blankRenderMode({ blocks:section.blocks, index, sectionType:section.type, policy:design.bodyBlankPolicy })
+        : 'collapse';
+      return renderBlock(block, { blankMode, sectionType:section.type, design, project, previewMode });
+    }).join('\n');
+  return `${body}${sectionNotesHtml(section, project)}`;
 }
 
 function stylesheet(designInput) {
@@ -234,7 +363,24 @@ p.matter-body { text-indent:0; }
 .matter-dedication .matter-flow { margin-bottom:1.1em; }
 body.front p.blank, body.back p.blank { display:none; min-height:0; height:0; margin:0; padding:0; }
 p.scene-break { margin: ${design.sceneBreakSpaceEm}em 0; text-indent: 0; text-align: center; }
-p.text-message { margin:0 ${design.textMessageIndentEm}em ${design.paragraphGapEm}em; text-indent: 0; }
+.scene-source-hidden { display:none; }
+.scene-ornament { letter-spacing:.12em; }
+.subhead { margin:1.35em 0 .6em; text-align:${design.subheadAlignment}; font-size:${design.subheadSizeEm}em; line-height:1.25; font-weight:700; break-after:avoid; page-break-after:avoid; }
+.block-quote { margin:.8em ${design.blockQuoteIndentEm}em; padding:0; border:0; ${design.blockQuoteStyle === 'italic' ? 'font-style:italic;' : ''} }
+.block-quote p { margin:0; text-indent:0; }
+.written-note { margin:.95em ${design.writtenNoteStyle === 'inset' ? '1.15' : '0'}em; padding:${design.writtenNoteStyle === 'inset' ? '.75em .9em' : '0'}; border-left:${design.writtenNoteStyle === 'inset' ? '.16em solid currentColor' : '0'}; }
+.written-note p { margin:0; text-indent:0; }
+.verse { margin:.8em 0 .8em ${design.verseIndentEm}em; text-indent:0; white-space:normal; }
+.text-message { margin:0 ${design.textMessageStyle === 'compact' ? Math.max(.35, design.textMessageIndentEm * .55) : design.textMessageIndentEm}em ${design.paragraphGapEm}em; text-indent: 0; }
+.media-block { margin:1em 0; text-align:center; }
+figure.inline-image { margin:0 auto .55em; max-width:100%; }
+figure.inline-image img { display:block; max-width:100%; height:auto; margin:0 auto; }
+p.media-caption { text-indent:0; text-align:center; font-size:.92em; }
+.note-ref { text-decoration:none; vertical-align:super; font-size:.72em; line-height:0; }
+.ebook-notes { margin:1.6em 0 0; padding-top:.8em; border-top:.08em solid currentColor; }
+.ebook-note { margin:.7em 0; font-size:.92em; }
+.ebook-note p { display:inline; margin:0; text-indent:0; }
+.note-backref { margin-right:.35em; text-decoration:none; font-weight:700; }
 p.blank { min-height: .7em; }
 p.blank.normalized { display:block; min-height:${design.bodyBlankSpaceEm}em; height:${design.bodyBlankSpaceEm}em; margin:0; padding:0; }
 p.blank.collapsed { display:none; min-height:0; height:0; margin:0; padding:0; }
@@ -320,7 +466,7 @@ function coverInfo(project) {
   return { ...cover, ext, href: `images/cover.${ext}` };
 }
 
-function packageOpf(project, design, sections, generatedAt, cover = null) {
+function packageOpf(project, design, sections, generatedAt, cover = null, manuscriptMedia = []) {
   const title = escapeXml(project.title || 'Book');
   const author = escapeXml(project.author || '');
   const publisher = escapeXml(design.publisher || '');
@@ -330,6 +476,7 @@ function packageOpf(project, design, sections, generatedAt, cover = null) {
   const creator = author ? `\n    <dc:creator>${author}</dc:creator>` : '';
   const publisherMeta = publisher ? `\n    <dc:publisher>${publisher}</dc:publisher>` : '';
   const coverManifest = cover ? `\n    <item id="cover-image" href="${escapeXml(cover.href)}" media-type="${escapeXml(cover.mimeType)}" properties="cover-image"/>` : '';
+  const manuscriptMediaManifest = manuscriptMedia.map((asset) => `\n    <item id="${escapeXml(asset.manifestId)}" href="${escapeXml(asset.href)}" media-type="${escapeXml(asset.mimeType)}"/>`).join('');
   const firstChapterIndex = sections.findIndex((section) => section.type === 'chapter');
   const spineRows = [];
   sections.forEach((section, index) => {
@@ -355,7 +502,7 @@ function packageOpf(project, design, sections, generatedAt, cover = null) {
   <manifest>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
     <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
-    <item id="css" href="styles.css" media-type="text/css"/>${coverManifest}
+    <item id="css" href="styles.css" media-type="text/css"/>${coverManifest}${manuscriptMediaManifest}
 ${manifestSections}
   </manifest>
   <spine toc="ncx">
@@ -366,7 +513,7 @@ ${spineRows.join('\n')}
 
 function dataUrlBytes(dataUrl = '') {
   const match = String(dataUrl).match(/^data:([^;,]+);base64,(.+)$/s);
-  if (!match) throw new Error('The ebook cover asset is not stored as a readable base64 image.');
+  if (!match) throw new Error('An ebook image asset is not stored as readable base64 data.');
   const binary = globalThis.atob ? globalThis.atob(match[2]) : Buffer.from(match[2], 'base64').toString('binary');
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
@@ -382,6 +529,7 @@ export function buildEpubPackageData({ project } = {}) {
   const toc = ebookTocEntries(project, design);
   const generatedAt = new Date().toISOString();
   const cover = coverInfo(project);
+  const manuscriptMedia = manuscriptMediaInfo(project);
   const files = new Map();
   files.set('mimetype', 'application/epub+zip');
   files.set('META-INF/container.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`);
@@ -390,8 +538,11 @@ export function buildEpubPackageData({ project } = {}) {
   files.set('OEBPS/toc.ncx', ncx(project, toc));
   for (const section of sections) files.set(`OEBPS/${section.href}`, sectionXhtml(section, project, design));
   if (cover) files.set(`OEBPS/${cover.href}`, dataUrlBytes(cover.dataUrl));
-  files.set('OEBPS/package.opf', packageOpf(project, design, sections, generatedAt, cover));
-  return { files, sections, toc, design, generatedAt, coverage, cover, visibleTocInSpine: Boolean(design.visibleToc) };
+  for (const asset of manuscriptMedia) {
+    if (asset?.dataUrl) files.set(`OEBPS/${asset.href}`, dataUrlBytes(asset.dataUrl));
+  }
+  files.set('OEBPS/package.opf', packageOpf(project, design, sections, generatedAt, cover, manuscriptMedia));
+  return { files, sections, toc, design, generatedAt, coverage, cover, manuscriptMedia, visibleTocInSpine: Boolean(design.visibleToc) };
 }
 
 export async function buildEpubBlob({ project } = {}) {

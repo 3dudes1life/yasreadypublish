@@ -4,6 +4,7 @@ import { DEFAULT_EBOOK_DESIGN, ensureEbookDesign } from './ebook-model.js';
 import { ensureStructureOverrides } from './structure-overrides.js';
 import { ensureEditions, invalidateAllEditionProofs } from './editions.js';
 import { ensurePresentationOverrides } from './presentation-overrides.js';
+import { canonicalizeManuscriptV2 } from './manuscript-rules.js';
 
 export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
   const [sourceFileHash, manuscriptHash] = await Promise.all([
@@ -16,8 +17,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   const project = {
     id: crypto.randomUUID(),
-    version: 20,
-    appVersion: '1.0.11',
+    version: 21,
+    appVersion: '1.0.12',
     title: baseName,
     author: '',
     createdAt: now,
@@ -33,7 +34,7 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
     storyLock: {
       enabled: true,
       canonicalAlgorithm: 'SHA-256',
-      canonicalVersion: 1,
+      canonicalVersion: parsed.metadata?.canonicalVersion || 2,
       verifiedAt: now,
       status: 'verified',
     },
@@ -42,6 +43,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
     manuscript: {
       blocks: parsed.blocks,
       chapters: parsed.chapters,
+      notes: parsed.notes || [],
+      media: parsed.media || [],
       stats: parsed.stats,
       metadata: parsed.metadata,
     },
@@ -201,19 +204,57 @@ export function migrateProject(project) {
   ensureEbookDesign(project);
   ensureEditions(project);
   ensurePresentationOverrides(project);
-  // 1.0.11 is a Kindle Pro QA/preview calibration release. It adds no new
-  // persisted manuscript schema fields, so schema 20 remains current.
-  project.version = Math.max(oldVersion, 20);
-  project.appVersion = '1.0.11';
+
+  // 1.0.12 adds Kindle semantic styles plus safe note/media import for new
+  // DOCX projects. Existing projects remain on their original canonical
+  // algorithm and hashes; migration never rewrites source blocks or assets.
+  if (oldVersion < 21) {
+    if (!Array.isArray(project.manuscript?.notes)) project.manuscript.notes = [];
+    if (!Array.isArray(project.manuscript?.media)) project.manuscript.media = [];
+    if (project.editions?.ebook) project.editions.ebook.lastPreflight = null;
+  }
+  project.version = Math.max(oldVersion, 21);
+  project.appVersion = '1.0.12';
   return project;
 }
 
+function storyLockDataUrlBytes(dataUrl = '') {
+  const match = String(dataUrl).match(/^data:[^;,]+;base64,(.+)$/s);
+  if (!match) return null;
+  try {
+    const binary = globalThis.atob ? globalThis.atob(match[1]) : Buffer.from(match[1], 'base64').toString('binary');
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  } catch {
+    return null;
+  }
+}
+
 export async function verifyProjectStoryLock(project) {
-  const canonicalText = project.manuscript.blocks.map((block) => block.text).join('\u2029');
+  const canonicalVersion = Number(project?.storyLock?.canonicalVersion || 1);
+  const mediaMismatches = [];
+  if (canonicalVersion >= 2) {
+    for (const asset of project?.manuscript?.media || []) {
+      const bytes = storyLockDataUrlBytes(asset?.dataUrl || '');
+      if (!bytes) {
+        mediaMismatches.push({ id: asset?.id || null, reason: 'unreadable-data' });
+        continue;
+      }
+      const actualMediaHash = await sha256Hex(bytes);
+      if (actualMediaHash !== String(asset?.sha256 || '')) {
+        mediaMismatches.push({ id: asset?.id || null, expected: asset?.sha256 || '', actual: actualMediaHash, reason: 'hash-mismatch' });
+      }
+    }
+  }
+  const canonicalText = canonicalVersion >= 2
+    ? canonicalizeManuscriptV2(project?.manuscript?.blocks || [], project?.manuscript?.notes || [], project?.manuscript?.media || [])
+    : (project?.manuscript?.blocks || []).map((block) => block.text).join('\u2029');
   const currentHash = await sha256Hex(canonicalText);
   return {
-    ok: currentHash === project.source.manuscriptHash,
+    ok: currentHash === project.source.manuscriptHash && mediaMismatches.length === 0,
     expected: project.source.manuscriptHash,
     actual: currentHash,
+    mediaMismatches,
   };
 }

@@ -1,86 +1,80 @@
-# YasReady Publish v1.0.11
+# YasReady Publish v1.0.12
 
 Private publishing studio for Story-Locked manuscripts.
 
-Version 1.0.11 is the **Kindle Pro production pass**. It keeps the stable reflowable EPUB engine from 1.0.10 and adds calibrated preview sizing, whole-book consistency analysis, responsive torture testing, Enhanced Typesetting safety checks, and a stronger finished-package autopsy.
+Version 1.0.12 is the **Kindle semantic feature-parity pass**. It keeps the stable Kindle Pro preview/QA engine from 1.0.11 and adds fiction-specific semantic styling, safe DOCX note/image import, and stronger Story Lock coverage for newly imported manuscripts.
 
 ## Story Lock remains the first rule
 
-YasReady may change presentation metadata. It may not rewrite manuscript language.
+YasReady may change presentation. It may not rewrite manuscript language.
 
 - Source paragraphs remain immutable.
-- Kindle layout overrides are stored by source block ID.
-- Preview calibration never changes the EPUB.
-- Final export re-verifies Story Lock before packaging.
+- Content-style choices are stored as edition presentation metadata by source block ID.
+- Scene-break ornaments may visually replace source marks, but the locked source marks remain preserved in the EPUB source.
+- New DOCX imports use canonical Story Lock v2 so note wording and embedded-image fingerprints are protected alongside body paragraphs.
+- Existing projects keep their original Story Lock algorithm and hash during migration.
 
-## Kindle Pro 1.0.11
+## Kindle semantic styles
 
-### Calibrated reader preview
+Preview Studio can now recognize or assign:
 
-The browser preview previously inherited a 16px browser baseline, which can visually feel larger than an 11pt manuscript. 1.0.11 adds a **preview-only reference point size**. Normal defaults to **11pt equivalent** while the production EPUB continues to leave body text size to the Kindle reader.
+- Subhead
+- Block Quote
+- Written Note / Letter
+- Verse / Poetry
+- Text Conversation
+- Scene Break
 
-Preview controls include:
+The **Semantic Style Palette** controls the book-wide presentation of these elements. In **Adjust Layout**, select a block and use **Content style** to override its role without editing its words.
 
-- Kindle / Phone / Tablet
-- Portrait / Landscape
-- Small / Normal / Large reader text
-- 10.5 / 11 / 12pt visual reference
-- Light / Sepia / Dark
-- Read / Adjust modes
+Word style names are treated as detection hints, not permission to rewrite content. Manual semantic overrides are presentation-only.
 
-The reference point size is a simulator calibration only. It is never written as a fixed body font size into the production EPUB.
+## Inline images
 
-### Whole-book consistency scan
+New DOCX imports can preserve embedded manuscript images and package them inside the Kindle EPUB. Image placement remains tied to its source paragraph. YasReady checks:
 
-Kindle Pro scans the entire book, not only the section currently visible. It checks:
+- image asset/reference resolution
+- Kindle-safe image MIME types
+- EPUB manifest/package coverage
+- source alt text when available
 
-- exact source coverage
-- chapter-section count
-- chapter-title structure
-- Kindle navigation count
-- Story Lock metadata in the finished package
-- nav and spine targets
-- source placeholders
-- unusually large local formatting overrides
-- rare Word paragraph styles in chapter prose
-- Enhanced Typesetting-friendly CSS
+Meaningful images without alt text are surfaced as accessibility warnings rather than silently altered.
 
-Warnings can jump back to an affected chapter or source block when a direct target exists.
+## Footnotes and endnotes
 
-### 3-view torture test
+New DOCX imports can preserve footnotes and endnotes. Note text is included in Story Lock v2 and rendered with linked EPUB `noteref` / footnote/endnote semantics. Unresolved references block import or release rather than dropping note text.
 
-One button renders the current section in three read-only stress views:
+## Kindle Pro remains active
 
-1. Small reader text on a narrow phone
-2. Normal reader text on a Kindle-sized viewport
-3. Extra-large reader text on a tablet viewport
+1.0.12 retains:
 
-This helps find wrapping, heading, spacing, and alignment problems before Kindle Previewer.
+- 11pt-equivalent preview calibration without forcing EPUB body size
+- Kindle / Phone / Tablet simulation
+- 3-View Torture Test
+- whole-book consistency scan
+- Enhanced Typesetting-oriented CSS checks
+- finished EPUB autopsy
+- visible linked Contents and Kindle Go To navigation
+- single internal cover packaging
+- Preview Studio Read / Adjust modes
+- Undo / Redo / Reset for presentation overrides
 
-### Stronger finished EPUB autopsy
+## Existing Book 2 projects
 
-Before release, YasReady verifies the generated package itself, including:
+You do **not** need to reimport an existing project merely to use semantic Content styles or the new Style Palette.
 
-- project title and author metadata
-- current Story Lock SHA-256
-- exactly one internal cover image
-- no duplicate cover XHTML
-- chapter file count and chapter navigation count
-- visible Contents in the reading spine
-- Begin Reading landmark
-- every navigation target exists
-- every spine target exists
-- no Preview Studio hooks leak into production
+A reimport is required only when you want YasReady to extract **footnotes/endnotes or embedded manuscript images** from the DOCX, because older project files never stored those assets. Reimporting creates a new canonical v2 Story Lock fingerprint; migration alone never changes the old fingerprint.
 
 ## Final validation
 
-YasReady is not Amazon's rendering engine. The release workflow remains:
+YasReady is not Amazon's rendering engine. Final Kindle release remains:
 
 1. Story Lock passes
-2. Kindle Pro consistency scan passes
+2. Kindle Pro scan passes
 3. KDP EPUB preflight passes
-4. Download the EPUB
-5. Open that exact EPUB in Amazon Kindle Previewer
+4. Finished EPUB audit passes
+5. Download the EPUB
+6. Open that exact EPUB in Amazon Kindle Previewer
 
 ## Local use
 
@@ -91,14 +85,4 @@ npm run dev
 
 Then open `http://localhost:4173`.
 
-`npm run verify` runs the full automated suite, static verification, and Superman audit.
-
-## Current release QA
-
-- **127/127 automated tests passing**
-- Static verification passing
-- Superman audit passing
-- 26 application JavaScript modules syntax/import checked
-- 46 literal button IDs audited
-- 14 dynamic control families audited
-- no fetch/XHR/WebSocket/sendBeacon manuscript-egress primitives in application source
+`npm run verify` runs automated tests, static verification, and the Superman audit.

@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.0.12 — Kindle Semantic Feature Parity
+
+- Adds Story-Lock-safe semantic presentation roles for Subheads, Block Quotes, Written Notes/Letters, Verse/Poetry, Text Conversations, and Scene Breaks.
+- Adds a compact Semantic Style Palette with book-wide controls for subhead sizing/alignment, quote treatment/indent, written-note treatment, text-message treatment/indent, verse indent, and scene-break ornaments.
+- Adds a Content style control to Preview Studio Adjust Layout. Semantic choices are edition-scoped presentation metadata and cannot edit source wording.
+- Auto-detects common fiction semantics from source kind and Word paragraph style names while allowing explicit per-block overrides.
+- Adds DOCX footnote/endnote import for new projects. Note wording is preserved, linked in EPUB XHTML, and protected by Story Lock v2.
+- Adds embedded DOCX image extraction for new projects, including image fingerprints, placement references, alt text, EPUB manifest packaging, and package-audit coverage.
+- Adds canonical Story Lock v2 for new imports: exact body text + note text + embedded-media fingerprints. Existing projects stay on their original canonical version/hash during migration.
+- Strengthens Story Lock v2 verification by recomputing embedded-media bytes against stored SHA-256 fingerprints, preventing a changed image payload from passing with a stale hash.
+- Adds preflight errors for unresolved/unsupported inline images and unresolved note references; missing image alt text is a review warning.
+- Extends Kindle Pro quality reporting with semantic-style, note, image, and accessibility coverage.
+- Project schema 21 / app 1.0.12. Migration initializes empty note/media arrays only where absent and invalidates stale ebook preflight state; manuscript blocks are untouched.
+- QA: 138/138 automated tests passing; static verification PASS; Superman audit PASS.
+
 ## v1.0.11 — Kindle Pro Production Studio
 
 - Calibrates Kindle Preview Studio to an 11pt-equivalent visual baseline by default while leaving production EPUB body sizing reader-controlled.

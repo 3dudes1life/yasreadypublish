@@ -706,3 +706,25 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .kindle-qa-matrix{min-width:0;min-height:0;height:100%;display:grid;grid-template-rows:auto minmax(0,1fr);border:1px solid #e4e3e8;border-radius:14px;background:#f7f7f9;overflow:hidden}.kindle-qa-matrix-head{display:flex;justify-content:space-between;gap:10px;padding:10px 12px;border-bottom:1px solid #e5e4e9;background:#fff}.kindle-qa-matrix-head h3{margin:3px 0 3px;font-size:11px}.kindle-qa-matrix-head p{margin:0;color:var(--muted);font-size:7px;line-height:1.35}.kindle-qa-matrix-head>span{align-self:flex-start;border-radius:999px;background:#f0edff;color:#5e54b5;padding:5px 7px;font-size:6.3px;font-weight:900}.kindle-qa-grid{min-height:0;overflow:auto;display:grid;grid-template-columns:repeat(3,minmax(150px,1fr));gap:8px;padding:10px}.kindle-qa-card{min-width:0;border:1px solid #e0dfe5;border-radius:11px;background:#fff;padding:7px;display:grid;grid-template-rows:auto minmax(0,1fr);gap:6px}.kindle-qa-card-head strong{display:block;font-size:7.5px}.kindle-qa-card-head small{display:block;margin-top:1px;color:var(--muted);font-size:6.2px}.kindle-qa-screen{min-height:330px;overflow:hidden;border-radius:8px;background:#ececef;display:grid;place-items:center;padding:6px}.kindle-qa-screen iframe{width:100%;height:100%;min-height:330px;border:0;border-radius:6px;background:white}.preview-studio-grid-v110:has(.kindle-qa-matrix){grid-template-columns:150px minmax(520px,1fr) 230px}
 @media(max-width:1100px){.kindle-qa-grid{grid-template-columns:1fr}.kindle-qa-screen{min-height:430px}.kindle-quality-card{grid-template-columns:76px minmax(0,1fr)}.kindle-quality-score strong{font-size:25px}.kindle-preview-toolbar-v111 .kindle-toolbar-group.quality{margin-left:0}}
 @media(max-width:720px){.kindle-quality-card{grid-template-columns:1fr}.kindle-quality-main{padding:0 12px 12px}.kindle-quality-head{flex-direction:column}.kindle-quality-counts{justify-content:flex-start}.kindle-preview-toolbar-v111{position:static}.kindle-qa-grid{grid-template-columns:1fr}.kindle-qa-screen{min-height:520px}}
+
+/* v1.0.12 — Kindle semantic fiction styles */
+.kindle-style-palette { margin:16px 0; padding:17px; border:1px solid #e3e1eb; border-radius:18px; background:linear-gradient(145deg,#fff,#faf9fe); }
+.kindle-style-palette-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:13px; }
+.kindle-style-palette-head h3 { margin:4px 0 3px; font-size:17px; letter-spacing:-.025em; }
+.kindle-style-palette-head p { margin:0; max-width:680px; color:var(--muted); font-size:9.5px; line-height:1.45; }
+.kindle-style-palette-head .mini-status { flex:0 0 auto; }
+.semantic-count-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; margin-bottom:13px; }
+.semantic-count-grid > div { min-width:0; padding:9px 10px; border:1px solid #e9e7ef; border-radius:12px; background:#fff; }
+.semantic-count-grid b { display:block; font-size:15px; letter-spacing:-.03em; }
+.semantic-count-grid span { display:block; margin-top:2px; color:var(--muted); font-size:7.5px; line-height:1.25; }
+.semantic-style-controls { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; padding-top:12px; border-top:1px solid #eceaf1; }
+.semantic-style-controls .design-field { min-width:0; }
+.semantic-style-controls .design-field > span { white-space:normal; }
+.semantic-style-foot { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-top:13px; padding-top:12px; border-top:1px solid #eceaf1; }
+.semantic-style-foot p { margin:0; max-width:720px; color:var(--muted); font-size:8.5px; line-height:1.45; }
+.inspector-semantic-role { display:grid; gap:6px; margin:12px 0; padding:11px; border:1px solid #ddd8f4; border-radius:12px; background:#faf9ff; }
+.inspector-semantic-role > span { font-size:8px; font-weight:900; letter-spacing:.04em; text-transform:uppercase; color:#6254bb; }
+.inspector-semantic-role select { width:100%; border:1px solid #d8d4e6; border-radius:10px; padding:9px 10px; background:#fff; color:var(--text); font:inherit; font-size:10px; font-weight:750; }
+.inspector-semantic-role small { color:var(--muted); font-size:7.5px; line-height:1.4; }
+@media(max-width:1050px) { .semantic-count-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .semantic-style-controls { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:700px) { .kindle-style-palette-head,.semantic-style-foot { flex-direction:column; align-items:stretch; } .semantic-count-grid,.semantic-style-controls { grid-template-columns:1fr; } .semantic-style-foot .btn { width:100%; } }

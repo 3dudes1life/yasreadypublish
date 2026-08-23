@@ -44,6 +44,17 @@ export function runEpubPreflight({ project, storyLockOk = true } = {}) {
   const stats = effectiveStats(project);
   const chapters = stats.chapters || 0;
   const imageCount = project?.manuscript?.metadata?.imageCount || 0;
+  const mediaAssets = project?.manuscript?.media || [];
+  const mediaById = new Set(mediaAssets.map((asset) => asset.id));
+  const imageRefs = (project?.manuscript?.blocks || []).flatMap((block) => block.mediaRefs || []);
+  const missingImageRefs = imageRefs.filter((ref) => !mediaById.has(ref.mediaId));
+  const supportedImageTypes = new Set(['image/jpeg','image/png','image/gif','image/svg+xml']);
+  const unsupportedImages = mediaAssets.filter((asset) => !supportedImageTypes.has(String(asset.mimeType || '').toLowerCase()));
+  const missingAltText = imageRefs.filter((ref) => !String(ref.altText || '').trim());
+  const notes = project?.manuscript?.notes || [];
+  const noteKeys = new Set(notes.map((note) => `${note.type}:${note.id}`));
+  const noteRefs = (project?.manuscript?.blocks || []).flatMap((block) => (block.runs || []).map((run) => run.noteRef).filter(Boolean));
+  const unresolvedNoteRefs = noteRefs.filter((ref) => !noteKeys.has(`${ref.type}:${ref.id}`));
   const title = String(project?.title || '').trim();
   const author = String(project?.author || '').trim();
   const languageOk = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(design.language);
@@ -79,7 +90,9 @@ export function runEpubPreflight({ project, storyLockOk = true } = {}) {
     check('paragraph-separation', 'Paragraph separation', paragraphSeparationOk ? 'pass' : 'error', paragraphSeparationOk ? 'Body paragraphs remain visually distinguishable with relative-unit spacing/indentation.' : 'Kindle body paragraphs need either an indent or paragraph spacing.'),
     check('html-file-count', 'Kindle HTML file count', fileCountOk ? 'pass' : 'error', `${htmlFileCount} XHTML reading-order/navigation file(s); Amazon requires fewer than 300.`),
     check('html-file-size', 'Kindle section size', sectionSizeOk ? 'pass' : 'error', sectionSizeOk ? 'Largest source section is safely below Amazon’s 30 MB per-HTML-file ceiling.' : 'A source section is too large for Kindle and must be split.'),
-    check('images', 'DOCX image assets', imageCount === 0 ? 'pass' : 'error', imageCount === 0 ? 'No manuscript image assets need packaging.' : `${imageCount} DOCX image asset(s) detected. YasReady blocks EPUB export rather than silently omitting them.`),
+    check('images', 'DOCX image assets', imageCount === 0 ? 'pass' : (mediaAssets.length === imageCount && missingImageRefs.length === 0 && unsupportedImages.length === 0 ? 'pass' : 'error'), imageCount === 0 ? 'No manuscript image assets need packaging.' : (mediaAssets.length === imageCount && missingImageRefs.length === 0 && unsupportedImages.length === 0 ? `${imageCount} embedded image asset${imageCount === 1 ? '' : 's'} are preserved and packaged in the Kindle EPUB.` : `${imageCount} DOCX image asset(s) detected, but ${missingImageRefs.length} reference(s) are unresolved and ${unsupportedImages.length} asset(s) use unsupported Kindle image types.`)),
+    check('image-alt', 'Image accessibility text', missingAltText.length ? 'warning' : 'pass', missingAltText.length ? `${missingAltText.length} embedded image placement${missingAltText.length === 1 ? '' : 's'} have no Word alt text. The images are preserved, but add alt text in the final DOCX when the image conveys meaning.` : imageRefs.length ? `All ${imageRefs.length} embedded image placement${imageRefs.length === 1 ? '' : 's'} include alt text.` : 'No embedded manuscript images require alt text.'),
+    check('notes', 'Footnotes / endnotes', unresolvedNoteRefs.length ? 'error' : 'pass', unresolvedNoteRefs.length ? `${unresolvedNoteRefs.length} note reference${unresolvedNoteRefs.length === 1 ? '' : 's'} do not resolve to imported note text.` : notes.length ? `${notes.length} footnote/endnote${notes.length === 1 ? '' : 's'} are Story-Locked and packaged with linked note references.` : 'No footnotes or endnotes detected.'),
     check('structure-overrides', 'Structure repair metadata', 'pass', `${stats.structureOverrides || 0} paragraph classification override(s) are applied outside Story Lock; source wording is unchanged.`),
     check('word-tables', 'Word tables', (project?.manuscript?.metadata?.tableCount || 0) ? 'warning' : 'pass', (project?.manuscript?.metadata?.tableCount || 0) ? `${project.manuscript.metadata.tableCount} Word table(s) were detected. Paragraph text is preserved, but table grid layout is not reproduced.` : 'No Word table structures detected.'),
     check('manual-breaks', 'Manual Word page breaks', (project?.manuscript?.metadata?.manualPageBreakCount || 0) ? 'warning' : 'pass', (project?.manuscript?.metadata?.manualPageBreakCount || 0) ? `${project.manuscript.metadata.manualPageBreakCount} manual Word page break(s) were detected and intentionally ignored in the reflowable edition.` : 'No manual Word page breaks detected.'),

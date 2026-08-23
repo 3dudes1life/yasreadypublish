@@ -1,32 +1,53 @@
-# YasReady Publish 1.0.11 — Kindle Production Rules
+# YasReady Publish 1.0.12 — Kindle Production Rules
 
-This project deliberately produces a conservative reflowable EPUB for Amazon KDP.
+YasReady deliberately produces a conservative reflowable EPUB for Amazon KDP.
 
 ## Core production rules
 
 - EPUB 3 reflowable package
 - visible linked Table of Contents before Chapter 1
 - EPUB navigation document plus NCX compatibility navigation
-- Begin Reading landmark at first chapter
+- Begin Reading landmark at the first chapter
 - one internal cover image; no duplicate cover XHTML page
-- no fixed print trim/gutter/folios in ebook output
-- body text size remains reader-controlled
-- body base line-height remains reader-controlled
-- chapter and matter sizing uses relative units
-- Story Lock SHA-256 is embedded in package metadata
+- no print trim, gutter, running folios, or blank versos in ebook output
+- body font size and base line-height remain reader-controlled
+- relative-unit chapter and semantic styling
+- Story Lock SHA-256 embedded in package metadata
 
-## 1.0.11 Kindle Pro checks
+## Semantic fiction roles
 
-- finished navigation targets must resolve
-- finished spine targets must resolve
-- Story Lock metadata must match the current manuscript hash
-- production CSS may not force body px/pt size
-- production CSS should avoid fixed/absolute positioning and negative-margin hacks
-- chapter headings use relative em sizing and explicit page breaks
-- entire book is scanned for chapter-map inconsistencies and suspicious presentation outliers
+Version 1.0.12 supports Kindle-safe structure for:
 
-## Preview calibration
+- Subheads (`h2`)
+- Block Quotes (`blockquote`)
+- Written Notes / Letters (`aside`)
+- Verse / Poetry
+- Text Conversations
+- Scene Breaks
+- Footnotes / Endnotes with EPUB note semantics
+- Inline manuscript images with responsive sizing and alt text when supplied
 
-The 10.5 / 11 / 12pt reference control affects only YasReady's simulator. It exists so an author can visually compare the reflowable preview to a familiar manuscript baseline. It is not written into EPUB body CSS.
+Role assignment is presentation metadata. Source words, block IDs, and source order remain locked.
+
+## Story Lock v2 for new imports
+
+New DOCX imports protect:
+
+- canonical paragraph wording/boundaries
+- footnote/endnote wording
+- embedded-image SHA-256 fingerprints and file identity
+
+Story Lock verification also recomputes embedded image bytes against their stored fingerprints. Existing projects keep canonical v1 unless they are deliberately reimported from DOCX.
+
+## Kindle Pro checks retained
+
+- finished navigation targets resolve
+- finished spine targets resolve
+- Story Lock metadata matches the current project
+- production CSS does not force body px/pt size
+- no fixed/absolute book-content positioning or negative-margin hacks
+- chapter headings use relative sizing and explicit breaks
+- whole book scanned for structural/presentation outliers
+- 3-View Torture Test for small phone, normal Kindle, and large tablet
 
 Amazon Kindle Previewer remains the final external rendering check.

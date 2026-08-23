@@ -1,12 +1,32 @@
-# EPUB Preflight — v1.0.11
+# EPUB Preflight — v1.0.12
 
-Kindle release requires Story Lock plus two gates:
+Kindle release requires Story Lock plus the KDP EPUB and Kindle Pro quality gates.
 
-1. KDP EPUB preflight
-2. Kindle Pro whole-book quality scan
+## Core package checks
 
-The preflight validates exact source coverage, chapter navigation, visible Contents, logical TOC, landmarks, internal cover, metadata, language, reflowable structure, reader-controlled body text, paragraph separation, Kindle section/file limits, image safety, source placeholders, front-matter reflow, finished package structure, and Enhanced Typesetting-friendly CSS.
+- exact source-block coverage and order
+- chapter navigation count
+- visible linked Contents before Chapter 1
+- EPUB 3 navigation + NCX compatibility navigation
+- Begin Reading landmark
+- exactly one internal cover image and no duplicate cover XHTML
+- title, author, publisher, and language metadata
+- reflowable structure with reader-controlled body sizing
+- Kindle HTML file count/section-size safety
+- clean front-matter reflow and source-placeholder detection
+- finished nav/spine target resolution
+- no Preview Studio classes/hooks in production output
+- Enhanced Typesetting-friendly CSS
 
-The Kindle Pro scan additionally looks across the whole book for chapter structure mismatches, suspicious local overrides, rare Word styles, and finished-package target resolution.
+## v1.0.12 semantic-content checks
 
-A green preview alone is not sufficient. The final EPUB must still be opened in Amazon Kindle Previewer.
+- semantic fiction blocks remain source-backed and presentation-only
+- embedded DOCX image references must resolve to packaged assets
+- image MIME types must be supported by the Kindle path
+- image alt text is reviewed for accessibility
+- footnote/endnote references must resolve to imported, Story-Locked note text
+- finished EPUB audit verifies manuscript-image manifest/file coverage and note targets
+
+New imports use Story Lock canonical v2 so note wording and embedded-media fingerprints participate in the source integrity gate. Existing projects are never silently re-hashed during migration.
+
+A green YasReady preview is not final retailer acceptance. Open the exact exported EPUB in Amazon Kindle Previewer before upload.

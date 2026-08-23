@@ -48,6 +48,28 @@ export function auditEpubPackage({ project } = {}) {
   const manifestById = new Map([...opf.matchAll(/<item\s+id="([^"]+)"\s+href="([^"]+)"/g)].map((match) => [match[1], match[2]]));
   const spineIds = [...opf.matchAll(/<itemref\s+idref="([^"]+)"\s*\/>/g)].map((match) => match[1]);
   const spineTargetsOk = spineIds.every((id) => manifestById.has(id) && filePaths.has(manifestById.get(id)));
+  const manuscriptMedia = project?.manuscript?.media || [];
+  const manuscriptImageManifest = [...opf.matchAll(/<item\s+id="manuscript-image-[^"]+"\s+href="([^"]+)"\s+media-type="([^"]+)"\s*\/>/g)];
+  const manuscriptMediaOk = manuscriptImageManifest.length === manuscriptMedia.length
+    && manuscriptImageManifest.every((match) => filePaths.has(match[1]));
+  const xhtmlEntries = [...files.entries()].filter(([path, content]) => /\.xhtml$/i.test(path) && typeof content === 'string');
+  const duplicateIds = [];
+  const brokenFragmentTargets = [];
+  for (const [path, content] of xhtmlEntries) {
+    const ids = [...content.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
+    const seen = new Set();
+    for (const id of ids) {
+      if (seen.has(id)) duplicateIds.push({ path, id });
+      seen.add(id);
+    }
+    for (const match of content.matchAll(/href="#([^"]+)"/g)) {
+      if (!seen.has(match[1])) brokenFragmentTargets.push({ path, target: match[1] });
+    }
+  }
+  const noteTargets = [...allText.matchAll(/href="#(note-(?:footnote|endnote)-[^"]+)"/g)].map((match) => match[1]);
+  const noteTargetsOk = brokenFragmentTargets.filter((item) => /^note-(?:footnote|endnote)-/.test(item.target)).length === 0;
+  const uniqueXhtmlIdsOk = duplicateIds.length === 0;
+  const localFragmentsOk = brokenFragmentTargets.length === 0;
   const checks = [
     { id:'audit-title', ok:titleOk, message:titleOk ? 'EPUB title metadata matches the project title.' : 'EPUB title metadata does not match the project title.' },
     { id:'audit-author', ok:authorOk, message:authorOk ? 'EPUB creator metadata matches the project author.' : 'EPUB creator metadata does not match the project author.' },
@@ -59,6 +81,10 @@ export function auditEpubPackage({ project } = {}) {
     { id:'audit-nav-spine', ok:navInSpine, message:navInSpine ? 'Visible Contents is in the EPUB spine.' : 'Visible Contents is missing from the EPUB spine.' },
     { id:'audit-begin-reading', ok:beginReading, message:beginReading ? 'Begin Reading landmark points to body matter.' : 'Begin Reading landmark is missing.' },
     { id:'audit-preview-leak', ok:!previewLeak, message:!previewLeak ? 'Production EPUB contains no Preview Studio CSS/classes/hooks.' : 'Preview Studio-only CSS/classes leaked into the production EPUB.' },
+    { id:'audit-manuscript-media', ok:manuscriptMediaOk, message:manuscriptMediaOk ? `${manuscriptMedia.length} manuscript image asset${manuscriptMedia.length === 1 ? '' : 's'} match the EPUB manifest/package.` : 'One or more manuscript image assets are missing from the EPUB manifest/package.' },
+    { id:'audit-note-targets', ok:noteTargetsOk, message:noteTargetsOk ? `${noteTargets.length} note reference${noteTargets.length === 1 ? '' : 's'} resolve to note text in the same XHTML document.` : 'One or more footnote/endnote references point to missing local note targets.' },
+    { id:'audit-unique-xhtml-ids', ok:uniqueXhtmlIdsOk, message:uniqueXhtmlIdsOk ? 'Every XHTML id is unique within its document.' : `${duplicateIds.length} duplicate XHTML id${duplicateIds.length === 1 ? '' : 's'} were found.` },
+    { id:'audit-local-fragments', ok:localFragmentsOk, message:localFragmentsOk ? 'Every fragment-only XHTML link resolves inside its own document.' : `${brokenFragmentTargets.length} local fragment link${brokenFragmentTargets.length === 1 ? '' : 's'} point to missing ids.` },
   ];
   return {
     ok: checks.every((item) => item.ok),
@@ -72,6 +98,12 @@ export function auditEpubPackage({ project } = {}) {
     storyLockMetaOk,
     navTargetsOk,
     spineTargetsOk,
+    manuscriptMediaOk,
+    noteTargetsOk,
+    uniqueXhtmlIdsOk,
+    localFragmentsOk,
+    duplicateIds,
+    brokenFragmentTargets,
     previewLeak,
     files: files.size,
   };

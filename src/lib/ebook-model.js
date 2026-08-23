@@ -18,6 +18,14 @@ export const DEFAULT_EBOOK_DESIGN = Object.freeze({
   bodyAlignment: 'reader',
   textMessageIndentEm: 1.2,
   sceneBreakSpaceEm: 1.2,
+  subheadAlignment: 'left',
+  subheadSizeEm: 1.12,
+  blockQuoteIndentEm: 1.2,
+  blockQuoteStyle: 'plain',
+  writtenNoteStyle: 'inset',
+  verseIndentEm: 1.0,
+  textMessageStyle: 'inset',
+  sceneBreakTreatment: 'source',
   tocScope: 'chapters',
   visibleToc: true,
   frontMatterMode: 'clean',
@@ -46,6 +54,14 @@ export function normalizeEbookDesign(input = {}) {
   design.bodyAlignment = ['reader', 'left', 'justify'].includes(design.bodyAlignment) ? design.bodyAlignment : 'reader';
   design.textMessageIndentEm = clamp(design.textMessageIndentEm, DEFAULT_EBOOK_DESIGN.textMessageIndentEm, 0, 4);
   design.sceneBreakSpaceEm = clamp(design.sceneBreakSpaceEm, DEFAULT_EBOOK_DESIGN.sceneBreakSpaceEm, 0, 4);
+  design.subheadAlignment = ['left','center','right'].includes(design.subheadAlignment) ? design.subheadAlignment : DEFAULT_EBOOK_DESIGN.subheadAlignment;
+  design.subheadSizeEm = clamp(design.subheadSizeEm, DEFAULT_EBOOK_DESIGN.subheadSizeEm, 0.9, 1.8);
+  design.blockQuoteIndentEm = clamp(design.blockQuoteIndentEm, DEFAULT_EBOOK_DESIGN.blockQuoteIndentEm, 0, 3);
+  design.blockQuoteStyle = ['plain','italic'].includes(design.blockQuoteStyle) ? design.blockQuoteStyle : DEFAULT_EBOOK_DESIGN.blockQuoteStyle;
+  design.writtenNoteStyle = ['plain','inset'].includes(design.writtenNoteStyle) ? design.writtenNoteStyle : DEFAULT_EBOOK_DESIGN.writtenNoteStyle;
+  design.verseIndentEm = clamp(design.verseIndentEm, DEFAULT_EBOOK_DESIGN.verseIndentEm, 0, 3);
+  design.textMessageStyle = ['inset','compact'].includes(design.textMessageStyle) ? design.textMessageStyle : DEFAULT_EBOOK_DESIGN.textMessageStyle;
+  design.sceneBreakTreatment = ['source','asterisks','dots','diamond'].includes(design.sceneBreakTreatment) ? design.sceneBreakTreatment : DEFAULT_EBOOK_DESIGN.sceneBreakTreatment;
   design.tocScope = design.tocScope === 'all-matter' ? 'all-matter' : 'chapters';
   design.visibleToc = design.visibleToc !== false;
   design.frontMatterMode = design.frontMatterMode === 'source' ? 'source' : 'clean';

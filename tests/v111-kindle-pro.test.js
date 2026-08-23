@@ -107,12 +107,12 @@ test('1.0.11 UI exposes Kindle Pro scan, calibrated 11pt reference, and 3-view t
   assert.match(css,/kindle-qa-matrix/);
 });
 
-test('1.0.11 migration updates app version while preserving schema 20 and manuscript blocks exactly', () => {
+test('1.0.11 migration advances safely while preserving manuscript blocks exactly', () => {
   const p=project();
   p.appVersion='1.0.10';
   const before=JSON.stringify(p.manuscript.blocks);
   const migrated=migrateProject(p);
-  assert.equal(migrated.version,20);
-  assert.equal(migrated.appVersion,'1.0.11');
+  assert.equal(migrated.version,21);
+  assert.equal(migrated.appVersion,'1.0.12');
   assert.equal(JSON.stringify(migrated.manuscript.blocks),before);
 });

@@ -7,7 +7,7 @@ const required = [
   'src/lib/navigator-model.js', 'src/lib/theme-store.js', 'src/lib/preflight-model.js', 'src/lib/print-export.js',
   'src/lib/ebook-model.js', 'src/lib/ebook-preflight.js', 'src/lib/epub-export.js', 'src/lib/structure-overrides.js',
   'src/lib/print-toc.js', 'src/lib/project-backup.js', 'src/lib/readiness-model.js', 'src/lib/spacing-policy.js',
-  'src/lib/editions.js', 'src/lib/proof-integrity.js', 'src/lib/presentation-overrides.js', 'src/lib/kindle-preview-model.js', 'src/lib/kindle-quality.js', 'src/lib/epub-audit.js', 'public/vendor/jszip.min.js',
+  'src/lib/editions.js', 'src/lib/proof-integrity.js', 'src/lib/presentation-overrides.js', 'src/lib/semantic-styles.js', 'src/lib/kindle-preview-model.js', 'src/lib/kindle-quality.js', 'src/lib/epub-audit.js', 'public/vendor/jszip.min.js',
   'STORY-LOCK-SPEC.md', 'KDP-PREFLIGHT.md', 'EPUB-PREFLIGHT.md', 'KINDLE-STANDARDS.md', 'RELEASE-QA.md',
 ];
 for (const file of required) if (!existsSync(file)) throw new Error(`Missing required file: ${file}`);
@@ -20,8 +20,8 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
   throw new Error('index.html is not wired to the self-contained static runtime.');
 }
 const main = readFileSync('src/main.js', 'utf8');
-for (const marker of ["const VERSION = '1.0.11'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB', 'Amazon KDP · Reflowable EPUB 3', 'Kindle Preview Studio', 'Adjust Layout', 'preview-studio-grid-v110', 'Kindle Pro consistency scan', '3-View Torture Test', '11 pt reference', 'Undo', 'Redo', 'Structure Repair', 'generated-toc-entry', 'One Story Lock · separate outputs', 'bodyBlankPolicy']) {
-  if (!main.includes(marker)) throw new Error(`1.0.9 production workspace is missing: ${marker}`);
+for (const marker of ["const VERSION = '1.0.12'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB', 'Amazon KDP · Reflowable EPUB 3', 'Kindle Preview Studio', 'Adjust Layout', 'preview-studio-grid-v110', 'Kindle Pro consistency scan', '3-View Torture Test', '11 pt reference', 'Semantic Style Palette', 'Content style', 'saveEbookSemanticStyles', 'Undo', 'Redo', 'Structure Repair', 'generated-toc-entry', 'One Story Lock · separate outputs', 'bodyBlankPolicy']) {
+  if (!main.includes(marker)) throw new Error(`1.0.12 production workspace is missing: ${marker}`);
 }
 const printModel = readFileSync('src/lib/print-model.js', 'utf8');
 if (!printModel.includes("tocTitle: 'Table of Contents'") || !printModel.includes('printToc: true') || !printModel.includes("tocStartSide: 'left'") || !printModel.includes('paragraphGap: 0.12,') || !printModel.includes("bodyBlankPolicy: 'collapse'")) {
@@ -36,8 +36,8 @@ for (const dynamicBinding of ['[data-go-view]','[data-open-project]','[data-dele
 }
 
 const project = readFileSync('src/lib/project.js', 'utf8');
-if (!project.includes("appVersion: '1.0.11'") || !project.includes('version: 20') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
-  throw new Error('Project schema/app version was not migrated to 1.0.11 Kindle Pro safety state.');
+if (!project.includes("appVersion: '1.0.12'") || !project.includes('version: 21') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
+  throw new Error('Project schema/app version was not migrated to 1.0.12 semantic Kindle safety state.');
 }
 const epub = readFileSync('src/lib/epub-export.js', 'utf8');
 for (const marker of ['epub:type=\"landmarks\"','properties=\"cover-image\"','itemref idref=\"nav\"','Table of Contents']) {
@@ -46,5 +46,7 @@ for (const marker of ['epub:type=\"landmarks\"','properties=\"cover-image\"','it
 const audit = readFileSync('src/lib/epub-audit.js', 'utf8');
 for (const marker of ['auditEpubPackage','audit-preview-leak','audit-cover','detectEbookPlaceholders']) if (!audit.includes(marker)) throw new Error(`Finished EPUB audit is missing: ${marker}`);
 const quality = readFileSync('src/lib/kindle-quality.js', 'utf8');
-for (const marker of ['scanKindleQuality','enhancedTypesettingAudit','kindleTorturePresets']) if (!quality.includes(marker)) throw new Error(`Kindle Pro QA is missing: ${marker}`);
-console.log('YasReady Publish v1.0.11 static verification passed.');
+for (const marker of ['scanKindleQuality','enhancedTypesettingAudit','kindleTorturePresets','semanticRoleCounts']) if (!quality.includes(marker)) throw new Error(`Kindle Pro QA is missing: ${marker}`);
+const semantic = readFileSync('src/lib/semantic-styles.js', 'utf8');
+for (const marker of ['EBOOK_SEMANTIC_ROLES','semanticRoleForBlock','semanticRoleCounts']) if (!semantic.includes(marker)) throw new Error(`Kindle semantic style engine is missing: ${marker}`);
+console.log('YasReady Publish v1.0.12 static verification passed.');

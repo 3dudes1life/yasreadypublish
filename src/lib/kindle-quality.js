@@ -2,6 +2,7 @@ import { buildEbookSections, detectEbookPlaceholders, ebookTocEntries, verifyEbo
 import { buildEpubPackageData } from './epub-export.js';
 import { auditEpubPackage } from './epub-audit.js';
 import { countPresentationOverrides, ensurePresentationOverrides } from './presentation-overrides.js';
+import { semanticRoleCounts } from './semantic-styles.js';
 
 const BODY_KINDS = new Set(['body', 'chapter-opening', 'text-message']);
 const NORMAL_STYLE_RE = /^(normal|body text|body|no spacing|default paragraph font)$/i;
@@ -83,6 +84,11 @@ export function scanKindleQuality(project) {
   }
   const enhanced = enhancedTypesettingAudit(project);
   const placeholders = detectEbookPlaceholders(project);
+  const semanticCounts = semanticRoleCounts(project, sections);
+  const notes = project?.manuscript?.notes || [];
+  const media = project?.manuscript?.media || [];
+  const mediaRefs = (project?.manuscript?.blocks || []).flatMap((block) => block.mediaRefs || []);
+  const missingAlt = mediaRefs.filter((ref) => !String(ref.altText || '').trim());
   const issues = [];
 
   if (!coverage.ok) {
@@ -131,6 +137,24 @@ export function scanKindleQuality(project) {
     }
   }
 
+  const semanticTotal = Object.values(semanticCounts).reduce((sum, value) => sum + Number(value || 0), 0);
+  if (semanticTotal) {
+    const summaryText = Object.entries(semanticCounts)
+      .filter(([, count]) => count)
+      .map(([role, count]) => `${role.replaceAll('-', ' ')} (${count})`)
+      .join(', ');
+    issues.push(issue({ id: 'semantic-styles', severity: 'info', label: 'Semantic fiction styles', message: `${semanticTotal} semantic block${semanticTotal === 1 ? '' : 's'} detected or assigned: ${summaryText}.` }));
+  }
+  if (notes.length) {
+    issues.push(issue({ id: 'notes-present', severity: 'info', label: 'Footnotes / endnotes', message: `${notes.length} imported note${notes.length === 1 ? '' : 's'} are included in Story Lock and linked in the finished EPUB.` }));
+  }
+  if (media.length) {
+    issues.push(issue({ id: 'media-present', severity: 'info', label: 'Inline manuscript images', message: `${media.length} embedded image asset${media.length === 1 ? '' : 's'} will be packaged in the finished EPUB.` }));
+  }
+  if (missingAlt.length) {
+    issues.push(issue({ id: 'image-alt', severity: 'warning', label: 'Image accessibility text', message: `${missingAlt.length} inline image placement${missingAlt.length === 1 ? '' : 's'} have no source alt text. Decorative images are preserved, but meaningful images should receive alt text in the master DOCX.` }));
+  }
+
   const styles = sourceStyleOutliers(project, chapters);
   if (styles.rare.length) {
     issues.push(issue({ id: 'rare-word-styles', severity: 'info', label: 'Rare Word styles detected', message: `${styles.rare.map((item) => `${item.name} (${item.count})`).join(', ')} appear only rarely inside chapter prose. YasReady normalizes ebook presentation, but these are worth a quick source check.` }));
@@ -167,6 +191,10 @@ export function scanKindleQuality(project) {
     sourceStyleSummary: styles,
     enhanced,
     packageAudit,
+    semanticCounts,
+    noteCount: notes.length,
+    mediaCount: media.length,
+    missingAltText: missingAlt.length,
   };
 }
 

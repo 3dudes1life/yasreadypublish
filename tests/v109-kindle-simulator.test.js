@@ -62,7 +62,7 @@ test('1.0.9 migration leaves manuscript blocks byte-for-byte JSON identical', ()
   const raw=project();
   const before=JSON.stringify(raw.manuscript.blocks);
   const migrated=migrateProject(raw);
-  assert.equal(migrated.version,20);
-  assert.equal(migrated.appVersion,'1.0.11');
+  assert.equal(migrated.version,21);
+  assert.equal(migrated.appVersion,'1.0.12');
   assert.equal(JSON.stringify(migrated.manuscript.blocks),before);
 });

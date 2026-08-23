@@ -44,8 +44,9 @@ import {
   normalizeKindlePreview, kindlePreviewTokens,
 } from './lib/kindle-preview-model.js';
 import { scanKindleQuality, kindleTorturePresets } from './lib/kindle-quality.js';
+import { EBOOK_SEMANTIC_LABELS, semanticRoleCounts, semanticRoleForBlock } from './lib/semantic-styles.js';
 
-const VERSION = '1.0.11';
+const VERSION = '1.0.12';
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
 
@@ -880,6 +881,7 @@ function ebookInspectorDefaults(block, design, override) {
     firstLineIndent: ['body'].includes(kind) ? design.firstLineIndentEm : 0,
     alignment: kind === 'chapter-title' ? design.chapterTitleAlignment : 'inherit',
     suppressIndent: kind === 'chapter-opening' || kind === 'text-message' || kind === 'scene-break',
+    semanticRole: override?.semanticRole || 'auto',
   };
   return { ...base, ...(override || {}) };
 }
@@ -915,14 +917,18 @@ function renderEbookInspector(project, design) {
   }
   const override = getBlockPresentationOverride(project, 'ebook', block.id);
   const values = ebookInspectorDefaults(block, design, override);
-  const snippet = block.text?.trim() || '[blank source paragraph]';
-  const isBodyLike = ['body','chapter-opening','text-message'].includes(block.kind);
+  const snippet = block.text?.trim() || (block.mediaRefs?.length ? '[embedded image]' : '[blank source paragraph]');
+  const isBodyLike = ['body','chapter-opening','text-message','heading'].includes(block.kind);
+  const canSemantic = ['body','chapter-opening','text-message','scene-break','heading'].includes(block.kind) && !block.mediaRefs?.length;
+  const autoRole = semanticRoleForBlock(project, block, 'chapter');
+  const semanticOptions = Object.entries(EBOOK_SEMANTIC_LABELS).map(([role,label]) => `<option value="${role}" ${values.semanticRole === role ? 'selected' : ''}>${role === 'auto' ? `${label} (${autoRole})` : label}</option>`).join('');
   return `<aside class="ebook-format-inspector selected">
     <div class="inspector-head"><div><div class="eyebrow">Format Inspector</div><h3>${override ? 'Custom formatting' : 'Theme formatting'}</h3></div><span class="mini-status ${override ? 'needs' : 'good'}">${override ? 'Modified' : 'Theme'}</span></div>
     ${history}
     ${state.inspectorMessage ? `<div class="inspector-message">${escapeHtml(state.inspectorMessage)}</div>` : ''}
     <div class="inspector-selected"><small>${escapeHtml(block.kind)} · ${escapeHtml(block.id)}</small><p>${escapeHtml(snippet.slice(0, 220))}${snippet.length > 220 ? '…' : ''}</p></div>
     <div class="inspector-autosave" id="ebookInspectorSaveState">Changes preview live · saved automatically</div>
+    ${canSemantic ? `<label class="inspector-semantic-role"><span>Content style</span><select class="ebook-live-control" id="ebookOverrideSemanticRole">${semanticOptions}</select><small>Semantic presentation only. Source wording stays locked.</small></label>` : ''}
     <div class="inspector-grid inspector-grid-v110">
       <label><span>Space before</span><div><input class="ebook-live-control" id="ebookOverrideBefore" type="number" min="0" max="6" step="0.05" value="${values.spaceBefore === '' ? '' : values.spaceBefore}"><em>em</em></div></label>
       <label><span>Space after</span><div><input class="ebook-live-control" id="ebookOverrideAfter" type="number" min="0" max="6" step="0.05" value="${values.spaceAfter === '' ? '' : values.spaceAfter}"><em>em</em></div></label>
@@ -1024,6 +1030,7 @@ function currentInspectorOverrideValues() {
     firstLineIndent: value('ebookOverrideIndent'),
     alignment: value('ebookOverrideAlignment') || 'inherit',
     suppressIndent: suppress ? suppress.checked : undefined,
+    semanticRole: value('ebookOverrideSemanticRole') || 'auto',
   };
 }
 
@@ -1043,6 +1050,19 @@ function applyInspectorValuesToLiveFrame() {
   element.style.textAlign = values.alignment && values.alignment !== 'inherit' ? values.alignment : '';
   if (values.suppressIndent === true) element.style.textIndent = '0';
   else element.style.textIndent = Number.isFinite(indent) ? `${indent}em` : '';
+  const block = ebookSelectedBlock(state.project);
+  if (block) {
+    const effectiveRole = values.semanticRole === 'auto' ? semanticRoleForBlock(state.project, block, 'chapter') : values.semanticRole;
+    const semanticClasses = ['body','chapter-opening','subhead','block-quote','written-note','verse','text-message','scene-break'];
+    semanticClasses.forEach((role) => element.classList.remove(role));
+    if (effectiveRole === 'body') {
+      element.classList.add('body');
+      if (block.kind === 'chapter-opening') element.classList.add('chapter-opening');
+    } else if (semanticClasses.includes(effectiveRole)) {
+      element.classList.add(effectiveRole);
+    }
+    element.dataset.yrpSemanticRole = effectiveRole;
+  }
 }
 
 async function commitLiveEbookOverride() {
@@ -1201,6 +1221,9 @@ function renderEbook() {
   const totalBlocking = report.summary.errors + quality.summary.errors;
   const setupStatus = kindleReady ? 'Ready for KDP' : `${totalBlocking} blocking thing${totalBlocking === 1 ? '' : 's'} to fix`;
   const overrideCount = countPresentationOverrides(project, 'ebook');
+  const semanticCounts = semanticRoleCounts(project, preview.sourceSections);
+  const noteCount = (project.manuscript?.notes || []).length;
+  const mediaCount = (project.manuscript?.media || []).length;
 
   const step = (ready, icon, label, detail) => `<div class="ebook-step ${ready ? 'done' : ''}"><span>${ready ? '✓' : icon}</span><div><strong>${label}</strong><small>${detail}</small></div></div>`;
 
@@ -1262,6 +1285,35 @@ function renderEbook() {
           <button class="btn primary" id="saveEbookSettings" type="button">Save & Refresh Preview</button>
         </section>
       </div>
+
+      <section class="kindle-style-palette">
+        <div class="kindle-style-palette-head">
+          <div><div class="eyebrow">Kindle feature parity</div><h3>Semantic Style Palette</h3><p>YasReady recognizes fiction-specific elements and gives them Kindle-safe structure without changing a single source word. Auto uses Word styles and source patterns; Preview Studio can override one block safely.</p></div>
+          <span class="mini-status good">Story Lock safe</span>
+        </div>
+        <div class="semantic-count-grid">
+          <div><b>${semanticCounts.subhead}</b><span>Subheads</span></div>
+          <div><b>${semanticCounts['block-quote']}</b><span>Block quotes</span></div>
+          <div><b>${semanticCounts['written-note']}</b><span>Notes / letters</span></div>
+          <div><b>${semanticCounts.verse}</b><span>Verse</span></div>
+          <div><b>${semanticCounts['text-message']}</b><span>Text messages</span></div>
+          <div><b>${semanticCounts['scene-break']}</b><span>Scene breaks</span></div>
+          <div><b>${noteCount}</b><span>Foot/endnotes</span></div>
+          <div><b>${mediaCount}</b><span>Inline images</span></div>
+        </div>
+        <div class="semantic-style-controls">
+          <label class="design-field"><span>Subhead alignment</span><select id="ebookSubheadAlignment"><option value="left" ${design.subheadAlignment === 'left' ? 'selected' : ''}>Left</option><option value="center" ${design.subheadAlignment === 'center' ? 'selected' : ''}>Center</option><option value="right" ${design.subheadAlignment === 'right' ? 'selected' : ''}>Right</option></select></label>
+          <label class="design-field"><span>Subhead size</span><div class="number-wrap"><input id="ebookSubheadSize" type="number" min="0.9" max="1.8" step="0.05" value="${design.subheadSizeEm}"><em>em</em></div></label>
+          <label class="design-field"><span>Block quotes</span><select id="ebookBlockQuoteStyle"><option value="plain" ${design.blockQuoteStyle === 'plain' ? 'selected' : ''}>Clean indent</option><option value="italic" ${design.blockQuoteStyle === 'italic' ? 'selected' : ''}>Indented italic</option></select></label>
+          <label class="design-field"><span>Block quote indent</span><div class="number-wrap"><input id="ebookBlockQuoteIndent" type="number" min="0" max="3" step="0.05" value="${design.blockQuoteIndentEm}"><em>em</em></div></label>
+          <label class="design-field"><span>Written notes</span><select id="ebookWrittenNoteStyle"><option value="inset" ${design.writtenNoteStyle === 'inset' ? 'selected' : ''}>Inset note</option><option value="plain" ${design.writtenNoteStyle === 'plain' ? 'selected' : ''}>Plain text</option></select></label>
+          <label class="design-field"><span>Text conversations</span><select id="ebookTextMessageStyle"><option value="inset" ${design.textMessageStyle === 'inset' ? 'selected' : ''}>Readable inset</option><option value="compact" ${design.textMessageStyle === 'compact' ? 'selected' : ''}>Compact</option></select></label>
+          <label class="design-field"><span>Text conversation indent</span><div class="number-wrap"><input id="ebookTextMessageIndent" type="number" min="0" max="4" step="0.05" value="${design.textMessageIndentEm}"><em>em</em></div></label>
+          <label class="design-field"><span>Scene-break ornament</span><select id="ebookSceneBreakTreatment"><option value="source" ${design.sceneBreakTreatment === 'source' ? 'selected' : ''}>Use source marks</option><option value="asterisks" ${design.sceneBreakTreatment === 'asterisks' ? 'selected' : ''}>* * *</option><option value="dots" ${design.sceneBreakTreatment === 'dots' ? 'selected' : ''}>• • •</option><option value="diamond" ${design.sceneBreakTreatment === 'diamond' ? 'selected' : ''}>◆</option></select></label>
+          <label class="design-field"><span>Verse indent</span><div class="number-wrap"><input id="ebookVerseIndent" type="number" min="0" max="3" step="0.05" value="${design.verseIndentEm}"><em>em</em></div></label>
+        </div>
+        <div class="semantic-style-foot"><p><strong>Tip:</strong> In Adjust Layout, select a paragraph and change <strong>Content style</strong> to Subhead, Block Quote, Written Note, Verse, Text Conversation, or Scene Break. That choice is edition presentation metadata only.</p><button class="btn primary" id="saveEbookSemanticStyles" type="button">Save Style Palette</button></div>
+      </section>
 
       <div class="ebook-device-card">
         <div><div class="eyebrow">Device proof</div><h3>Read it on your iPhone or iPad before export</h3><p>Creates a standalone, read-only Kindle-style proof with the cover, Contents, front matter, and every chapter. Nothing is uploaded by YasReady.</p>${state.devicePreviewMessage ? `<small>${escapeHtml(state.devicePreviewMessage)}</small>` : ''}</div>
@@ -1492,6 +1544,7 @@ function bindDynamicEvents() {
   document.querySelector('#downloadPrintMaster')?.addEventListener('click', downloadPrintMaster);
   document.querySelector('#downloadPreflightReport')?.addEventListener('click', downloadPreflightReport);
   document.querySelector('#saveEbookSettings')?.addEventListener('click', saveEbookSettings);
+  document.querySelector('#saveEbookSemanticStyles')?.addEventListener('click', saveEbookSettings);
   document.querySelector('#jumpEbookPreviewStudio')?.addEventListener('click', () => document.querySelector('#ebookPreviewStudio')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   document.querySelector('#focusEbookOnly')?.addEventListener('click', focusEbookOnly);
   document.querySelector('#chooseEbookCover')?.addEventListener('click', () => document.querySelector('#ebookCoverInput')?.click());
@@ -2013,6 +2066,15 @@ function readEbookForm() {
     bodyBlankPolicy: value('ebookBodyBlankPolicy') ?? base.bodyBlankPolicy,
     bodyBlankSpaceEm: value('ebookBodyBlankSpace') ?? base.bodyBlankSpaceEm,
     chapterTitleAlignment: value('ebookChapterAlignment') ?? base.chapterTitleAlignment,
+    subheadAlignment: value('ebookSubheadAlignment') ?? base.subheadAlignment,
+    subheadSizeEm: value('ebookSubheadSize') ?? base.subheadSizeEm,
+    blockQuoteIndentEm: value('ebookBlockQuoteIndent') ?? base.blockQuoteIndentEm,
+    blockQuoteStyle: value('ebookBlockQuoteStyle') ?? base.blockQuoteStyle,
+    writtenNoteStyle: value('ebookWrittenNoteStyle') ?? base.writtenNoteStyle,
+    textMessageStyle: value('ebookTextMessageStyle') ?? base.textMessageStyle,
+    textMessageIndentEm: value('ebookTextMessageIndent') ?? base.textMessageIndentEm,
+    sceneBreakTreatment: value('ebookSceneBreakTreatment') ?? base.sceneBreakTreatment,
+    verseIndentEm: value('ebookVerseIndent') ?? base.verseIndentEm,
     visibleToc: (value('ebookVisibleToc') ?? (base.visibleToc ? 'yes' : 'no')) === 'yes',
     tocScope: value('ebookTocScope') ?? base.tocScope,
     frontMatterMode: value('ebookFrontMatterMode') ?? base.frontMatterMode,

@@ -153,3 +153,35 @@ The self-contained device proof is a rendered derivative and is read-only. Versi
 ## v1.0.10 Kindle presentation rule
 
 Front-matter reflow and Preview Studio edits remain presentation operations. YasReady may group visual line-wraps, hide the visual height of print-only blank source blocks, or apply edition-scoped spacing/alignment metadata, but every source block and every source character remains in the canonical Story Lock sequence. Likely placeholders are flagged rather than removed. Preview Studio provides no prose-editing field.
+
+## Semantic content + canonical v2 (v1.0.12)
+
+Version 1.0.12 adds semantic Kindle presentation without turning Preview Studio into a manuscript editor.
+
+### Semantic roles are presentation metadata
+
+A source block may be presented as a Subhead, Block Quote, Written Note/Letter, Verse, Text Conversation, or Scene Break. Automatic detection may use source kind and Word paragraph-style names as hints. An explicit user choice is stored under the ebook presentation override for that source block.
+
+Changing a semantic role may change XHTML element choice, CSS class, indentation, alignment, or ornament presentation. It may not replace the block's source text, source ID, order, or canonical wording.
+
+When a scene-break ornament differs from the source marks, the source marks remain preserved in the generated XHTML as source-backed content while the chosen ornament is a presentation layer.
+
+### Canonical Story Lock v2 for new DOCX imports
+
+New 1.0.12 DOCX imports extend the canonical integrity stream to include:
+
+1. the exact ordered manuscript paragraph stream,
+2. imported footnote/endnote wording and paragraph boundaries, and
+3. embedded-media fingerprints/file identity.
+
+Embedded media are fingerprinted at import with SHA-256. Story Lock verification recomputes each stored media payload and compares it to its fingerprint before accepting canonical v2, so a replaced/tampered image payload cannot pass by retaining an old digest string.
+
+### Legacy-project compatibility
+
+Migration never upgrades an existing canonical v1 manuscript hash in place. Older projects retain their original Story Lock algorithm/hash and receive only empty note/media containers when those fields did not previously exist. Footnotes/endnotes or embedded images can only gain canonical v2 protection through a deliberate fresh DOCX import.
+
+### Note and image failure behavior
+
+Unresolved footnote/endnote references are never silently omitted. New DOCX import stops if a note reference cannot be resolved safely.
+
+Embedded image references must resolve to imported assets. Unsupported image types or missing assets block Kindle release. Missing alt text is surfaced for review rather than invented by YasReady.

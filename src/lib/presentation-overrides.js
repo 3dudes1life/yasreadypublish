@@ -5,6 +5,7 @@
 export const PRESENTATION_EDITIONS = Object.freeze(['ebook', 'paperback', 'hardcover']);
 
 const ALIGNMENTS = new Set(['inherit', 'left', 'center', 'right', 'justify']);
+const SEMANTIC_ROLES = new Set(['auto','body','subhead','block-quote','written-note','verse','text-message','scene-break']);
 
 function clamp(value, min, max, fallback = null) {
   if (value === '' || value == null) return fallback;
@@ -42,6 +43,8 @@ export function sanitizePresentationOverride(input = {}) {
   if (ALIGNMENTS.has(alignment) && alignment !== 'inherit') out.alignment = alignment;
   if (input.suppressIndent === true) out.suppressIndent = true;
   if (input.suppressIndent === false) out.suppressIndent = false;
+  const semanticRole = String(input.semanticRole || 'auto').trim();
+  if (SEMANTIC_ROLES.has(semanticRole) && semanticRole !== 'auto') out.semanticRole = semanticRole;
   return out;
 }
 
