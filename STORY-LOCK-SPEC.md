@@ -185,3 +185,14 @@ Migration never upgrades an existing canonical v1 manuscript hash in place. Olde
 Unresolved footnote/endnote references are never silently omitted. New DOCX import stops if a note reference cannot be resolved safely.
 
 Embedded image references must resolve to imported assets. Unsupported image types or missing assets block Kindle release. Missing alt text is surfaced for review rather than invented by YasReady.
+
+
+## Kindle Intelligence isolation (v1.0.13)
+
+Kindle Intelligence may inspect manuscript structure and edition presentation metadata to identify formatting drift across chapters. The intelligence engine may compute chapter fingerprints, compare source style names, count semantic roles, and inspect edition-scoped spacing/alignment overrides. These are read-only observations of Story-Locked source data.
+
+A one-click intelligence fix is allowed only when the operation is presentation-only. Version 1.0.13 permits safe fixes to remove suspicious ebook layout properties or orphan presentation metadata. When resetting layout properties on an existing block, an intentional semantic Content style is preserved.
+
+Intelligence fixes must never write to `block.text`, run text, note text, media bytes, source order, source IDs, or canonical Story Lock hashes. Every accepted fix invalidates stale ebook proof/preflight state and remains compatible with the Preview Studio Undo history.
+
+Chapter comparison compares presentation fingerprints only. It must not create a prose diff, rewrite text, or use story-language similarity as a formatting decision.

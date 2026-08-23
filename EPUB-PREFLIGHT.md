@@ -1,6 +1,6 @@
-# EPUB Preflight — v1.0.12
+# EPUB Preflight — v1.0.13
 
-Kindle release requires Story Lock plus the KDP EPUB and Kindle Pro quality gates.
+Kindle release requires Story Lock plus the KDP EPUB, Kindle Pro quality, and Kindle Intelligence structure gates.
 
 ## Core package checks
 
@@ -17,6 +17,18 @@ Kindle release requires Story Lock plus the KDP EPUB and Kindle Pro quality gate
 - finished nav/spine target resolution
 - no Preview Studio classes/hooks in production output
 - Enhanced Typesetting-friendly CSS
+
+
+## v1.0.13 intelligence checks
+
+- every chapter receives a presentation fingerprint and consistency score
+- chapter-title and opening-paragraph structure are compared across the book
+- isolated local layout overrides are surfaced for review
+- orphan presentation overrides are surfaced with a safe removal action
+- chapter comparison never compares or rewrites story prose
+- safe fixes modify ebook presentation metadata only and remain undo-compatible
+
+The downloadable preflight JSON includes the full Kindle Intelligence report so production QA can be archived with the release.
 
 ## v1.0.12 semantic-content checks
 

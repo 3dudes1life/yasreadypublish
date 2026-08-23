@@ -1,4 +1,4 @@
-# YasReady Publish 1.0.12 — Kindle Production Rules
+# YasReady Publish 1.0.13 — Kindle Production Rules
 
 YasReady deliberately produces a conservative reflowable EPUB for Amazon KDP.
 
@@ -16,7 +16,7 @@ YasReady deliberately produces a conservative reflowable EPUB for Amazon KDP.
 
 ## Semantic fiction roles
 
-Version 1.0.12 supports Kindle-safe structure for:
+Version 1.0.13 retains Kindle-safe structure for:
 
 - Subheads (`h2`)
 - Block Quotes (`blockquote`)
@@ -28,6 +28,18 @@ Version 1.0.12 supports Kindle-safe structure for:
 - Inline manuscript images with responsive sizing and alt text when supplied
 
 Role assignment is presentation metadata. Source words, block IDs, and source order remain locked.
+
+
+## Kindle Intelligence rules
+
+Whole-book intelligence is presentation QA, not manuscript editing. It may:
+
+- compare chapter presentation fingerprints
+- flag isolated heading/opening/local-layout drift
+- navigate directly to a source-backed block
+- remove or normalize edition presentation metadata after an explicit user action
+
+It may not rewrite, normalize, delete, or reorder manuscript text. Safe fixes preserve semantic Content style when only layout properties are being reset.
 
 ## Story Lock v2 for new imports
 

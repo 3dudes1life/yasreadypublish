@@ -17,8 +17,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   const project = {
     id: crypto.randomUUID(),
-    version: 21,
-    appVersion: '1.0.12',
+    version: 22,
+    appVersion: '1.0.13',
     title: baseName,
     author: '',
     createdAt: now,
@@ -213,8 +213,17 @@ export function migrateProject(project) {
     if (!Array.isArray(project.manuscript?.media)) project.manuscript.media = [];
     if (project.editions?.ebook) project.editions.ebook.lastPreflight = null;
   }
-  project.version = Math.max(oldVersion, 21);
-  project.appVersion = '1.0.12';
+
+
+  // 1.0.13 adds Kindle Intelligence: whole-book presentation fingerprints,
+  // chapter comparison, anomaly mapping, and safe presentation-only fixes.
+  // Migration changes no manuscript blocks, wording, notes, or embedded assets.
+  if (oldVersion < 22) {
+    ensurePresentationOverrides(project);
+    if (project.editions?.ebook) project.editions.ebook.lastPreflight = null;
+  }
+  project.version = Math.max(oldVersion, 22);
+  project.appVersion = '1.0.13';
   return project;
 }
 

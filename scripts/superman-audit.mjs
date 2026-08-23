@@ -3,7 +3,7 @@ import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const VERSION = '1.0.12';
+const VERSION = '1.0.13';
 
 function walk(dir) {
   const out = [];
@@ -41,7 +41,7 @@ const buttonIds = [...main.matchAll(/<button\b[^>]*\bid="([^"]+)"/g)].map((m) =>
 const boundIds = new Set([...main.matchAll(/querySelector\(['"]#([^'"]+)['"]\)/g)].map((m) => m[1]));
 const unbound = [...new Set(buttonIds)].filter((id) => !boundIds.has(id));
 if (unbound.length) throw new Error(`Unbound button IDs: ${unbound.join(', ')}`);
-const dynamic = ['data-go-view','data-open-project','data-delete-project','data-nav-page','data-ebook-section','data-repair-block','data-apply-theme','data-export-theme','data-delete-theme','data-edition-enabled','data-work-edition','data-kindle-mode','data-kindle-pref-key','data-quality-section'];
+const dynamic = ['data-go-view','data-open-project','data-delete-project','data-nav-page','data-ebook-section','data-repair-block','data-apply-theme','data-export-theme','data-delete-theme','data-edition-enabled','data-work-edition','data-kindle-mode','data-kindle-pref-key','data-quality-section','data-intelligence-section','data-intelligence-fix'];
 for (const attr of dynamic) {
   if (main.includes(attr) && !main.includes(`querySelectorAll('[${attr}]')`) && !main.includes(`querySelectorAll("[${attr}]")`)) {
     throw new Error(`Dynamic control family lacks a binding: ${attr}`);
@@ -75,6 +75,8 @@ for (const marker of [
   'commitLiveEbookOverride',
   'saveEbookSemanticStyles',
   'ebookOverrideSemanticRole',
+  'applyKindleIntelligenceFixById',
+  'compareKindleChaptersButton',
 ]) {
   if (!main.includes(marker)) throw new Error(`Missing release safety marker: ${marker}`);
 }
@@ -101,9 +103,11 @@ const ebookModel = readFileSync(join(ROOT, 'src/lib/ebook-model.js'), 'utf8');
 if (!ebookModel.includes('matterSectionHeading') || !ebookModel.includes('detectEbookPlaceholders')) throw new Error('Kindle front-matter/placeholder hardening is missing.');
 const kindleQuality = readFileSync(join(ROOT, 'src/lib/kindle-quality.js'), 'utf8');
 for (const marker of ['scanKindleQuality','enhancedTypesettingAudit','kindleTorturePresets','semanticRoleCounts']) if (!kindleQuality.includes(marker)) throw new Error(`Missing Kindle Pro quality marker: ${marker}`);
-for (const marker of ['Kindle Pro consistency scan','3-View Torture Test','referencePt','toggleKindleQaMatrix','Semantic Style Palette','Content style']) if (!main.includes(marker)) throw new Error(`Missing Kindle Pro UI marker: ${marker}`);
+for (const marker of ['Kindle Pro consistency scan','3-View Torture Test','referencePt','toggleKindleQaMatrix','Semantic Style Palette','Content style','Kindle Intelligence · v1.0.13','Compare Chapters']) if (!main.includes(marker)) throw new Error(`Missing Kindle Pro UI marker: ${marker}`);
+const intelligence = readFileSync(join(ROOT, 'src/lib/kindle-intelligence.js'), 'utf8');
+for (const marker of ['scanKindleIntelligence','compareKindleChapters','applyKindleIntelligenceFix']) if (!intelligence.includes(marker)) throw new Error(`Missing Kindle Intelligence marker: ${marker}`);
 const semanticStyles = readFileSync(join(ROOT, 'src/lib/semantic-styles.js'), 'utf8');
 for (const marker of ['EBOOK_SEMANTIC_ROLES','semanticRoleForBlock','semanticRoleCounts']) if (!semanticStyles.includes(marker)) throw new Error(`Missing semantic style marker: ${marker}`);
 const docxParser = readFileSync(join(ROOT, 'src/lib/docx-parser.js'), 'utf8');
 for (const marker of ['footnotes.xml','endnotes.xml','loadMediaAssets','mediaRefs','canonicalizeManuscriptV2']) if (!docxParser.includes(marker)) throw new Error(`Missing semantic import marker: ${marker}`);
-console.log('- proof ownership, edition invalidation, semantic Kindle styles, safe note/media import, finished EPUB audit, calibrated preview, and whole-book QA guards present');
+console.log('- proof ownership, edition invalidation, semantic Kindle styles, safe note/media import, finished EPUB audit, calibrated preview, chapter anomaly mapping, safe presentation fixes, and whole-book QA guards present');

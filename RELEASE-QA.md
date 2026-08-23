@@ -1,64 +1,39 @@
-# YasReady Publish v1.0.12 — Superman QA
+# YasReady Publish v1.0.13 — Superman QA
 
-## Automated gate
+## Release target
 
-- 138 tests currently defined
-- 138 pass
+Kindle Intelligence adds whole-book presentation analysis without weakening Story Lock or destabilizing the working EPUB/Preview Studio path.
+
+## Automated release gate
+
+- 146 automated tests
+- 146 pass
 - 0 fail
-- Static verification: PASS
-- Superman audit: PASS
+- static verification PASS
+- Superman audit PASS
 
-## v1.0.12 regressions covered
+## v1.0.13 regressions covered
 
-- semantic-role auto detection from source kinds / Word styles
-- explicit semantic override changes presentation without changing source text
-- scene-break ornaments preserve locked source marks
-- inline manuscript image package + manifest audit
-- missing image assets block preflight instead of being dropped
-- linked footnote/endnote output + target audit
-- canonical Story Lock v2 detects note changes
-- canonical Story Lock v2 detects media fingerprint and media-byte tampering
-- legacy canonical v1 migration preserves source hash and blocks exactly
-- Kindle Pro reports semantic, note, and inline-image coverage
-- Semantic Style Palette and Content style inspector are present
+- chapter consistency map covers every chapter
+- isolated chapter-title formatting drift is detected
+- chapter-opening presentation drift is detected
+- unusual body spacing/alignment/indent overrides are surfaced
+- orphan ebook presentation overrides are detected
+- safe fixes change presentation metadata only
+- safe layout fixes preserve an intentional semantic Content style
+- chapter comparison scores matching formatting at 100%
+- chapter comparison reports presentation drift without comparing story prose
+- migration advances to schema 22 / app 1.0.13 without changing manuscript blocks
+- UI exposes Kindle Intelligence, direct issue navigation, safe fixes, and Compare Chapters
 
-## Story Lock / privacy audit
+## Existing Kindle regressions retained
 
-Final Superman verification must confirm:
+The complete suite still covers Story Lock, source coverage/order, front-matter reflow, visible/logical TOC, single-cover packaging, EPUB package integrity, Kindle Preview Studio, Read/Adjust isolation, Undo/Redo, 3-View Torture Test, Enhanced Typesetting-oriented CSS checks, semantic fiction roles, footnotes/endnotes, inline images, media fingerprints, accessibility review, print-proof ownership, edition invalidation, and fixed-page print safety.
 
-- schema 21 / app 1.0.12 consistency
-- all application JS syntax/imports
-- literal/dynamic control bindings
-- zero fetch / XMLHttpRequest / WebSocket / sendBeacon manuscript-egress paths
-- safe note/media import markers
-- semantic style engine markers
-- existing proof ownership / edition invalidation / Kindle finished-package guards
+## Privacy / source safety
 
-## Synthetic finished-EPUB smoke test
-
-A generated v1.0.12 EPUB containing a semantic subhead, block quote, linked footnote, and inline manuscript image was built and unpacked successfully.
-
-- ZIP container integrity: PASS
-- XML/XHTML parse: 6/6 files PASS
-- semantic subhead markup present
-- semantic block-quote markup present
-- linked `noteref` / `footnote` markup present
-- inline image packaged in manifest/files
+Application source contains no `fetch`, `XMLHttpRequest`, `WebSocket`, or `sendBeacon` manuscript-egress path. Kindle Intelligence is local analysis. No safe fix can modify manuscript wording, note wording, or embedded-media bytes.
 
 ## Manual acceptance still required
 
-Automated QA cannot substitute for the real-book walkthrough. Before calling Kindle done:
-
-- cover
-- title/front matter
-- copyright
-- dedication
-- visible Contents
-- Chapter 1
-- Chapter 5
-- one middle chapter
-- one late chapter
-- Chapter 55
-- representative semantic blocks if present
-- 3-View Torture Test
-- exact exported EPUB in Amazon Kindle Previewer
+Automated tests cannot replace black-box inspection of the real Book 2 project. Before freezing Kindle, visually inspect early/middle/late chapters, exercise at least one safe fix + Undo, compare two chapters, export the exact EPUB, and open that EPUB in Amazon Kindle Previewer.

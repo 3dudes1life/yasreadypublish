@@ -45,8 +45,9 @@ import {
 } from './lib/kindle-preview-model.js';
 import { scanKindleQuality, kindleTorturePresets } from './lib/kindle-quality.js';
 import { EBOOK_SEMANTIC_LABELS, semanticRoleCounts, semanticRoleForBlock } from './lib/semantic-styles.js';
+import { applyKindleIntelligenceFix, compareKindleChapters, scanKindleIntelligence } from './lib/kindle-intelligence.js';
 
-const VERSION = '1.0.12';
+const VERSION = '1.0.13';
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
 
@@ -83,6 +84,11 @@ const state = {
   kindleQaMatrix: false,
   kindleQualityCache: null,
   kindleQualityKey: '',
+  kindleIntelligenceCache: null,
+  kindleIntelligenceKey: '',
+  compareChapterA: 0,
+  compareChapterB: 1,
+  kindleIntelligenceMessage: '',
 };
 
 const app = document.querySelector('#app');
@@ -1181,6 +1187,102 @@ function jumpToKindleQualityIssue(index, blockId = '') {
   updateMain();
 }
 
+function currentKindleIntelligence(project) {
+  const key = `${project?.updatedAt || ''}|${project?.storyLock?.status || ''}|${countPresentationOverrides(project, 'ebook')}`;
+  if (state.kindleIntelligenceCache && state.kindleIntelligenceKey === key) return state.kindleIntelligenceCache;
+  state.kindleIntelligenceCache = scanKindleIntelligence(project);
+  state.kindleIntelligenceKey = key;
+  return state.kindleIntelligenceCache;
+}
+
+function intelligenceIssueTargetIndex(issue, preview) {
+  if (!issue || !preview?.sections?.length) return -1;
+  if (issue.sectionId) return preview.sections.findIndex((section) => section.id === issue.sectionId);
+  if (issue.blockId) return preview.sections.findIndex((section) => (section.blocks || []).some((block) => block.id === issue.blockId));
+  return -1;
+}
+
+function formatComparisonValue(value) {
+  if (value == null || value === '') return 'Theme default';
+  if (typeof value === 'object') {
+    const keys = Object.keys(value);
+    return keys.length ? keys.map((key) => `${key}: ${String(value[key])}`).join(' · ') : 'Theme default';
+  }
+  return String(value);
+}
+
+function renderKindleIntelligencePanel(intelligence, preview) {
+  const project = state.project;
+  const chapterCount = intelligence.chapters.length;
+  const leftIndex = Math.max(0, Math.min(chapterCount - 1, Number(state.compareChapterA) || 0));
+  const rightIndex = Math.max(0, Math.min(chapterCount - 1, Number(state.compareChapterB) || Math.min(1, chapterCount - 1)));
+  const comparison = compareKindleChapters(project, leftIndex, rightIndex);
+  const leftOptions = intelligence.chapters.map((chapter, index) => `<option value="${index}" ${index === leftIndex ? 'selected' : ''}>${escapeHtml(chapter.title)}</option>`).join('');
+  const rightOptions = intelligence.chapters.map((chapter, index) => `<option value="${index}" ${index === rightIndex ? 'selected' : ''}>${escapeHtml(chapter.title)}</option>`).join('');
+  const actionable = intelligence.anomalies.filter((item) => item.severity !== 'info').slice(0, 10);
+  const info = intelligence.anomalies.filter((item) => item.severity === 'info').slice(0, 4);
+  const visible = [...actionable, ...info];
+  const status = intelligence.summary.errors ? 'bad' : intelligence.summary.review ? 'needs' : 'good';
+  const statusText = intelligence.summary.errors ? 'Structure mismatch detected' : intelligence.summary.review ? 'Review the highlighted outliers' : 'Chapter formatting fingerprints are consistent';
+  return `<section class="kindle-intelligence-card ${status}">
+    <div class="kindle-intelligence-head">
+      <div><div class="eyebrow">Kindle Intelligence · v1.0.13</div><h3>${statusText}</h3><p>Compares chapter presentation fingerprints across the entire manuscript, finds isolated formatting drift, and offers only fixes that touch presentation metadata—not Story-Locked prose.</p></div>
+      <div class="kindle-intelligence-summary"><span>${chapterCount} chapters</span><span class="review">${intelligence.summary.review} review</span><span>${intelligence.summary.autoFixable} safe fix${intelligence.summary.autoFixable === 1 ? '' : 'es'}</span></div>
+    </div>
+    ${state.kindleIntelligenceMessage ? `<div class="kindle-intelligence-message">${escapeHtml(state.kindleIntelligenceMessage)}</div>` : ''}
+    <div class="kindle-consistency-map" aria-label="Chapter consistency map">${intelligence.map.map((chapter) => { const target = preview.sections.findIndex((section) => section.id === chapter.sectionId); return `<button type="button" class="chapter-health ${chapter.status}" data-intelligence-section="${target >= 0 ? target : 0}" title="${escapeHtml(chapter.title)} · ${chapter.score}% consistency"><b>${chapter.chapterIndex + 1}</b><span>${chapter.score}</span></button>`; }).join('')}</div>
+    <div class="kindle-intelligence-grid">
+      <div class="kindle-anomaly-list">
+        <div class="kindle-intelligence-subhead"><strong>Formatting outliers</strong><small>${visible.length ? 'Click Go there to inspect the exact chapter or block.' : 'No chapter-level drift detected.'}</small></div>
+        ${visible.length ? visible.map((item) => {
+          const target = intelligenceIssueTargetIndex(item, preview);
+          const sev = item.severity === 'error' ? 'error' : item.severity === 'review' ? 'review' : 'info';
+          return `<div class="kindle-anomaly ${sev}"><span>${item.severity === 'error' ? '×' : item.severity === 'review' ? '!' : 'i'}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.message)}</small></div><div class="kindle-anomaly-actions">${target >= 0 ? `<button type="button" data-intelligence-section="${target}" data-intelligence-block="${escapeHtml(item.blockId || '')}">Go there</button>` : ''}${item.fix ? `<button type="button" class="safe-fix" data-intelligence-fix="${escapeHtml(item.id)}">${escapeHtml(item.fix.label || 'Fix safely')}</button>` : ''}</div></div>`;
+        }).join('') : `<div class="kindle-intelligence-clean"><span>✓</span><div><strong>No isolated Kindle formatting drift found.</strong><small>Every chapter still gets a visual proof before the engine is frozen.</small></div></div>`}
+      </div>
+      <div class="kindle-chapter-compare">
+        <div class="kindle-intelligence-subhead"><strong>Compare Chapters</strong><small>Compare presentation fingerprints without comparing story content.</small></div>
+        <div class="chapter-compare-controls"><label><span>Chapter A</span><select id="compareChapterA">${leftOptions}</select></label><span class="compare-arrow">↔</span><label><span>Chapter B</span><select id="compareChapterB">${rightOptions}</select></label><button class="btn secondary" id="compareKindleChaptersButton" type="button">Compare</button></div>
+        <div class="chapter-match-score"><strong>${comparison.match}%</strong><div><b>presentation match</b><small>${comparison.left ? escapeHtml(comparison.left.title) : '—'} ↔ ${comparison.right ? escapeHtml(comparison.right.title) : '—'}</small></div></div>
+        <div class="chapter-compare-results">${comparison.differences.length ? comparison.differences.map((difference) => `<div><strong>${escapeHtml(difference.label)}</strong><small><b>A:</b> ${escapeHtml(formatComparisonValue(difference.left))}<br><b>B:</b> ${escapeHtml(formatComparisonValue(difference.right))}${difference.note ? `<br>${escapeHtml(difference.note)}` : ''}</small></div>`).join('') : `<div class="comparison-clean"><strong>Presentation fingerprints match.</strong><small>No chapter-formatting differences were detected between these two chapters.</small></div>`}</div>
+      </div>
+    </div>
+  </section>`;
+}
+
+function jumpToKindleIntelligenceIssue(index, blockId = '') {
+  if (!state.project) return;
+  state.ebookSectionIndex = index;
+  state.kindleQaMatrix = false;
+  state.kindlePreview = normalizeKindlePreview({ ...state.kindlePreview, mode: blockId ? 'adjust' : 'read' });
+  state.selectedEbookBlockId = blockId || '';
+  state.inspectorMessage = blockId ? 'Kindle Intelligence brought you directly to this formatting outlier.' : '';
+  state.ebookFrameScrollY = 0;
+  updateMain();
+  document.querySelector('#ebookPreviewStudio')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function applyKindleIntelligenceFixById(issueId) {
+  if (!state.project || !issueId) return;
+  const intelligence = scanKindleIntelligence(state.project);
+  const item = intelligence.anomalies.find((candidate) => candidate.id === issueId);
+  if (!item?.fix) return;
+  armEbookHistory();
+  applyKindleIntelligenceFix(state.project, item.fix);
+  disarmEbookHistory();
+  invalidateEditionProof(state.project, 'ebook', { clearPageCount: false });
+  state.project.updatedAt = new Date().toISOString();
+  state.finalCheck = null;
+  state.kindleQualityCache = null;
+  state.kindleQualityKey = '';
+  state.kindleIntelligenceCache = null;
+  state.kindleIntelligenceKey = '';
+  state.kindleIntelligenceMessage = `${item.fix.label || 'Safe fix applied'} · presentation metadata only · Story Lock text unchanged.`;
+  await saveProject(state.project);
+  state.projects = await listProjects();
+  updateMain();
+}
+
 
 function renderEbook() {
   const project = state.project;
@@ -1188,7 +1290,8 @@ function renderEbook() {
   const design = currentEbookDesign();
   const report = runEpubPreflight({ project, storyLockOk: project.storyLock?.status === 'verified' });
   const quality = currentKindleQuality(project);
-  const kindleReady = report.ready && quality.ready;
+  const intelligence = currentKindleIntelligence(project);
+  const kindleReady = report.ready && quality.ready && intelligence.ready;
   const preview = buildEbookPreviewHtml({ project, sectionIndex: state.ebookSectionIndex, inspectMode: state.kindlePreview.mode === 'adjust' });
   state.ebookSectionIndex = preview.index;
   const cover = getEbookCover(project);
@@ -1218,7 +1321,7 @@ function renderEbook() {
   const setupSteps = [metadataReady, coverReady, navReady, lockReady];
   const readySteps = setupSteps.filter(Boolean).length;
   const printParked = !project.editions?.paperback?.enabled && !project.editions?.hardcover?.enabled;
-  const totalBlocking = report.summary.errors + quality.summary.errors;
+  const totalBlocking = report.summary.errors + quality.summary.errors + intelligence.summary.errors;
   const setupStatus = kindleReady ? 'Ready for KDP' : `${totalBlocking} blocking thing${totalBlocking === 1 ? '' : 's'} to fix`;
   const overrideCount = countPresentationOverrides(project, 'ebook');
   const semanticCounts = semanticRoleCounts(project, preview.sourceSections);
@@ -1261,6 +1364,7 @@ function renderEbook() {
       </div>
 
       ${renderKindleQualityPanel(quality, preview)}
+      ${renderKindleIntelligencePanel(intelligence, preview)}
 
       <div class="ebook-setup-grid-v107">
         <section class="ebook-setup-card ebook-cover-card">
@@ -1513,10 +1617,10 @@ function bindDynamicEvents() {
   });
 
   document.querySelector('#newImport')?.addEventListener('click', () => {
-    state.project = null; state.preview = null; state.ebookSectionIndex = 0; state.selectedEbookBlockId = ''; state.inspectorMessage = ''; state.ebookMessage = ''; state.ebookUndoStack = []; state.ebookRedoStack = []; state.ebookHistoryArmed = false; state.kindleQaMatrix = false; state.kindleQualityCache = null; state.kindleQualityKey = ''; state.finalCheck = null; state.backupMessage = ''; state.activeView = 'import'; state.error = ''; renderShell();
+    state.project = null; state.preview = null; state.ebookSectionIndex = 0; state.selectedEbookBlockId = ''; state.inspectorMessage = ''; state.ebookMessage = ''; state.ebookUndoStack = []; state.ebookRedoStack = []; state.ebookHistoryArmed = false; state.kindleQaMatrix = false; state.kindleQualityCache = null; state.kindleQualityKey = ''; state.kindleIntelligenceCache = null; state.kindleIntelligenceKey = ''; state.kindleIntelligenceMessage = ''; state.compareChapterA = 0; state.compareChapterB = 1; state.finalCheck = null; state.backupMessage = ''; state.activeView = 'import'; state.error = ''; renderShell();
   });
   document.querySelector('#libraryImport')?.addEventListener('click', () => {
-    state.project = null; state.preview = null; state.ebookSectionIndex = 0; state.selectedEbookBlockId = ''; state.inspectorMessage = ''; state.ebookMessage = ''; state.ebookUndoStack = []; state.ebookRedoStack = []; state.ebookHistoryArmed = false; state.kindleQaMatrix = false; state.kindleQualityCache = null; state.kindleQualityKey = ''; state.finalCheck = null; state.backupMessage = ''; state.activeView = 'import'; state.error = ''; renderShell();
+    state.project = null; state.preview = null; state.ebookSectionIndex = 0; state.selectedEbookBlockId = ''; state.inspectorMessage = ''; state.ebookMessage = ''; state.ebookUndoStack = []; state.ebookRedoStack = []; state.ebookHistoryArmed = false; state.kindleQaMatrix = false; state.kindleQualityCache = null; state.kindleQualityKey = ''; state.kindleIntelligenceCache = null; state.kindleIntelligenceKey = ''; state.kindleIntelligenceMessage = ''; state.compareChapterA = 0; state.compareChapterB = 1; state.finalCheck = null; state.backupMessage = ''; state.activeView = 'import'; state.error = ''; renderShell();
   });
   document.querySelector('#saveMetadata')?.addEventListener('click', saveProjectMetadata);
   document.querySelector('#verifyLock')?.addEventListener('click', verifyLock);
@@ -1557,6 +1661,9 @@ function bindDynamicEvents() {
   document.querySelector('#toggleKindleQaMatrix')?.addEventListener('click', () => { state.kindleQaMatrix = !state.kindleQaMatrix; if (state.kindleQaMatrix) state.kindlePreview = normalizeKindlePreview({ ...state.kindlePreview, mode: 'read' }); updateMain(); });
   document.querySelector('#exitKindleQaMatrix')?.addEventListener('click', () => { state.kindleQaMatrix = false; updateMain(); });
   document.querySelectorAll('[data-quality-section]').forEach((button) => button.addEventListener('click', () => { const index = Number(button.dataset.qualitySection); if (Number.isFinite(index)) jumpToKindleQualityIssue(index, button.dataset.qualityBlock || ''); }));
+  document.querySelectorAll('[data-intelligence-section]').forEach((button) => button.addEventListener('click', () => { const index = Number(button.dataset.intelligenceSection); if (Number.isFinite(index)) jumpToKindleIntelligenceIssue(index, button.dataset.intelligenceBlock || ''); }));
+  document.querySelectorAll('[data-intelligence-fix]').forEach((button) => button.addEventListener('click', () => applyKindleIntelligenceFixById(button.dataset.intelligenceFix)));
+  document.querySelector('#compareKindleChaptersButton')?.addEventListener('click', () => { state.compareChapterA = Number(document.querySelector('#compareChapterA')?.value || 0); state.compareChapterB = Number(document.querySelector('#compareChapterB')?.value || 1); updateMain(); });
   bindEbookInspectorControls();
   document.querySelector('#prevEbookSection')?.addEventListener('click', () => jumpEbookSection(state.ebookSectionIndex - 1));
   document.querySelector('#nextEbookSection')?.addEventListener('click', () => jumpEbookSection(state.ebookSectionIndex + 1));
@@ -2368,9 +2475,12 @@ async function ensureEpubReady() {
   await saveProject(state.project);
   const report = runEpubPreflight({ project: state.project, storyLockOk: true });
   const quality = scanKindleQuality(state.project);
+  const intelligence = scanKindleIntelligence(state.project);
   state.kindleQualityCache = quality;
   state.kindleQualityKey = `${state.project.updatedAt || ''}|${state.project.storyLock?.status || ''}|${countPresentationOverrides(state.project, 'ebook')}`;
-  return { ok: Boolean(report.ready && quality.ready), report, quality };
+  state.kindleIntelligenceCache = intelligence;
+  state.kindleIntelligenceKey = state.kindleQualityKey;
+  return { ok: Boolean(report.ready && quality.ready && intelligence.ready), report, quality, intelligence };
 }
 
 async function downloadEpub() {
@@ -2411,6 +2521,7 @@ async function downloadEpubPreflight() {
   const lock = await verifyProjectStoryLock(state.project);
   const report = runEpubPreflight({ project: state.project, storyLockOk: lock.ok });
   const quality = scanKindleQuality(state.project);
+  const intelligence = scanKindleIntelligence(state.project);
   const payload = {
     yasreadyPublishVersion: VERSION,
     format: 'EPUB 3 reflowable',
@@ -2421,6 +2532,7 @@ async function downloadEpubPreflight() {
     generatedAt: new Date().toISOString(),
     ...report,
     kindleProQuality: quality,
+    kindleIntelligence: intelligence,
   };
   downloadTextFile(`${safeExportBaseName()}-epub-preflight.json`, JSON.stringify(payload, null, 2));
 }

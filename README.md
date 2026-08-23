@@ -1,8 +1,8 @@
-# YasReady Publish v1.0.12
+# YasReady Publish v1.0.13
 
 Private publishing studio for Story-Locked manuscripts.
 
-Version 1.0.12 is the **Kindle semantic feature-parity pass**. It keeps the stable Kindle Pro preview/QA engine from 1.0.11 and adds fiction-specific semantic styling, safe DOCX note/image import, and stronger Story Lock coverage for newly imported manuscripts.
+Version 1.0.13 is the **Kindle Intelligence pass**. It keeps the semantic Kindle engine from 1.0.12 and adds whole-book formatting fingerprints, chapter-level anomaly mapping, direct issue navigation, safe presentation-only fixes, and chapter-to-chapter comparison.
 
 ## Story Lock remains the first rule
 
@@ -13,6 +13,22 @@ YasReady may change presentation. It may not rewrite manuscript language.
 - Scene-break ornaments may visually replace source marks, but the locked source marks remain preserved in the EPUB source.
 - New DOCX imports use canonical Story Lock v2 so note wording and embedded-image fingerprints are protected alongside body paragraphs.
 - Existing projects keep their original Story Lock algorithm and hash during migration.
+
+
+## Kindle Intelligence
+
+The new intelligence layer looks across the whole novel instead of only validating the chapter currently on screen. It provides:
+
+- a chapter consistency map with per-chapter scores
+- isolated chapter-heading/opening drift detection
+- unusual local spacing, indent, and body-alignment detection
+- orphan presentation-override detection
+- rare Word-style fingerprints for source QA
+- direct **Go there** navigation to the exact chapter/block
+- presentation-only **safe fixes** that never edit manuscript wording
+- **Compare Chapters** for formatting fingerprints only
+
+A safe fix can reset suspicious layout properties while preserving an intentional semantic Content style such as Block Quote or Text Conversation. Story Lock remains the boundary: intelligence may recommend or alter presentation metadata, never prose.
 
 ## Kindle semantic styles
 
@@ -46,7 +62,7 @@ New DOCX imports can preserve footnotes and endnotes. Note text is included in S
 
 ## Kindle Pro remains active
 
-1.0.12 retains:
+1.0.13 retains:
 
 - 11pt-equivalent preview calibration without forcing EPUB body size
 - Kindle / Phone / Tablet simulation

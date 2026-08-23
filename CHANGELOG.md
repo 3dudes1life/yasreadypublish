@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.0.13 — Kindle Intelligence
+
+- Adds a whole-book **chapter consistency map** that fingerprints every chapter's heading, opening paragraph, local overrides, semantic usage, and source-style patterns.
+- Adds isolated-formatting drift detection for chapter headings, chapter openings, extreme local spacing/indent changes, unusual body alignment, suppressed body indents, orphan overrides, and rare source-style fingerprints.
+- Adds direct **Go there** navigation from an anomaly to the exact chapter/block in Preview Studio.
+- Adds Story-Lock-safe **one-click fixes** for presentation anomalies. Safe layout fixes remove suspicious layout properties while preserving an intentional semantic Content style; orphan fixes remove presentation metadata only.
+- Adds **Compare Chapters**, a presentation-only fingerprint comparison that scores chapter formatting without comparing or exposing story prose.
+- Adds chapter-level consistency scores so a 55-chapter novel can be visually scanned for drift instead of manually hunting the entire manuscript.
+- Kindle release gating now includes the new intelligence structure gate in addition to KDP preflight and Kindle Pro quality.
+- EPUB preflight JSON now includes the Kindle Intelligence report for archival QA.
+- Project schema 22 / app 1.0.13. Migration invalidates stale ebook preflight state only; manuscript blocks, notes, media, Story Lock algorithm, and hashes are not rewritten.
+- QA: 146/146 automated tests passing; static verification PASS; Superman audit PASS.
+
 ## v1.0.12 — Kindle Semantic Feature Parity
 
 - Adds Story-Lock-safe semantic presentation roles for Subheads, Block Quotes, Written Notes/Letters, Verse/Poetry, Text Conversations, and Scene Breaks.
