@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.0.15 — Theme Studio
+
+- Built directly on the v1.0.14 Kindle Production UX; Production Console, Polish Queue, Preview Studio, Focus Preview, Kindle Intelligence, Final Check, and export gates remain intact.
+- Added eight coordinated fiction theme families: Classic Literary, Contemporary Romance, Minimal Modern, Dramatic, Soft Romance, Dark Romance, Clean Commercial, and private Tres Amigos.
+- Added one-screen Book Theme Builder for chapter heading, first paragraph, body, after-break paragraph, subhead, scene break, text conversation, written note, block quote, verse, and Contents presentation.
+- Added visible Theme → Chapter override → Paragraph override hierarchy and chapter-specific heading overrides.
+- Added Chapter Heading Designer with alignment, spacing, size, weight, tracking, capitalization, divider/ornament, and optional EPUB-packaged artwork.
+- Added Scene Break Studio with source marks, whitespace, stars/dots/diamond/flourish, custom glyph text, or custom artwork while preserving locked source scene-break text in EPUB markup.
+- Added Text Conversation Designer with transcript, subtle bubbles, left/right, compact, and inset treatments; source `[Name]:` wording is never rewritten.
+- Added transparent Smart Word Style Mapper with inferred semantic role plus explicit remapping.
+- Added whole-book “Show me every place using this style” review navigation.
+- Added Book DNA metrics for theme adherence, semantic feature count, local overrides, and formatting outliers.
+- EPUB renderer now carries Theme Studio chapter treatments, first-paragraph styling, semantic content styling, conversation layouts, scene ornaments/artwork, and contents alignment into the finished package.
+- Project schema 24 / app 1.0.15. Migration initializes Theme Studio presentation metadata and invalidates stale ebook preflight only; manuscript blocks, notes, media, canonical algorithm, and Story Lock hashes are untouched.
+
 ## v1.0.14 — Kindle Production UX
 
 - Adds the **Kindle Production Console**, combining metadata, cover, navigation, Story Lock, quality, and intelligence into one guided release surface.

@@ -1,4 +1,6 @@
-# YasReady Publish v1.0.14 — Superman QA
+# YasReady Publish v1.0.15 — Superman QA
+
+**Automated release gate:** 164 automated tests passing + static verification + Superman audit.
 
 ## Release target
 
@@ -12,9 +14,18 @@ Turn the mature Kindle engine into a faster, clearer production workflow without
 - static verification PASS
 - Superman audit PASS
 
-## v1.0.14 regressions covered
+## v1.0.15 regressions covered
 
-- schema migrates to 23 / app 1.0.14 without changing manuscript blocks
+Theme Studio release guards include:
+
+- applying any of the eight theme families does not alter Story-Locked manuscript blocks
+- Word-style remapping changes semantic presentation only
+- chapter-specific heading overrides remain presentation-only
+- custom scene-break artwork is packaged in EPUB while source break marks remain preserved
+- Book DNA and style-usage scans are derived from semantic/presentation state and do not write into source
+- legacy 1.0.14 Production Console and release gates remain present
+
+- schema migrates to 24 / app 1.0.15 without changing manuscript blocks
 - Kindle review decisions survive edition normalization
 - non-blocking findings may be marked intentional for the **exact** current finding
 - changed finding tokens automatically invalidate old intentional-review decisions

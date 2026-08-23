@@ -2,6 +2,7 @@ import { buildEbookSections, ebookFontStack, ebookTocEntries, matterSectionHeadi
 import { blankRenderMode } from './spacing-policy.js';
 import { getBlockPresentationOverride } from './presentation-overrides.js';
 import { semanticRoleForBlock } from './semantic-styles.js';
+import { chapterHeadingOverride, normalizeEbookThemeStudio, themeArtworkAssets } from './ebook-theme-studio.js';
 
 function escapeXml(value = '') {
   return String(value)
@@ -152,14 +153,47 @@ function previewAttrs(block, previewMode = false) {
   return ` data-yrp-block-id="${escapeXml(block.id)}" tabindex="0"`;
 }
 
-function sceneOrnamentHtml(content, design) {
+function themeArtworkSource(design, kind, previewMode = false) {
+  const asset = themeArtworkAssets(design).find((item) => item.kind === kind);
+  if (!asset) return '';
+  return previewMode ? asset.dataUrl : `../${asset.href}`;
+}
+
+function artworkHtml(design, kind, previewMode = false, className = 'theme-artwork') {
+  const studio = normalizeEbookThemeStudio(design?.themeStudio || {});
+  const asset = kind === 'chapter' ? studio.chapterArtwork : studio.sceneBreakArtwork;
+  const src = themeArtworkSource(design, kind, previewMode);
+  if (!asset || !src) return '';
+  const alt = String(asset.altText || '').trim();
+  return `<img class="${className}" src="${escapeXml(src)}" alt="${escapeXml(alt)}"${alt ? '' : ' role="presentation"'} />`;
+}
+
+function chapterDividerHtml(design) {
+  const studio = normalizeEbookThemeStudio(design?.themeStudio || {});
+  const divider = studio.chapterDivider;
+  if (!divider || divider === 'none') return '';
+  const content = divider === 'line' ? '' : divider === 'dots' ? '• • •' : divider === 'diamond' ? '◆' : '✦';
+  return `<span class="chapter-divider chapter-divider-${escapeXml(divider)}" aria-hidden="true">${escapeXml(content)}</span>`;
+}
+
+function sceneOrnamentHtml(content, design, previewMode = false) {
   const treatment = design?.sceneBreakTreatment || 'source';
+  const studio = normalizeEbookThemeStudio(design?.themeStudio || {});
   if (treatment === 'source') return content;
-  const ornament = treatment === 'dots' ? '• • •' : treatment === 'diamond' ? '◆' : '* * *';
+  if (treatment === 'whitespace') return `<span class="scene-source-hidden">${content}</span><span class="scene-whitespace" aria-hidden="true"></span>`;
+  if (treatment === 'custom-image') {
+    const image = artworkHtml(design, 'scene-break', previewMode, 'scene-break-artwork');
+    return image ? `<span class="scene-source-hidden">${content}</span>${image}` : content;
+  }
+  const ornament = treatment === 'dots' ? '• • •'
+    : treatment === 'diamond' ? '◆'
+      : treatment === 'flourish' ? '✦'
+        : treatment === 'custom-text' ? (studio.sceneBreakCustomText || '✦')
+          : '* * *';
   return `<span class="scene-source-hidden">${content}</span><span class="scene-ornament" aria-hidden="true">${escapeXml(ornament)}</span>`;
 }
 
-function renderBlock(block, { blankMode = 'preserve', sectionType = 'chapter', design, project = null, previewMode = false } = {}) {
+function renderBlock(block, { blankMode = 'preserve', sectionType = 'chapter', design, project = null, previewMode = false, afterBreak = false } = {}) {
   const id = escapeXml(block.id || '');
   const attrs = previewAttrs(block, previewMode);
   const inspectClass = previewMode ? ' yrp-inspectable' : '';
@@ -175,7 +209,20 @@ function renderBlock(block, { blankMode = 'preserve', sectionType = 'chapter', d
   }
 
   if (block.kind === 'blank') return `<p id="${id}" class="blank ${blankMode === 'collapse' ? 'collapsed' : blankMode === 'normalize' ? 'normalized' : 'preserved'}"${attrs}></p>`;
-  if (block.kind === 'chapter-title') return `<h1 id="${id}" class="chapter-title${inspectClass}"${attrs}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</h1>`;
+  if (block.kind === 'chapter-title') {
+    const studio = normalizeEbookThemeStudio(design?.themeStudio || {});
+    const chapterOverride = chapterHeadingOverride(project, block.id);
+    const chapterStyles = [];
+    if (chapterOverride?.spaceBefore != null) chapterStyles.push(`margin-top:${chapterOverride.spaceBefore}em`);
+    if (chapterOverride?.spaceAfter != null) chapterStyles.push(`margin-bottom:${chapterOverride.spaceAfter}em`);
+    if (chapterOverride?.alignment) chapterStyles.push(`text-align:${chapterOverride.alignment}`);
+    if (chapterOverride?.sizeEm != null) chapterStyles.push(`font-size:${chapterOverride.sizeEm}em`);
+    const style = mergeInlineStyles(overrideStyle, chapterStyles.join(';'));
+    const artwork = artworkHtml(design, 'chapter', previewMode, 'chapter-heading-artwork');
+    const before = artwork && studio.chapterArtworkPosition === 'above' ? artwork : '';
+    const after = artwork && studio.chapterArtworkPosition === 'below' ? artwork : '';
+    return `<div class="chapter-heading-wrap">${before}<h1 id="${id}" class="chapter-title${inspectClass}"${attrs}${style ? ` style="${style}"` : ''}>${content}</h1>${chapterDividerHtml(design)}${after}</div>`;
+  }
   if (sectionType !== 'chapter' && (block.kind === 'front-back-heading' || matterSectionHeading(block, sectionType))) {
     const baseStyle = matterParagraphStyle(block, design);
     const style = mergeInlineStyles(baseStyle, overrideStyle);
@@ -192,10 +239,11 @@ function renderBlock(block, { blankMode = 'preserve', sectionType = 'chapter', d
   if (role === 'block-quote') return `<blockquote id="${id}" class="block-quote${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}><p>${content}</p></blockquote>`;
   if (role === 'written-note') return `<aside id="${id}" class="written-note${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}><p>${content}</p></aside>`;
   if (role === 'verse') return `<p id="${id}" class="verse${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</p>`;
-  if (role === 'scene-break') return `<p id="${id}" class="scene-break${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${sceneOrnamentHtml(content, design)}</p>`;
+  if (role === 'scene-break') return `<p id="${id}" class="scene-break${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${sceneOrnamentHtml(content, design, previewMode)}</p>`;
   if (role === 'text-message') return `<p id="${id}" class="text-message${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</p>`;
   const openingClass = block.kind === 'chapter-opening' ? ' chapter-opening' : '';
-  return `<p id="${id}" class="body${openingClass}${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</p>`;
+  const afterBreakClass = afterBreak ? ' paragraph-after-break' : '';
+  return `<p id="${id}" class="body${openingClass}${afterBreakClass}${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</p>`;
 }
 
 
@@ -333,22 +381,49 @@ function renderSectionBody(section, project, design, previewMode = false) {
       const blankMode = section.type === 'chapter'
         ? blankRenderMode({ blocks:section.blocks, index, sectionType:section.type, policy:design.bodyBlankPolicy })
         : 'collapse';
-      return renderBlock(block, { blankMode, sectionType:section.type, design, project, previewMode });
+      let afterBreak = false;
+      if (section.type === 'chapter' && block.kind !== 'blank') {
+        for (let previousIndex = index - 1; previousIndex >= 0; previousIndex -= 1) {
+          const previous = section.blocks[previousIndex];
+          if (!previous || previous.kind === 'blank') continue;
+          afterBreak = semanticRoleForBlock(project, previous, section.type) === 'scene-break';
+          break;
+        }
+      }
+      return renderBlock(block, { blankMode, sectionType:section.type, design, project, previewMode, afterBreak });
     }).join('\n');
   return `${body}${sectionNotesHtml(section, project)}`;
 }
 
 function stylesheet(designInput) {
   const design = normalizeEbookDesign(designInput);
+  const studio = normalizeEbookThemeStudio(design.themeStudio || {});
   const bodyAlignment = design.bodyAlignment === 'reader' ? '' : ` text-align:${design.bodyAlignment};`;
+  const firstParagraphCss = studio.firstParagraphTreatment === 'drop-cap'
+    ? `p.chapter-opening::first-letter { float:left; font-size:3.05em; line-height:.82; padding:.08em .08em 0 0; font-weight:700; }`
+    : studio.firstParagraphTreatment === 'small-caps'
+      ? `p.chapter-opening::first-line { font-variant:small-caps; letter-spacing:.035em; }`
+      : '';
+  const textMessageExtra = design.textMessageStyle === 'bubbles'
+    ? `.text-message { border:.08em solid currentColor; border-radius:.75em; padding:.55em .7em; margin-top:.4em; }`
+    : design.textMessageStyle === 'left-right'
+      ? `.text-message { max-width:78%; border:.08em solid currentColor; border-radius:.75em; padding:.5em .65em; margin-top:.4em; } .text-message:nth-of-type(even) { margin-left:auto; }`
+      : design.textMessageStyle === 'transcript'
+        ? `.text-message { margin-left:${Math.max(.4, design.textMessageIndentEm * .5)}em; margin-right:${Math.max(.4, design.textMessageIndentEm * .5)}em; }`
+        : '';
   return `@charset "UTF-8";
 html { -webkit-text-size-adjust: 100%; }
 body { margin:0; padding:0; font-family:${ebookFontStack(design.fontFamily)};${bodyAlignment} }
 p { margin:0; }
 p.body { margin:0 0 ${design.paragraphGapEm}em 0; text-indent: ${design.firstLineIndentEm}em; }
-p.chapter-opening { text-indent: 0; }
-h1.chapter-title { margin: ${design.chapterTopEm}em 0 ${design.chapterAfterEm}em; text-align: ${design.chapterTitleAlignment}; font-size: 1.55em; line-height: 1.2; font-weight: 700; page-break-before: always; break-before: page; }
-h2.matter-heading { margin: 1.8em 0 1em; font-size: 1.3em; line-height: 1.2; font-weight:700; }
+p.chapter-opening, p.paragraph-after-break { text-indent: 0; }
+${firstParagraphCss}
+.chapter-heading-wrap { page-break-before:always; break-before:page; text-align:${design.chapterTitleAlignment}; }
+h1.chapter-title { margin:${design.chapterTopEm}em 0 ${design.chapterAfterEm}em; text-align:${design.chapterTitleAlignment}; font-size:${studio.chapterTitleSizeEm}em; line-height:1.2; font-weight:${studio.chapterTitleWeight}; letter-spacing:${studio.chapterTitleLetterSpacingEm}em; text-transform:${studio.chapterTitleTransform}; page-break-before:auto; break-before:auto; }
+.chapter-divider { display:block; width:100%; margin:.35em auto 1.6em; text-align:center; letter-spacing:.12em; }
+.chapter-divider-line { width:28%; max-width:7em; height:.08em; background:currentColor; opacity:.55; }
+.chapter-heading-artwork { display:block; max-width:8em; max-height:4.5em; width:auto; height:auto; margin:1em auto; }
+h2.matter-heading { margin:1.8em 0 1em; font-size:1.3em; line-height:1.2; font-weight:700; }
 p.matter-body { text-indent:0; }
 .matter-clean { max-width:38em; margin:0 auto; }
 .matter-flow { margin:0 0 .78em; text-indent:0; }
@@ -362,16 +437,19 @@ p.matter-body { text-indent:0; }
 .matter-dedication { text-align:center; max-width:31em; padding-top:2.2em; }
 .matter-dedication .matter-flow { margin-bottom:1.1em; }
 body.front p.blank, body.back p.blank { display:none; min-height:0; height:0; margin:0; padding:0; }
-p.scene-break { margin: ${design.sceneBreakSpaceEm}em 0; text-indent: 0; text-align: center; }
+p.scene-break { margin:${design.sceneBreakSpaceEm}em 0; text-indent:0; text-align:center; }
 .scene-source-hidden { display:none; }
 .scene-ornament { letter-spacing:.12em; }
+.scene-whitespace { display:block; min-height:.4em; }
+.scene-break-artwork { display:block; width:auto; max-width:${studio.sceneBreakArtworkWidthEm}em; max-height:2.5em; margin:0 auto; }
 .subhead { margin:1.35em 0 .6em; text-align:${design.subheadAlignment}; font-size:${design.subheadSizeEm}em; line-height:1.25; font-weight:700; break-after:avoid; page-break-after:avoid; }
 .block-quote { margin:.8em ${design.blockQuoteIndentEm}em; padding:0; border:0; ${design.blockQuoteStyle === 'italic' ? 'font-style:italic;' : ''} }
 .block-quote p { margin:0; text-indent:0; }
 .written-note { margin:.95em ${design.writtenNoteStyle === 'inset' ? '1.15' : '0'}em; padding:${design.writtenNoteStyle === 'inset' ? '.75em .9em' : '0'}; border-left:${design.writtenNoteStyle === 'inset' ? '.16em solid currentColor' : '0'}; }
 .written-note p { margin:0; text-indent:0; }
 .verse { margin:.8em 0 .8em ${design.verseIndentEm}em; text-indent:0; white-space:normal; }
-.text-message { margin:0 ${design.textMessageStyle === 'compact' ? Math.max(.35, design.textMessageIndentEm * .55) : design.textMessageIndentEm}em ${design.paragraphGapEm}em; text-indent: 0; }
+.text-message { margin:0 ${design.textMessageStyle === 'compact' ? Math.max(.35, design.textMessageIndentEm * .55) : design.textMessageIndentEm}em ${design.paragraphGapEm}em; text-indent:0; }
+${textMessageExtra}
 .media-block { margin:1em 0; text-align:center; }
 figure.inline-image { margin:0 auto .55em; max-width:100%; }
 figure.inline-image img { display:block; max-width:100%; height:auto; margin:0 auto; }
@@ -381,18 +459,18 @@ p.media-caption { text-indent:0; text-align:center; font-size:.92em; }
 .ebook-note { margin:.7em 0; font-size:.92em; }
 .ebook-note p { display:inline; margin:0; text-indent:0; }
 .note-backref { margin-right:.35em; text-decoration:none; font-weight:700; }
-p.blank { min-height: .7em; }
+p.blank { min-height:.7em; }
 p.blank.normalized { display:block; min-height:${design.bodyBlankSpaceEm}em; height:${design.bodyBlankSpaceEm}em; margin:0; padding:0; }
 p.blank.collapsed { display:none; min-height:0; height:0; margin:0; padding:0; }
 p.blank.preserved { min-height:.7em; }
-.small-caps { font-variant: small-caps; }
-.underline { text-decoration: underline; }
-nav[epub\\:type="toc"] h1 { margin:1.2em 0 1.2em; text-align:center; font-size:1.45em; }
-nav[epub\\:type="toc"] ol { padding-left:1.2em; }
+.small-caps { font-variant:small-caps; }
+.underline { text-decoration:underline; }
+nav[epub\\:type="toc"] h1 { margin:1.2em 0; text-align:${studio.contentsAlignment}; font-size:${studio.contentsStyle === 'dramatic' ? '1.65' : studio.contentsStyle === 'classic' ? '1.5' : '1.45'}em; ${studio.contentsStyle === 'dramatic' ? 'text-transform:uppercase;letter-spacing:.055em;' : ''} }
+nav[epub\\:type="toc"] ol { padding-left:${studio.contentsAlignment === 'center' ? '0' : '1.2em'}; ${studio.contentsAlignment === 'center' ? 'list-style-position:inside;text-align:center;' : ''} }
 nav[epub\\:type="toc"] li { margin:.5em 0; }
-nav a { color: inherit; text-decoration: none; }
+nav a { color:inherit; text-decoration:none; }
 .hidden-nav { display:none; }
-@media amzn-kf8 { h1.chapter-title { page-break-before: always; } }
+@media amzn-kf8 { .chapter-heading-wrap { page-break-before:always; } }
 `;
 }
 
@@ -466,7 +544,7 @@ function coverInfo(project) {
   return { ...cover, ext, href: `images/cover.${ext}` };
 }
 
-function packageOpf(project, design, sections, generatedAt, cover = null, manuscriptMedia = []) {
+function packageOpf(project, design, sections, generatedAt, cover = null, manuscriptMedia = [], themeAssets = []) {
   const title = escapeXml(project.title || 'Book');
   const author = escapeXml(project.author || '');
   const publisher = escapeXml(design.publisher || '');
@@ -477,6 +555,7 @@ function packageOpf(project, design, sections, generatedAt, cover = null, manusc
   const publisherMeta = publisher ? `\n    <dc:publisher>${publisher}</dc:publisher>` : '';
   const coverManifest = cover ? `\n    <item id="cover-image" href="${escapeXml(cover.href)}" media-type="${escapeXml(cover.mimeType)}" properties="cover-image"/>` : '';
   const manuscriptMediaManifest = manuscriptMedia.map((asset) => `\n    <item id="${escapeXml(asset.manifestId)}" href="${escapeXml(asset.href)}" media-type="${escapeXml(asset.mimeType)}"/>`).join('');
+  const themeMediaManifest = themeAssets.map((asset) => `\n    <item id="${escapeXml(asset.id)}" href="${escapeXml(asset.href)}" media-type="${escapeXml(asset.mimeType)}"/>`).join('');
   const firstChapterIndex = sections.findIndex((section) => section.type === 'chapter');
   const spineRows = [];
   sections.forEach((section, index) => {
@@ -502,7 +581,7 @@ function packageOpf(project, design, sections, generatedAt, cover = null, manusc
   <manifest>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
     <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
-    <item id="css" href="styles.css" media-type="text/css"/>${coverManifest}${manuscriptMediaManifest}
+    <item id="css" href="styles.css" media-type="text/css"/>${coverManifest}${manuscriptMediaManifest}${themeMediaManifest}
 ${manifestSections}
   </manifest>
   <spine toc="ncx">
@@ -530,6 +609,7 @@ export function buildEpubPackageData({ project } = {}) {
   const generatedAt = new Date().toISOString();
   const cover = coverInfo(project);
   const manuscriptMedia = manuscriptMediaInfo(project);
+  const themeAssets = themeArtworkAssets(design);
   const files = new Map();
   files.set('mimetype', 'application/epub+zip');
   files.set('META-INF/container.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`);
@@ -541,8 +621,11 @@ export function buildEpubPackageData({ project } = {}) {
   for (const asset of manuscriptMedia) {
     if (asset?.dataUrl) files.set(`OEBPS/${asset.href}`, dataUrlBytes(asset.dataUrl));
   }
-  files.set('OEBPS/package.opf', packageOpf(project, design, sections, generatedAt, cover, manuscriptMedia));
-  return { files, sections, toc, design, generatedAt, coverage, cover, manuscriptMedia, visibleTocInSpine: Boolean(design.visibleToc) };
+  for (const asset of themeAssets) {
+    if (asset?.dataUrl) files.set(`OEBPS/${asset.href}`, dataUrlBytes(asset.dataUrl));
+  }
+  files.set('OEBPS/package.opf', packageOpf(project, design, sections, generatedAt, cover, manuscriptMedia, themeAssets));
+  return { files, sections, toc, design, generatedAt, coverage, cover, manuscriptMedia, themeAssets, visibleTocInSpine: Boolean(design.visibleToc) };
 }
 
 export async function buildEpubBlob({ project } = {}) {

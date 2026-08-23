@@ -59,7 +59,7 @@ export function enhancedTypesettingAudit(project) {
   add('no-fixed-position', !/position\s*:\s*(?:fixed|absolute)/i.test(css), 'No fixed-position book content', 'Production CSS avoids fixed/absolute positioning that can fight reflow.', 'warning');
   add('no-negative-margins', !/margin(?:-[a-z]+)?\s*:\s*-[\d.]/i.test(css), 'No negative margins', 'Production CSS avoids negative-margin layout hacks.', 'warning');
   add('relative-heading-size', /h1\.chapter-title[^}]*font-size\s*:\s*[\d.]+em/i.test(css), 'Relative chapter sizing', 'Chapter headings use relative em sizing instead of fixed points.', 'warning');
-  add('chapter-page-break', /h1\.chapter-title[^}]*(?:break-before|page-break-before)\s*:\s*(?:page|always)/i.test(css), 'Chapter starts are explicit', 'Chapter headings carry a reflow-safe break-before rule.', 'warning');
+  add('chapter-page-break', /(?:h1\.chapter-title|\.chapter-heading-wrap)[^}]*(?:break-before|page-break-before)\s*:\s*(?:page|always)/i.test(css), 'Chapter starts are explicit', 'Chapter headings or their Theme Studio wrapper carry a reflow-safe break-before rule.', 'warning');
 
   return {
     ok: checks.every((check) => check.ok || check.severity !== 'error'),

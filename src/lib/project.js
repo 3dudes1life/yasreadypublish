@@ -17,8 +17,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   const project = {
     id: crypto.randomUUID(),
-    version: 23,
-    appVersion: '1.0.14',
+    version: 24,
+    appVersion: '1.0.15',
     title: baseName,
     author: '',
     createdAt: now,
@@ -233,8 +233,19 @@ export function migrateProject(project) {
       project.editions.ebook.lastPreflight = null;
     }
   }
-  project.version = Math.max(oldVersion, 23);
-  project.appVersion = '1.0.14';
+
+  // 1.0.15 adds Theme Studio on top of the 1.0.14 production workflow. The
+  // new theme, source-style mapping, artwork, and chapter-override state live
+  // entirely inside ebook presentation metadata. Story-Locked manuscript
+  // blocks, notes, media, canonical hashes, and source order are untouched.
+  if (oldVersion < 24) {
+    ensureEbookDesign(project);
+    ensureEditions(project);
+    if (project.editions?.ebook) project.editions.ebook.lastPreflight = null;
+  }
+
+  project.version = Math.max(oldVersion, 24);
+  project.appVersion = '1.0.15';
   return project;
 }
 

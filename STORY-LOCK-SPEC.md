@@ -216,3 +216,12 @@ Every accepted presentation change invalidates stale ebook proof/preflight state
 ### Final Check alignment
 
 Version 1.0.14 requires the Final Check ebook branch to include Kindle Intelligence alongside EPUB preflight and Kindle Pro quality. A workflow UI may never bypass a stricter release gate that is already enforced by the Kindle production workspace.
+
+
+## Theme Studio isolation (v1.0.15)
+
+Version 1.0.15 expands presentation capability without expanding manuscript mutation authority. Theme family selection, Word-style mapping, chapter overrides, first-paragraph treatments, scene-break treatments, text-conversation layouts, Contents styling, and optional theme artwork are edition presentation metadata only.
+
+Theme Studio operations must preserve manuscript blocks, notes, media bytes, source order, canonical algorithm selection, and Story Lock hashes. The UI performs before/after manuscript-block comparisons on critical Theme Studio writes, and export remains subject to the existing Story Lock/source-coverage gates.
+
+A visual scene-break ornament may hide the source break mark from presentation, but the locked source mark remains in EPUB markup. Text-conversation styling must preserve literal manuscript labels such as `[Name]:` exactly. Optional chapter-heading and scene-break artwork may be added to the EPUB package because artwork is presentation media; it may not replace or rewrite Story-Locked prose.

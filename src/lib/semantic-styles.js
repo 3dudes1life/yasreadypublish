@@ -62,7 +62,17 @@ export function autoSemanticRole(block, sectionType = 'chapter') {
 export function semanticRoleForBlock(project, block, sectionType = 'chapter') {
   const raw = project?.presentationOverrides?.ebook?.[block?.id]?.semanticRole;
   const explicit = normalizeSemanticRole(raw || 'auto');
-  return explicit === 'auto' ? autoSemanticRole(block, sectionType) : explicit;
+  if (explicit !== 'auto') return explicit;
+
+  // 1.0.15 Theme Studio can transparently remap named Word styles without
+  // touching the source block, wording, or Story Lock canonical text.
+  const styleName = String(block?.style?.name || block?.styleName || '').trim();
+  const styleMap = project?.editions?.ebook?.design?.themeStudio?.sourceStyleMap
+    || project?.design?.ebook?.themeStudio?.sourceStyleMap
+    || {};
+  const mapped = normalizeSemanticRole(styleMap?.[styleName] || 'auto');
+  if (mapped !== 'auto') return mapped;
+  return autoSemanticRole(block, sectionType);
 }
 
 export function semanticRoleCounts(project, sections = []) {

@@ -168,8 +168,8 @@ test('1.0.12 migration preserves legacy Story Lock algorithm/hash and manuscript
   };
   const before=JSON.stringify(legacy.manuscript.blocks);
   const migrated=migrateProject(legacy);
-  assert.equal(migrated.version,23);
-  assert.equal(migrated.appVersion,'1.0.14');
+  assert.equal(migrated.version,24);
+  assert.equal(migrated.appVersion,'1.0.15');
   assert.equal(migrated.storyLock.canonicalVersion,1);
   assert.equal(migrated.source.manuscriptHash,'legacy-hash');
   assert.equal(JSON.stringify(migrated.manuscript.blocks),before);

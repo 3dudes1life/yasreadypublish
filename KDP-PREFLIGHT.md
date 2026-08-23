@@ -65,3 +65,8 @@ YasReady also owns final sheet parity. If pagination would otherwise end on an o
 ## v1.0.14 Kindle Final Check alignment
 
 The physical-edition rules above remain unchanged while Kindle work is being finalized. Version 1.0.14 fixes Final Check so the ebook branch uses the same three internal gates shown in the Kindle workspace: EPUB preflight, Kindle Pro quality, and Kindle Intelligence. Intentional non-blocking review acknowledgements are production-workflow metadata only; they cannot dismiss Story Lock, package, navigation, or other blocking errors.
+
+
+## v1.0.15 Theme Studio alignment
+
+Theme Studio does not relax any KDP release gate. Theme CSS, semantic wrappers, chapter-heading treatments, conversation layouts, and optional theme artwork are generated presentation assets. Story Lock, source coverage, navigation, spine, cover, package, placeholder, finished-EPUB audit, Kindle Pro quality, and Kindle Intelligence checks remain authoritative.

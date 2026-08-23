@@ -1,5 +1,6 @@
 import { analyzeMatter, matterSectionForBlockIndex } from './structure-model.js';
 import { effectiveBlocks } from './structure-overrides.js';
+import { defaultEbookThemeStudio, normalizeEbookThemeStudio } from './ebook-theme-studio.js';
 
 export const DEFAULT_EBOOK_DESIGN = Object.freeze({
   themeId: 'tres-amigos-ebook',
@@ -29,6 +30,7 @@ export const DEFAULT_EBOOK_DESIGN = Object.freeze({
   tocScope: 'chapters',
   visibleToc: true,
   frontMatterMode: 'clean',
+  themeStudio: defaultEbookThemeStudio(),
 });
 
 const clamp = (value, fallback, min, max) => {
@@ -60,13 +62,15 @@ export function normalizeEbookDesign(input = {}) {
   design.blockQuoteStyle = ['plain','italic'].includes(design.blockQuoteStyle) ? design.blockQuoteStyle : DEFAULT_EBOOK_DESIGN.blockQuoteStyle;
   design.writtenNoteStyle = ['plain','inset'].includes(design.writtenNoteStyle) ? design.writtenNoteStyle : DEFAULT_EBOOK_DESIGN.writtenNoteStyle;
   design.verseIndentEm = clamp(design.verseIndentEm, DEFAULT_EBOOK_DESIGN.verseIndentEm, 0, 3);
-  design.textMessageStyle = ['inset','compact'].includes(design.textMessageStyle) ? design.textMessageStyle : DEFAULT_EBOOK_DESIGN.textMessageStyle;
-  design.sceneBreakTreatment = ['source','asterisks','dots','diamond'].includes(design.sceneBreakTreatment) ? design.sceneBreakTreatment : DEFAULT_EBOOK_DESIGN.sceneBreakTreatment;
+  design.textMessageStyle = ['inset','compact','bubbles','left-right','transcript'].includes(design.textMessageStyle) ? design.textMessageStyle : DEFAULT_EBOOK_DESIGN.textMessageStyle;
+  design.sceneBreakTreatment = ['source','asterisks','dots','diamond','flourish','whitespace','custom-text','custom-image'].includes(design.sceneBreakTreatment) ? design.sceneBreakTreatment : DEFAULT_EBOOK_DESIGN.sceneBreakTreatment;
   design.tocScope = design.tocScope === 'all-matter' ? 'all-matter' : 'chapters';
   design.visibleToc = design.visibleToc !== false;
   design.frontMatterMode = design.frontMatterMode === 'source' ? 'source' : 'clean';
   design.themeId = String(design.themeId || DEFAULT_EBOOK_DESIGN.themeId);
   design.name = String(design.name || DEFAULT_EBOOK_DESIGN.name);
+  design.themeStudio = normalizeEbookThemeStudio(design.themeStudio || {});
+  if (!design.themeStudio.themeId) design.themeStudio.themeId = design.themeId;
   return design;
 }
 

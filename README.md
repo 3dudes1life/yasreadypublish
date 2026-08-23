@@ -1,8 +1,8 @@
-# YasReady Publish v1.0.14
+# YasReady Publish v1.0.15
 
 Private publishing studio for Story-Locked manuscripts.
 
-Version 1.0.14 is the **Kindle Production UX pass**. It keeps the semantic Kindle engine and whole-book intelligence from 1.0.12–1.0.13, then turns those systems into one guided production workflow: a Production Console, an exact next action, a reviewable Polish Queue, faster Preview Studio navigation, Focus Preview, and quick visual rhythm controls.
+Version 1.0.15 is the **Theme Studio pass**. It is built directly on the 1.0.14 Kindle Production UX and keeps that workflow intact while adding a whole-book visual design system: eight coordinated book families, live theme controls, chapter-heading design, scene-break treatments, text-conversation styles, transparent Word-style mapping, chapter overrides, whole-book style usage review, and Book DNA.
 
 ## Story Lock remains the first rule
 
@@ -14,6 +14,20 @@ YasReady may change presentation. It may not rewrite manuscript language.
 - Scene-break ornaments may visually replace source marks, but the locked source marks remain preserved in the EPUB source.
 - New DOCX imports use canonical Story Lock v2 so note wording and embedded-image fingerprints are protected alongside body paragraphs.
 - Existing projects keep their original Story Lock algorithm and hash during migration.
+
+## Theme Studio
+
+Theme Studio sits inside the existing Kindle workspace and adds:
+
+- eight coordinated book families, including the private **Tres Amigos** preset
+- one-screen controls for chapter headings, first paragraphs, body rhythm, subheads, block quotes, written notes, verse, text conversations, scene breaks, and Contents
+- visible **Theme style → Chapter override → Paragraph override** hierarchy
+- optional chapter-heading and scene-break artwork packaged inside the EPUB
+- transparent Word-style inference and remapping
+- **Show me every place using this style** whole-book review
+- **Book DNA** theme-adherence, semantic-feature, local-override, and outlier counts
+
+Theme Studio is presentation metadata. It does not rewrite manuscript paragraphs, notes, media bytes, source order, or Story Lock hashes.
 
 ## Kindle Production Console
 
@@ -30,7 +44,7 @@ The **Polish Queue** merges whole-book quality and intelligence findings. Blocki
 
 ## Faster Preview Studio
 
-Version 1.0.14 keeps the three-pane production workbench:
+Version 1.0.15 keeps the 1.0.14 three-pane production workbench:
 
 **Reading Order | Live Book Preview | Format Inspector**
 
@@ -85,7 +99,7 @@ The release pipeline retains:
 
 ## Existing projects
 
-No reimport is required merely to update an existing project to 1.0.14. Migration creates the new Kindle review-state container, invalidates stale ebook preflight status, and leaves manuscript blocks and Story Lock hashes untouched.
+No reimport is required merely to update an existing project to 1.0.15. Migration creates the Theme Studio presentation container, invalidates stale ebook preflight status, and leaves manuscript blocks, notes, media, source order, canonical algorithm, and Story Lock hashes untouched.
 
 A fresh import is required only when an older project needs DOCX footnotes/endnotes or embedded manuscript images that were never captured by its original importer.
 

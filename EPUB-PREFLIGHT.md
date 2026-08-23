@@ -1,4 +1,4 @@
-# EPUB Preflight — v1.0.14
+# EPUB Preflight — v1.0.15
 
 Kindle release requires Story Lock plus KDP EPUB preflight, Kindle Pro quality, Kindle Intelligence, and finished-package auditing.
 
@@ -21,7 +21,7 @@ Kindle release requires Story Lock plus KDP EPUB preflight, Kindle Pro quality, 
 
 ## Production workflow layer
 
-The v1.0.14 Production Console and Polish Queue do not add files or markup to the EPUB. Intentional-review records are local edition QA metadata only. They cannot suppress blocking errors and cannot change production content.
+The v1.0.14 Production Console and Polish Queue remain workflow-only and do not add production markup to the EPUB. Version 1.0.15 Theme Studio does intentionally add presentation CSS/classes and, when selected, packaged chapter-heading or scene-break artwork. Locked source text remains present and unchanged; scene-break source marks remain preserved in EPUB markup even when an ornament visually replaces them. Intentional-review records remain local edition QA metadata only and cannot suppress blocking errors.
 
 The queue combines Kindle Pro and Kindle Intelligence findings so the author can move directly to the next actionable location. Exact-finding review tokens ensure a changed issue resurfaces instead of remaining silently acknowledged.
 

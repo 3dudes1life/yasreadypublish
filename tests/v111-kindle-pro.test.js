@@ -112,7 +112,7 @@ test('1.0.11 migration advances safely while preserving manuscript blocks exactl
   p.appVersion='1.0.10';
   const before=JSON.stringify(p.manuscript.blocks);
   const migrated=migrateProject(p);
-  assert.equal(migrated.version,23);
-  assert.equal(migrated.appVersion,'1.0.14');
+  assert.equal(migrated.version,24);
+  assert.equal(migrated.appVersion,'1.0.15');
   assert.equal(JSON.stringify(migrated.manuscript.blocks),before);
 });

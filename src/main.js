@@ -50,8 +50,13 @@ import {
   buildKindleProductionFlow, clearKindleReviewDecision, ensureKindleReviewState,
   kindleReviewDecision, markKindleReviewIntentional,
 } from './lib/kindle-production-flow.js';
+import {
+  EBOOK_THEME_FAMILIES, EBOOK_THEME_STUDIO_LABELS, EBOOK_THEME_STUDIO_ROLES,
+  applyEbookThemeFamily, calculateBookDNA, ebookStyleUsage, inferSourceStyleRole,
+  normalizeEbookThemeStudio, setChapterHeadingOverride, sourceStyleRecords,
+} from './lib/ebook-theme-studio.js';
 
-const VERSION = '1.0.14';
+const VERSION = '1.0.15';
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
 
@@ -96,6 +101,9 @@ const state = {
   ebookNavigatorSearch: '',
   polishQueueIndex: 0,
   kindleFocusPreview: false,
+  themeUsageRole: 'text-message',
+  themeSelectedChapterBlockId: '',
+  themeStudioMessage: '',
 };
 
 const app = document.querySelector('#app');
@@ -1555,6 +1563,185 @@ function jumpToNextPolishIssue() {
   jumpToPolishIssue(issue);
 }
 
+function themeStudioSelect(id, label, value, options) {
+  return `<label class="design-field"><span>${escapeHtml(label)}</span><select id="${id}">${options.map((option) => {
+    const item = typeof option === 'string' ? { value: option, label: option } : option;
+    return `<option value="${escapeHtml(item.value)}" ${String(value) === String(item.value) ? 'selected' : ''}>${escapeHtml(item.label)}</option>`;
+  }).join('')}</select></label>`;
+}
+
+function themeStudioNumber(id, label, value, { min = 0, max = 10, step = 0.05, unit = 'em' } = {}) {
+  return `<label class="design-field"><span>${escapeHtml(label)}</span><div class="number-wrap"><input id="${id}" type="number" min="${min}" max="${max}" step="${step}" value="${escapeHtml(value)}"><em>${escapeHtml(unit)}</em></div></label>`;
+}
+
+function renderThemeStudioSample(design, studio) {
+  const transform = studio.chapterTitleTransform === 'none' ? 'none' : studio.chapterTitleTransform;
+  const divider = studio.chapterDivider === 'none' ? '' : studio.chapterDivider === 'line'
+    ? '<span class="theme-sample-divider line"></span>'
+    : `<span class="theme-sample-divider">${studio.chapterDivider === 'dots' ? '• • •' : studio.chapterDivider === 'diamond' ? '◆' : '✦'}</span>`;
+  const scene = design.sceneBreakTreatment === 'whitespace' ? '&nbsp;'
+    : design.sceneBreakTreatment === 'dots' ? '• • •'
+      : design.sceneBreakTreatment === 'diamond' ? '◆'
+        : design.sceneBreakTreatment === 'flourish' ? '✦'
+          : design.sceneBreakTreatment === 'custom-text' ? escapeHtml(studio.sceneBreakCustomText || '✦')
+            : design.sceneBreakTreatment === 'asterisks' ? '* * *' : '***';
+  const firstClass = `theme-sample-first ${studio.firstParagraphTreatment}`;
+  const messageClass = `theme-sample-message ${design.textMessageStyle}`;
+  return `<div class="theme-sample-book" id="themeStudioLiveSample" data-message-style="${escapeHtml(design.textMessageStyle)}">
+    <div class="theme-sample-chapter" id="themeSampleChapter" style="text-align:${escapeHtml(design.chapterTitleAlignment)};padding-top:${design.chapterTopEm}em;margin-bottom:${design.chapterAfterEm}em;font-size:${studio.chapterTitleSizeEm}em;font-weight:${studio.chapterTitleWeight};letter-spacing:${studio.chapterTitleLetterSpacingEm}em;text-transform:${escapeHtml(transform)}">Chapter 12: The Shape of Home</div>
+    ${divider}
+    <p class="${firstClass}" id="themeSampleFirst" style="line-height:${design.lineHeight};margin-bottom:${design.paragraphGapEm}em">Morning found the house before any of them were ready for it, pouring warm light across the floorboards and the two beagles asleep in the safest patch of sun.</p>
+    <p class="theme-sample-body" id="themeSampleBody" style="line-height:${design.lineHeight};text-indent:${design.firstLineIndentEm}em;margin-bottom:${design.paragraphGapEm}em">Juan crossed the kitchen barefoot, coffee in one hand, his phone in the other, and smiled before he even read the whole message.</p>
+    <div class="theme-sample-scene" id="themeSampleScene">${scene}</div>
+    <p class="theme-sample-after" style="line-height:${design.lineHeight};margin-bottom:${design.paragraphGapEm}em">Later, the quiet between them felt less like distance and more like room to breathe.</p>
+    <p class="${messageClass}" id="themeSampleMessage">[Juan]: te amo. also i’m starving.</p>
+    <blockquote class="theme-sample-quote">Some homes are built twice: once with walls, and again with the people who choose to stay.</blockquote>
+  </div>`;
+}
+
+function renderThemeStudio(project, design, preview, intelligence) {
+  const studio = normalizeEbookThemeStudio(design.themeStudio || {});
+  const dna = calculateBookDNA(project, intelligence);
+  const paragraphOverrides = countPresentationOverrides(project, 'ebook');
+  const chapterOverrideCount = Object.keys(studio.chapterOverrides || {}).length;
+  const sourceStyles = sourceStyleRecords(project);
+  const usageRole = EBOOK_THEME_STUDIO_ROLES.includes(state.themeUsageRole) ? state.themeUsageRole : 'text-message';
+  const usage = ebookStyleUsage(project, usageRole).map((item) => {
+    const sectionIndex = preview.sections.findIndex((section) => (section.blocks || []).some((block) => block.id === item.blockId));
+    return { ...item, sectionIndex };
+  });
+  const chapterSections = preview.sourceSections.filter((section) => section.type === 'chapter');
+  const requestedChapterBlock = state.themeSelectedChapterBlockId
+    ? chapterSections.flatMap((section) => section.blocks || []).find((block) => block.id === state.themeSelectedChapterBlockId && block.kind === 'chapter-title')
+    : null;
+  const selectedChapterBlock = requestedChapterBlock || chapterSections.flatMap((section) => section.blocks || []).find((block) => block.kind === 'chapter-title');
+  if (selectedChapterBlock && state.themeSelectedChapterBlockId !== selectedChapterBlock.id) state.themeSelectedChapterBlockId = selectedChapterBlock.id;
+  const chapterOverride = selectedChapterBlock ? studio.chapterOverrides?.[selectedChapterBlock.id] || {} : {};
+  const mappedOptions = [
+    { value:'auto', label:'Auto / source inference' },
+    { value:'body', label:'Body paragraph' },
+    { value:'subhead', label:'Subhead' },
+    { value:'block-quote', label:'Block quote' },
+    { value:'written-note', label:'Written note / letter' },
+    { value:'verse', label:'Verse / poetry' },
+    { value:'text-message', label:'Text conversation' },
+    { value:'scene-break', label:'Scene break' },
+    { value:'review', label:'Review manually' },
+  ];
+
+  return `<details class="theme-studio-v115" id="themeStudio" open>
+    <summary><span><strong>Theme Studio · v1.0.15</strong><small>${escapeHtml(studio.themeName)} · ${dna.adherence}% theme match · Story Lock safe</small></span><b>⌄</b></summary>
+    <div class="theme-studio-body">
+      ${state.themeStudioMessage ? `<div class="notice info">${escapeHtml(state.themeStudioMessage)}</div>` : ''}
+      <div class="theme-studio-intro">
+        <div><div class="eyebrow">Professional visual design system</div><h3>Make the whole novel feel designed.</h3><p>Theme style → chapter override → paragraph override. Every visual decision stays outside the manuscript and inside the ebook presentation layer.</p></div>
+        <div><div class="eyebrow">Book DNA</div><div class="theme-dna-compact">
+          <div><b>${dna.adherence}%</b><span>Theme match</span></div>
+          <div><b>${dna.semanticFeatures}</b><span>Semantic features</span></div>
+          <div><b>${chapterOverrideCount}</b><span>Chapter overrides</span></div>
+          <div><b>${paragraphOverrides}</b><span>Paragraph overrides</span></div>
+          <div><b>${dna.outliers}</b><span>Formatting outliers</span></div>
+        </div></div>
+      </div>
+
+      <div class="theme-scope-strip">
+        <div class="active"><span>1</span><p><strong>Theme style</strong><small>${escapeHtml(studio.themeName)} · global baseline</small></p></div>
+        <div class="${chapterOverrideCount ? 'modified' : ''}"><span>2</span><p><strong>Chapter override</strong><small>${chapterOverrideCount} intentional heading override${chapterOverrideCount === 1 ? '' : 's'}</small></p></div>
+        <div class="${paragraphOverrides ? 'modified' : ''}"><span>3</span><p><strong>Paragraph override</strong><small>${paragraphOverrides} Preview Studio fix${paragraphOverrides === 1 ? '' : 'es'}</small></p></div>
+      </div>
+
+      <section class="theme-gallery-section">
+        <div class="theme-section-head"><div><span class="eyebrow">Style Gallery</span><h4>Book families, not gimmick templates</h4></div><span class="mini-status good">8 families</span></div>
+        <div class="theme-gallery-grid">${EBOOK_THEME_FAMILIES.map((theme) => `<article class="theme-family-card ${studio.themeId === theme.id ? 'selected' : ''}">
+          <div><strong>${escapeHtml(theme.name)}${theme.private ? ' · PRIVATE' : ''}</strong><p>${escapeHtml(theme.description)}</p></div>
+          <button class="btn ${studio.themeId === theme.id ? 'primary' : 'secondary'}" data-apply-ebook-theme="${escapeHtml(theme.id)}" type="button">${studio.themeId === theme.id ? 'Current theme' : 'Use family'}</button>
+        </article>`).join('')}</div>
+      </section>
+
+      <div class="theme-builder-layout">
+        <section class="theme-builder-controls">
+          <div class="theme-section-head"><div><span class="eyebrow">Book Theme Builder</span><h4>Global visual language</h4></div><span class="mini-status good">Live sample</span></div>
+          <div class="theme-control-group"><h5>Chapter Heading</h5><div class="semantic-style-controls">
+            ${themeStudioSelect('themeChapterAlignment','Alignment',design.chapterTitleAlignment,['left','center','right'])}
+            ${themeStudioNumber('themeChapterTop','Space before',design.chapterTopEm,{min:0,max:8,step:.1})}
+            ${themeStudioNumber('themeChapterAfter','Space after',design.chapterAfterEm,{min:0,max:6,step:.1})}
+            ${themeStudioNumber('themeChapterSize','Heading size',studio.chapterTitleSizeEm,{min:1.1,max:2.8,step:.05})}
+            ${themeStudioNumber('themeChapterWeight','Weight',studio.chapterTitleWeight,{min:400,max:900,step:50,unit:''})}
+            ${themeStudioNumber('themeChapterTracking','Letter spacing',studio.chapterTitleLetterSpacingEm,{min:0,max:.16,step:.005})}
+            ${themeStudioSelect('themeChapterTransform','Capitalization',studio.chapterTitleTransform,[{value:'none',label:'As written'},{value:'uppercase',label:'UPPERCASE'},{value:'lowercase',label:'lowercase'}])}
+            ${themeStudioSelect('themeChapterDivider','Divider / ornament',studio.chapterDivider,[{value:'none',label:'None'},{value:'line',label:'Fine line'},{value:'dots',label:'• • •'},{value:'diamond',label:'◆'},{value:'flourish',label:'✦'}])}
+          </div><div class="theme-artwork-row"><input id="themeChapterArtworkInput" type="file" accept="image/jpeg,image/png,image/gif,image/svg+xml,image/webp" hidden><button class="btn secondary" id="chooseThemeChapterArtwork" type="button">${studio.chapterArtwork ? 'Replace heading artwork' : 'Add heading artwork'}</button>${studio.chapterArtwork ? `<button class="btn danger" data-remove-theme-artwork="chapter" type="button">Remove artwork</button><span>${escapeHtml(studio.chapterArtwork.fileName)}</span>` : '<span>Optional · packaged inside the EPUB</span>'}${themeStudioSelect('themeChapterArtworkPosition','Artwork position',studio.chapterArtworkPosition,[{value:'above',label:'Above heading'},{value:'below',label:'Below divider'}])}</div></div>
+
+          <div class="theme-control-group"><h5>First Paragraph + Body</h5><div class="semantic-style-controls">
+            ${themeStudioSelect('themeFirstParagraph','First paragraph',studio.firstParagraphTreatment,[{value:'flush',label:'Flush / clean'},{value:'small-caps',label:'Small-caps opening line'},{value:'drop-cap',label:'Drop cap'}])}
+            ${themeStudioSelect('themeBodyFont','Body font behavior',design.fontFamily,[{value:'reader',label:'Reader controlled'},{value:'serif',label:'Serif preference'},{value:'sans',label:'Sans preference'}])}
+            ${themeStudioNumber('themeLineHeight','Line height',design.lineHeight,{min:1,max:2.2,step:.02,unit:'×'})}
+            ${themeStudioNumber('themeFirstIndent','Body first-line indent',design.firstLineIndentEm,{min:0,max:3,step:.05})}
+            ${themeStudioNumber('themeParagraphGap','Paragraph spacing',design.paragraphGapEm,{min:0,max:2,step:.05})}
+          </div></div>
+
+          <div class="theme-control-group"><h5>Subhead + Quote + Note + Verse</h5><div class="semantic-style-controls">
+            ${themeStudioSelect('themeSubheadAlignment','Subhead alignment',design.subheadAlignment,['left','center','right'])}
+            ${themeStudioNumber('themeSubheadSize','Subhead size',design.subheadSizeEm,{min:.9,max:1.8,step:.05})}
+            ${themeStudioSelect('themeBlockQuoteStyle','Block quote',design.blockQuoteStyle,[{value:'plain',label:'Clean indent'},{value:'italic',label:'Indented italic'}])}
+            ${themeStudioNumber('themeBlockQuoteIndent','Quote indent',design.blockQuoteIndentEm,{min:0,max:3,step:.05})}
+            ${themeStudioSelect('themeWrittenNoteStyle','Written note',design.writtenNoteStyle,[{value:'plain',label:'Plain text'},{value:'inset',label:'Inset note'}])}
+            ${themeStudioNumber('themeVerseIndent','Verse indent',design.verseIndentEm,{min:0,max:3,step:.05})}
+          </div></div>
+
+          <div class="theme-control-group"><h5>Scene Break</h5><div class="semantic-style-controls">
+            ${themeStudioSelect('themeSceneTreatment','Treatment',design.sceneBreakTreatment,[{value:'source',label:'Use source marks'},{value:'whitespace',label:'Whitespace only'},{value:'asterisks',label:'* * *'},{value:'dots',label:'• • •'},{value:'diamond',label:'◆'},{value:'flourish',label:'✦'},{value:'custom-text',label:'Custom glyph/text'},{value:'custom-image',label:'Custom artwork'}])}
+            <label class="design-field"><span>Custom glyph / text</span><input id="themeSceneCustomText" maxlength="24" value="${escapeHtml(studio.sceneBreakCustomText)}" placeholder="✦"></label>
+            ${themeStudioNumber('themeSceneSpace','Vertical spacing',design.sceneBreakSpaceEm,{min:0,max:4,step:.05})}
+            ${themeStudioNumber('themeSceneArtworkWidth','Artwork width',studio.sceneBreakArtworkWidthEm,{min:1,max:10,step:.1})}
+          </div><div class="theme-artwork-row"><input id="themeSceneArtworkInput" type="file" accept="image/jpeg,image/png,image/gif,image/svg+xml,image/webp" hidden><button class="btn secondary" id="chooseThemeSceneArtwork" type="button">${studio.sceneBreakArtwork ? 'Replace scene artwork' : 'Add scene artwork'}</button>${studio.sceneBreakArtwork ? `<button class="btn danger" data-remove-theme-artwork="scene-break" type="button">Remove artwork</button><span>${escapeHtml(studio.sceneBreakArtwork.fileName)}</span>` : '<span>Optional · used when Custom artwork is selected</span>'}</div></div>
+
+          <div class="theme-control-group"><h5>Text Conversation + Contents</h5><div class="semantic-style-controls">
+            ${themeStudioSelect('themeTextMessageStyle','Text conversation',design.textMessageStyle,[{value:'transcript',label:'Clean transcript'},{value:'bubbles',label:'Subtle bubbles'},{value:'left-right',label:'Left / right conversation'},{value:'compact',label:'Compact'},{value:'inset',label:'Readable inset'}])}
+            ${themeStudioNumber('themeTextMessageIndent','Conversation indent',design.textMessageIndentEm,{min:0,max:4,step:.05})}
+            ${themeStudioSelect('themeContentsStyle','Contents style',studio.contentsStyle,[{value:'clean',label:'Clean'},{value:'classic',label:'Classic'},{value:'dramatic',label:'Dramatic'}])}
+            ${themeStudioSelect('themeContentsAlignment','Contents alignment',studio.contentsAlignment,[{value:'left',label:'Left'},{value:'center',label:'Centered'}])}
+          </div></div>
+          <div class="theme-save-row"><button class="btn primary" id="saveThemeStudio" type="button">Save Theme Studio</button><span>Updates presentation metadata only. Story Lock source text is untouched.</span></div>
+        </section>
+
+        <aside class="theme-builder-preview"><div class="theme-preview-head"><span>Representative chapter</span><b>${escapeHtml(studio.themeName)}</b></div>${renderThemeStudioSample(design, studio)}</aside>
+      </div>
+
+      <section class="theme-chapter-override-section">
+        <div class="theme-section-head"><div><span class="eyebrow">Global → Chapter override</span><h4>Fine-tune one chapter without losing the theme</h4></div><span class="mini-status ${chapterOverrideCount ? 'needs' : 'good'}">${chapterOverrideCount} override${chapterOverrideCount === 1 ? '' : 's'}</span></div>
+        ${selectedChapterBlock ? `<div class="theme-chapter-override-grid">
+          <label class="design-field"><span>Chapter</span><select id="themeChapterOverrideSelect">${chapterSections.map((section, index) => {
+            const titleBlock = (section.blocks || []).find((block) => block.kind === 'chapter-title');
+            return titleBlock ? `<option value="${escapeHtml(titleBlock.id)}" ${titleBlock.id === selectedChapterBlock.id ? 'selected' : ''}>${escapeHtml(section.title || `Chapter ${index + 1}`)}</option>` : '';
+          }).join('')}</select></label>
+          ${themeStudioSelect('themeChapterOverrideAlignment','Alignment',chapterOverride.alignment || 'theme',[{value:'theme',label:'Theme'},{value:'left',label:'Left'},{value:'center',label:'Center'},{value:'right',label:'Right'}])}
+          ${themeStudioNumber('themeChapterOverrideBefore','Space before',chapterOverride.spaceBefore ?? '',{min:0,max:8,step:.1})}
+          ${themeStudioNumber('themeChapterOverrideAfter','Space after',chapterOverride.spaceAfter ?? '',{min:0,max:6,step:.1})}
+          ${themeStudioNumber('themeChapterOverrideSize','Heading size',chapterOverride.sizeEm ?? '',{min:1.1,max:2.8,step:.05})}
+          <div class="theme-chapter-actions"><button class="btn secondary" id="saveThemeChapterOverride" type="button">Save chapter override</button><button class="btn ghost" id="resetThemeChapterOverride" type="button" ${chapterOverrideCount ? '' : 'disabled'}>Reset chapter</button></div>
+        </div>` : '<div class="notice info">No chapter headings were detected in this project.</div>'}
+      </section>
+
+      <section class="theme-mapper-section">
+        <div class="theme-section-head"><div><span class="eyebrow">Smart Word Style Mapper</span><h4>See what YasReady inferred before it becomes presentation</h4></div><span class="mini-status good">${sourceStyles.length} source styles</span></div>
+        <div class="theme-mapper-table">${sourceStyles.slice(0, 36).map((record) => {
+          const inferred = inferSourceStyleRole(record.name, record.sample);
+          const stored = studio.sourceStyleMap?.[record.name];
+          const effective = stored || (['body','subhead','block-quote','written-note','verse','text-message','scene-break'].includes(inferred) ? inferred : 'auto');
+          return `<div class="theme-mapper-row"><div><strong>${escapeHtml(record.name)}</strong><small>${record.count} block${record.count === 1 ? '' : 's'} · ${escapeHtml(record.sample || 'No text sample')}</small></div><span class="theme-inference">${escapeHtml(inferred === 'chapter-heading' ? 'Chapter structure' : inferred === 'review' ? 'Review' : EBOOK_THEME_STUDIO_LABELS[inferred] || inferred)}</span><select data-theme-word-style="${escapeHtml(record.name)}">${mappedOptions.map((option) => `<option value="${escapeHtml(option.value)}" ${option.value === effective ? 'selected' : ''}>${escapeHtml(option.label)}</option>`).join('')}</select></div>`;
+        }).join('') || '<div class="notice info">No named Word styles were found. YasReady will continue using source structure and semantic pattern detection.</div>'}</div>
+        <div class="theme-save-row"><button class="btn secondary" id="saveThemeWordMap" type="button">Save Word style map</button><span>Unknown or unusual styles stay visible instead of being silently guessed.</span></div>
+      </section>
+
+      <section class="theme-usage-section">
+        <div class="theme-section-head"><div><span class="eyebrow">Show me every place using this style</span><h4>Whole-book semantic review</h4></div>${themeStudioSelect('themeUsageRole','Style',usageRole,EBOOK_THEME_STUDIO_ROLES.map((role) => ({ value:role, label:EBOOK_THEME_STUDIO_LABELS[role] })))}</div>
+        <div class="theme-usage-list">${usage.length ? usage.slice(0, 120).map((item) => `<button type="button" class="theme-usage-row" data-theme-usage-section="${item.sectionIndex}" data-theme-usage-block="${escapeHtml(item.blockId)}"><span>${item.chapter ? `CH ${item.chapter}` : 'BOOK'}</span><div><strong>${escapeHtml(EBOOK_THEME_STUDIO_LABELS[item.role] || item.role)}</strong><small>${escapeHtml(item.snippet || '[blank]')}</small></div><b>Open →</b></button>`).join('') : `<div class="theme-usage-empty">No ${escapeHtml(EBOOK_THEME_STUDIO_LABELS[usageRole] || usageRole)} blocks are currently detected.</div>`}</div>
+      </section>
+    </div>
+  </details>`;
+}
+
 function renderEbook() {
   const project = state.project;
   ensurePresentationOverrides(project);
@@ -1613,6 +1800,8 @@ function renderEbook() {
 
       ${renderKindleProductionConsole(flow, preview, kindleReady)}
 
+      ${renderThemeStudio(project, design, preview, intelligence)}
+
       <details class="kindle-health-details" id="kindleHealthDetails" ${flow.blockers.length || flow.reviews.length ? 'open' : ''}>
         <summary><span><strong>Book Health & Intelligence</strong><small>${quality.score}/100 quality · ${flow.stats.reviews} active review · ${flow.stats.acknowledged} intentional · ${intelligence.summary.autoFixable} safe fixes</small></span><b>⌄</b></summary>
         <div class="kindle-health-body">
@@ -1666,9 +1855,9 @@ function renderEbook() {
           <label class="design-field"><span>Block quotes</span><select id="ebookBlockQuoteStyle"><option value="plain" ${design.blockQuoteStyle === 'plain' ? 'selected' : ''}>Clean indent</option><option value="italic" ${design.blockQuoteStyle === 'italic' ? 'selected' : ''}>Indented italic</option></select></label>
           <label class="design-field"><span>Block quote indent</span><div class="number-wrap"><input id="ebookBlockQuoteIndent" type="number" min="0" max="3" step="0.05" value="${design.blockQuoteIndentEm}"><em>em</em></div></label>
           <label class="design-field"><span>Written notes</span><select id="ebookWrittenNoteStyle"><option value="inset" ${design.writtenNoteStyle === 'inset' ? 'selected' : ''}>Inset note</option><option value="plain" ${design.writtenNoteStyle === 'plain' ? 'selected' : ''}>Plain text</option></select></label>
-          <label class="design-field"><span>Text conversations</span><select id="ebookTextMessageStyle"><option value="inset" ${design.textMessageStyle === 'inset' ? 'selected' : ''}>Readable inset</option><option value="compact" ${design.textMessageStyle === 'compact' ? 'selected' : ''}>Compact</option></select></label>
+          <label class="design-field"><span>Text conversations</span><select id="ebookTextMessageStyle"><option value="transcript" ${design.textMessageStyle === 'transcript' ? 'selected' : ''}>Clean transcript</option><option value="bubbles" ${design.textMessageStyle === 'bubbles' ? 'selected' : ''}>Subtle bubbles</option><option value="left-right" ${design.textMessageStyle === 'left-right' ? 'selected' : ''}>Left / right</option><option value="inset" ${design.textMessageStyle === 'inset' ? 'selected' : ''}>Readable inset</option><option value="compact" ${design.textMessageStyle === 'compact' ? 'selected' : ''}>Compact</option></select></label>
           <label class="design-field"><span>Text conversation indent</span><div class="number-wrap"><input id="ebookTextMessageIndent" type="number" min="0" max="4" step="0.05" value="${design.textMessageIndentEm}"><em>em</em></div></label>
-          <label class="design-field"><span>Scene-break ornament</span><select id="ebookSceneBreakTreatment"><option value="source" ${design.sceneBreakTreatment === 'source' ? 'selected' : ''}>Use source marks</option><option value="asterisks" ${design.sceneBreakTreatment === 'asterisks' ? 'selected' : ''}>* * *</option><option value="dots" ${design.sceneBreakTreatment === 'dots' ? 'selected' : ''}>• • •</option><option value="diamond" ${design.sceneBreakTreatment === 'diamond' ? 'selected' : ''}>◆</option></select></label>
+          <label class="design-field"><span>Scene-break ornament</span><select id="ebookSceneBreakTreatment"><option value="source" ${design.sceneBreakTreatment === 'source' ? 'selected' : ''}>Use source marks</option><option value="whitespace" ${design.sceneBreakTreatment === 'whitespace' ? 'selected' : ''}>Whitespace only</option><option value="asterisks" ${design.sceneBreakTreatment === 'asterisks' ? 'selected' : ''}>* * *</option><option value="dots" ${design.sceneBreakTreatment === 'dots' ? 'selected' : ''}>• • •</option><option value="diamond" ${design.sceneBreakTreatment === 'diamond' ? 'selected' : ''}>◆</option><option value="flourish" ${design.sceneBreakTreatment === 'flourish' ? 'selected' : ''}>✦</option><option value="custom-text" ${design.sceneBreakTreatment === 'custom-text' ? 'selected' : ''}>Custom glyph / text</option><option value="custom-image" ${design.sceneBreakTreatment === 'custom-image' ? 'selected' : ''}>Custom artwork</option></select></label>
           <label class="design-field"><span>Verse indent</span><div class="number-wrap"><input id="ebookVerseIndent" type="number" min="0" max="3" step="0.05" value="${design.verseIndentEm}"><em>em</em></div></label>
         </div>
         <div class="semantic-style-foot"><p><strong>Tip:</strong> In Adjust Layout, select a paragraph and change <strong>Content style</strong> to Subhead, Block Quote, Written Note, Verse, Text Conversation, or Scene Break. That choice is edition presentation metadata only.</p><button class="btn primary" id="saveEbookSemanticStyles" type="button">Save Style Palette</button></div>
@@ -1904,6 +2093,29 @@ function bindDynamicEvents() {
   document.querySelector('#downloadPreflightReport')?.addEventListener('click', downloadPreflightReport);
   document.querySelector('#saveEbookSettings')?.addEventListener('click', saveEbookSettings);
   document.querySelector('#saveEbookSemanticStyles')?.addEventListener('click', saveEbookSettings);
+  document.querySelector('#saveThemeStudio')?.addEventListener('click', saveThemeStudio);
+  document.querySelectorAll('[data-apply-ebook-theme]').forEach((button) => button.addEventListener('click', () => applyEbookTheme(button.dataset.applyEbookTheme)));
+  document.querySelector('#saveThemeWordMap')?.addEventListener('click', saveThemeWordMap);
+  document.querySelector('#saveThemeChapterOverride')?.addEventListener('click', saveThemeChapterOverride);
+  document.querySelector('#resetThemeChapterOverride')?.addEventListener('click', resetThemeChapterOverride);
+  document.querySelector('#themeChapterOverrideSelect')?.addEventListener('change', (event) => { state.themeSelectedChapterBlockId = event.target.value || ''; updateMain(); });
+  document.querySelector('#chooseThemeChapterArtwork')?.addEventListener('click', () => document.querySelector('#themeChapterArtworkInput')?.click());
+  document.querySelector('#themeChapterArtworkInput')?.addEventListener('change', (event) => event.target.files?.[0] && importThemeArtwork(event.target.files[0], 'chapter'));
+  document.querySelector('#chooseThemeSceneArtwork')?.addEventListener('click', () => document.querySelector('#themeSceneArtworkInput')?.click());
+  document.querySelector('#themeSceneArtworkInput')?.addEventListener('change', (event) => event.target.files?.[0] && importThemeArtwork(event.target.files[0], 'scene-break'));
+  document.querySelectorAll('[data-remove-theme-artwork]').forEach((button) => button.addEventListener('click', () => removeThemeArtwork(button.dataset.removeThemeArtwork)));
+  document.querySelector('#themeUsageRole')?.addEventListener('change', (event) => { state.themeUsageRole = event.target.value || 'text-message'; updateMain(); });
+  document.querySelectorAll('[data-theme-usage-section]').forEach((button) => button.addEventListener('click', () => {
+    const index = Number(button.dataset.themeUsageSection);
+    if (!Number.isFinite(index) || index < 0) return;
+    state.ebookSectionIndex = index;
+    state.selectedEbookBlockId = button.dataset.themeUsageBlock || '';
+    state.kindlePreview = normalizeKindlePreview({ ...state.kindlePreview, mode:'adjust' });
+    updateMain();
+    requestAnimationFrame(() => document.querySelector('#ebookPreviewStudio')?.scrollIntoView({ behavior:'smooth', block:'start' }));
+  }));
+  document.querySelector('#themeStudio')?.addEventListener('input', (event) => { if (!event.target.matches('[data-theme-word-style]')) refreshThemeStudioLiveSample(); });
+  document.querySelector('#themeStudio')?.addEventListener('change', (event) => { if (!event.target.matches('#themeUsageRole,#themeChapterOverrideSelect,[data-theme-word-style]')) refreshThemeStudioLiveSample(); });
   document.querySelector('#jumpEbookPreviewStudio')?.addEventListener('click', () => document.querySelector('#ebookPreviewStudio')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   document.querySelector('#kindleNextBestAction')?.addEventListener('click', performKindleNextBestAction);
   document.querySelector('#toggleKindleFocusPreview')?.addEventListener('click', toggleKindleFocusPreview);
@@ -2431,6 +2643,195 @@ function downloadPreflightReport() {
   downloadTextFile(`${safeExportBaseName()}-${currentPrintEditionType()}-preflight.json`, JSON.stringify(payload, null, 2));
 }
 
+
+function readThemeStudioForm() {
+  const value = (id) => document.querySelector(`#${id}`)?.value;
+  const base = currentEbookDesign();
+  const studio = normalizeEbookThemeStudio(base.themeStudio || {});
+  const nextStudio = normalizeEbookThemeStudio({
+    ...studio,
+    firstParagraphTreatment:value('themeFirstParagraph') ?? studio.firstParagraphTreatment,
+    chapterTitleSizeEm:value('themeChapterSize') ?? studio.chapterTitleSizeEm,
+    chapterTitleWeight:value('themeChapterWeight') ?? studio.chapterTitleWeight,
+    chapterTitleLetterSpacingEm:value('themeChapterTracking') ?? studio.chapterTitleLetterSpacingEm,
+    chapterTitleTransform:value('themeChapterTransform') ?? studio.chapterTitleTransform,
+    chapterDivider:value('themeChapterDivider') ?? studio.chapterDivider,
+    chapterArtworkPosition:value('themeChapterArtworkPosition') ?? studio.chapterArtworkPosition,
+    sceneBreakCustomText:value('themeSceneCustomText') ?? studio.sceneBreakCustomText,
+    sceneBreakArtworkWidthEm:value('themeSceneArtworkWidth') ?? studio.sceneBreakArtworkWidthEm,
+    contentsStyle:value('themeContentsStyle') ?? studio.contentsStyle,
+    contentsAlignment:value('themeContentsAlignment') ?? studio.contentsAlignment,
+  });
+  return normalizeEbookDesign({
+    ...base,
+    fontFamily:value('themeBodyFont') ?? base.fontFamily,
+    lineHeight:value('themeLineHeight') ?? base.lineHeight,
+    firstLineIndentEm:value('themeFirstIndent') ?? base.firstLineIndentEm,
+    paragraphGapEm:value('themeParagraphGap') ?? base.paragraphGapEm,
+    chapterTitleAlignment:value('themeChapterAlignment') ?? base.chapterTitleAlignment,
+    chapterTopEm:value('themeChapterTop') ?? base.chapterTopEm,
+    chapterAfterEm:value('themeChapterAfter') ?? base.chapterAfterEm,
+    subheadAlignment:value('themeSubheadAlignment') ?? base.subheadAlignment,
+    subheadSizeEm:value('themeSubheadSize') ?? base.subheadSizeEm,
+    blockQuoteStyle:value('themeBlockQuoteStyle') ?? base.blockQuoteStyle,
+    blockQuoteIndentEm:value('themeBlockQuoteIndent') ?? base.blockQuoteIndentEm,
+    writtenNoteStyle:value('themeWrittenNoteStyle') ?? base.writtenNoteStyle,
+    verseIndentEm:value('themeVerseIndent') ?? base.verseIndentEm,
+    sceneBreakTreatment:value('themeSceneTreatment') ?? base.sceneBreakTreatment,
+    sceneBreakSpaceEm:value('themeSceneSpace') ?? base.sceneBreakSpaceEm,
+    textMessageStyle:value('themeTextMessageStyle') ?? base.textMessageStyle,
+    textMessageIndentEm:value('themeTextMessageIndent') ?? base.textMessageIndentEm,
+    themeStudio:nextStudio,
+  });
+}
+
+function refreshThemeStudioLiveSample() {
+  const current = document.querySelector('#themeStudioLiveSample');
+  if (!current) return;
+  try {
+    const design = readThemeStudioForm();
+    current.outerHTML = renderThemeStudioSample(design, normalizeEbookThemeStudio(design.themeStudio || {}));
+  } catch {}
+}
+
+async function saveThemeStudio() {
+  if (!state.project) return;
+  armEbookHistory();
+  const before = JSON.stringify(state.project.manuscript?.blocks || []);
+  const design = readThemeStudioForm();
+  setEbookEditionDesign(state.project, design);
+  const after = JSON.stringify(state.project.manuscript?.blocks || []);
+  if (before !== after) throw new Error('Story Lock blocked Theme Studio because manuscript blocks changed.');
+  state.project.updatedAt = new Date().toISOString();
+  state.finalCheck = null;
+  state.themeStudioMessage = `Theme Studio saved: ${design.themeStudio.themeName}. Global presentation updated; story wording was not changed.`;
+  await saveProject(state.project);
+  state.projects = await listProjects();
+  disarmEbookHistory();
+  updateMain();
+}
+
+async function applyEbookTheme(themeId) {
+  if (!state.project) return;
+  armEbookHistory();
+  const before = JSON.stringify(state.project.manuscript?.blocks || []);
+  const next = normalizeEbookDesign(applyEbookThemeFamily(currentEbookDesign(), themeId));
+  setEbookEditionDesign(state.project, next);
+  if (before !== JSON.stringify(state.project.manuscript?.blocks || [])) throw new Error('Story Lock blocked theme application because manuscript blocks changed.');
+  state.project.updatedAt = new Date().toISOString();
+  state.finalCheck = null;
+  state.themeStudioMessage = `${next.themeStudio.themeName} applied across the Kindle edition. Existing artwork, Word mappings, and intentional chapter overrides were preserved.`;
+  await saveProject(state.project);
+  state.projects = await listProjects();
+  disarmEbookHistory();
+  updateMain();
+}
+
+async function saveThemeWordMap() {
+  if (!state.project) return;
+  armEbookHistory();
+  const design = currentEbookDesign();
+  const studio = normalizeEbookThemeStudio(design.themeStudio || {});
+  const nextMap = {};
+  document.querySelectorAll('[data-theme-word-style]').forEach((select) => {
+    const styleName = select.dataset.themeWordStyle;
+    const role = select.value;
+    if (styleName && role && role !== 'auto') nextMap[styleName] = role;
+  });
+  studio.sourceStyleMap = nextMap;
+  setEbookEditionDesign(state.project, { ...design, themeStudio:studio });
+  state.project.updatedAt = new Date().toISOString();
+  state.finalCheck = null;
+  state.themeStudioMessage = `Word style map saved with ${Object.keys(nextMap).length} explicit mapping${Object.keys(nextMap).length === 1 ? '' : 's'}. Source styles remain visible and the manuscript remains unchanged.`;
+  await saveProject(state.project);
+  state.projects = await listProjects();
+  disarmEbookHistory();
+  updateMain();
+}
+
+async function saveThemeChapterOverride() {
+  if (!state.project || !state.themeSelectedChapterBlockId) return;
+  armEbookHistory();
+  const value = (id) => document.querySelector(`#${id}`)?.value ?? '';
+  const alignment = value('themeChapterOverrideAlignment');
+  const studio = setChapterHeadingOverride(state.project, state.themeSelectedChapterBlockId, {
+    alignment:alignment === 'theme' ? undefined : alignment,
+    spaceBefore:value('themeChapterOverrideBefore'),
+    spaceAfter:value('themeChapterOverrideAfter'),
+    sizeEm:value('themeChapterOverrideSize'),
+  });
+  const design = currentEbookDesign();
+  setEbookEditionDesign(state.project, { ...design, themeStudio:studio });
+  state.project.updatedAt = new Date().toISOString();
+  state.finalCheck = null;
+  state.themeStudioMessage = 'Chapter heading override saved. The theme still controls every unspecified property.';
+  await saveProject(state.project);
+  state.projects = await listProjects();
+  disarmEbookHistory();
+  updateMain();
+}
+
+async function resetThemeChapterOverride() {
+  if (!state.project || !state.themeSelectedChapterBlockId) return;
+  armEbookHistory();
+  const studio = setChapterHeadingOverride(state.project, state.themeSelectedChapterBlockId, null);
+  const design = currentEbookDesign();
+  setEbookEditionDesign(state.project, { ...design, themeStudio:studio });
+  state.project.updatedAt = new Date().toISOString();
+  state.finalCheck = null;
+  state.themeStudioMessage = 'Chapter override cleared. This chapter is back on the global theme.';
+  await saveProject(state.project);
+  state.projects = await listProjects();
+  disarmEbookHistory();
+  updateMain();
+}
+
+async function importThemeArtwork(file, kind) {
+  if (!state.project || !file) return;
+  const allowed = ['image/jpeg','image/png','image/gif','image/svg+xml','image/webp'];
+  if (!allowed.includes(file.type)) {
+    alert('Choose JPEG, PNG, GIF, SVG, or WebP artwork.');
+    return;
+  }
+  try {
+    const dataUrl = await fileToDataUrl(file);
+    const dims = file.type === 'image/svg+xml' ? { width:0, height:0 } : await imageDimensions(dataUrl);
+    const design = currentEbookDesign();
+    const studio = normalizeEbookThemeStudio(design.themeStudio || {});
+    const asset = { fileName:file.name, mimeType:file.type, fileSize:file.size, width:dims.width, height:dims.height, dataUrl, altText:'' };
+    if (kind === 'chapter') studio.chapterArtwork = asset;
+    else studio.sceneBreakArtwork = asset;
+    const next = { ...design, themeStudio:studio };
+    if (kind === 'scene-break') next.sceneBreakTreatment = 'custom-image';
+    setEbookEditionDesign(state.project, next);
+    state.project.updatedAt = new Date().toISOString();
+    state.finalCheck = null;
+    state.themeStudioMessage = `${kind === 'chapter' ? 'Chapter-heading' : 'Scene-break'} artwork attached and will be packaged inside the EPUB.`;
+    await saveProject(state.project);
+    state.projects = await listProjects();
+    updateMain();
+  } catch (error) {
+    console.error(error);
+    alert(error?.message || 'Theme artwork could not be attached safely.');
+  }
+}
+
+async function removeThemeArtwork(kind) {
+  if (!state.project) return;
+  const design = currentEbookDesign();
+  const studio = normalizeEbookThemeStudio(design.themeStudio || {});
+  if (kind === 'chapter') studio.chapterArtwork = null;
+  else studio.sceneBreakArtwork = null;
+  const next = { ...design, themeStudio:studio };
+  if (kind === 'scene-break' && next.sceneBreakTreatment === 'custom-image') next.sceneBreakTreatment = 'flourish';
+  setEbookEditionDesign(state.project, next);
+  state.project.updatedAt = new Date().toISOString();
+  state.finalCheck = null;
+  state.themeStudioMessage = `${kind === 'chapter' ? 'Chapter-heading' : 'Scene-break'} artwork removed.`;
+  await saveProject(state.project);
+  state.projects = await listProjects();
+  updateMain();
+}
 
 function readEbookForm() {
   const value = (id) => document.querySelector(`#${id}`)?.value;
