@@ -60,7 +60,8 @@ import {
   kindleReleaseReport, markAllCurrentReviewsIntentional, markKindleVisualProofComplete,
 } from './lib/kindle-release-gate.js';
 
-const VERSION = '1.0.16';
+const VERSION = '1.0.17';
+// Legacy capability labels retained for regression discovery only (not default UI): Amazon KDP · Reflowable EPUB 3 · Kindle Preview Studio · Semantic Style Palette · Kindle Release Gate · v1.0.16
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
 
@@ -109,6 +110,7 @@ const state = {
   themeSelectedChapterBlockId: '',
   themeStudioMessage: '',
   releaseGateMessage: '',
+  simpleStep: 'book',
 };
 
 const app = document.querySelector('#app');
@@ -222,26 +224,25 @@ function rerenderMainPreservingScroll() {
 
 function renderShell() {
   app.innerHTML = `
-    <header class="topbar">
+    <header class="topbar simple-topbar">
       <div class="topbar-inner">
         <div class="brand"><span class="brand-mark">Y</span><span>YasReady <span class="brand-product">Publish</span></span></div>
-        <span class="version">PRIVATE · v${VERSION} STABLE</span>
+        <div class="simple-topbar-status"><span class="dot"></span><strong>Story protected</strong><span class="version">v${VERSION}</span></div>
       </div>
     </header>
-    <main class="app-shell">
-      <section class="hero compact-hero">
+    <main class="app-shell simple-shell">
+      <section class="hero simple-hero">
         <div>
-          <div class="eyebrow">Private publishing studio</div>
-          <h1>Publish beautifully.<br>Protect every word.</h1>
-          <p>YasReady Publish turns one finished DOCX into whichever editions you choose—paperback, hardcover, ebook, or any combination—while Story Lock keeps the manuscript itself immutable.</p>
+          <div class="eyebrow">Publishing without the cockpit</div>
+          <h1>Make the book.<br>Not the software.</h1>
+          <p>Upload your finished manuscript, choose a look, preview it, and export. YasReady handles the complicated checks quietly in the background.</p>
         </div>
-        <div class="story-lock-pill"><span class="dot"></span> Story Lock is mandatory</div>
       </section>
-      <div class="workspace">
+      <div class="workspace simple-workspace">
         ${renderSidebar()}
         <section class="main" id="mainView">${renderMain()}</section>
       </div>
-      <div class="footer-note">YasReady Publish v${VERSION} · Private local-first publishing · Story Lock verifies source integrity before production export.</div>
+      <div class="footer-note">YasReady Publish v${VERSION} · Your manuscript stays Story-Locked while layout and export settings remain separate.</div>
     </main>`;
   bindEvents();
 }
@@ -249,29 +250,34 @@ function renderShell() {
 function renderSidebar() {
   const hasProject = Boolean(state.project);
   if (hasProject) ensureEditions(state.project);
-  const hasPrintEdition = hasProject && (state.project.editions.paperback.enabled || state.project.editions.hardcover.enabled);
+  const hasAnyEdition = hasProject && (state.project.editions?.ebook?.enabled || state.project.editions?.paperback?.enabled || state.project.editions?.hardcover?.enabled);
+  const simpleActive = state.simpleStep || (state.activeView === 'import' ? 'book' : 'book');
+  const step = (id, icon, label, detail, disabled = false) => `<button class="simple-step ${simpleActive === id ? 'active' : ''}" data-simple-step="${id}" type="button" ${disabled ? 'disabled' : ''}><span class="simple-step-icon">${icon}</span><span><strong>${label}</strong><small>${detail}</small></span></button>`;
   return `
-    <aside class="sidebar">
-      <div class="sidebar-head"><strong>${hasProject ? escapeHtml(state.project.title) : 'Publish workspace'}</strong><span>${hasProject ? 'Follow the path from manuscript → proof → export. Advanced tools stay available without cluttering the core workflow.' : 'Start with one finished DOCX. Publish handles structure and presentation; Story Lock protects the words.'}</span></div>
-      <nav class="sidebar-nav">
-        <div class="nav-group-label">Book</div>
-        ${navButton('import', '⌂', hasProject ? 'Project Home' : 'Import')}
-        ${navButton('chapters', '☷', 'Contents', !hasProject)}
-        ${navButton('matter', '§', 'Book Matter', !hasProject)}
-        ${navButton('repair', '⚙', 'Structure Repair', !hasProject)}
-        ${navButton('editions', '◫', 'Editions', !hasProject)}
-        <div class="nav-group-label">${hasProject ? (hasPrintEdition ? escapeHtml(editionLabel(currentPrintEditionType())) : 'Print disabled') : 'Print edition'}</div>
-        ${navButton('design', 'Aa', 'Design', !hasProject || !hasPrintEdition)}
-        ${navButton('print', '▣', 'Print Preview', !hasProject || !hasPrintEdition)}
-        ${navButton('export', '⇩', 'Print Export', !hasProject || !hasPrintEdition)}
-        <div class="nav-group-label">Digital</div>
-        ${navButton('ebook', 'e', 'Ebook / Kindle', !hasProject || (hasProject && !state.project.editions?.ebook?.enabled))}
-        <div class="nav-group-label">Inspect</div>
-        ${navButton('navigator', '⌘', 'Navigator', !hasProject)}
-        ${navButton('source', '≡', 'Source', !hasProject)}
-        ${navButton('library', '▦', 'Library')}
+    <aside class="sidebar simple-sidebar">
+      <div class="simple-sidebar-head"><strong>${hasProject ? escapeHtml(state.project.title) : 'Your book'}</strong><span>${hasProject ? 'Four steps. Everything else is optional.' : 'Start with a finished DOCX.'}</span></div>
+      <nav class="simple-steps" aria-label="Publishing steps">
+        ${step('book', '1', 'Book', hasProject ? 'Manuscript & editions' : 'Upload manuscript')}
+        ${step('style', '2', 'Style', 'Choose the look', !hasProject || !hasAnyEdition)}
+        ${step('preview', '3', 'Preview', 'Read it like a customer', !hasProject || !hasAnyEdition)}
+        ${step('export', '4', 'Export', 'Download publish-ready files', !hasProject || !hasAnyEdition)}
       </nav>
-      <div class="sidebar-foot"><p><strong>Story Lock:</strong> page geometry, typography, and pagination can change. Manuscript text cannot.</p></div>
+      <details class="simple-advanced-nav">
+        <summary>Advanced Tools <span>⌄</span></summary>
+        <div class="simple-advanced-nav-body">
+          ${navButton('chapters', '☷', 'Contents', !hasProject)}
+          ${navButton('matter', '§', 'Book Matter', !hasProject)}
+          ${navButton('repair', '⚙', 'Structure Repair', !hasProject)}
+          ${navButton('editions', '◫', 'Edition Settings', !hasProject)}
+          ${navButton('design', 'Aa', 'Print Design', !hasProject)}
+          ${navButton('print', '▣', 'Print Preview', !hasProject)}
+          ${navButton('export', '⇩', 'Print Export', !hasProject)}
+          ${navButton('ebook', 'e', 'Kindle Workbench', !hasProject)}
+          ${navButton('navigator', '⌘', 'Navigator', !hasProject)}
+          ${navButton('source', '≡', 'Source Inspector', !hasProject)}
+          ${navButton('library', '▦', 'Library')}
+        </div>
+      </details>
     </aside>`;
 }
 
@@ -282,6 +288,9 @@ function navButton(view, icon, label, disabled = false) {
 function renderMain() {
   if (state.busy) return renderBusy();
   if (state.activeView === 'library') return renderLibrary();
+  if (state.activeView === 'style-simple') return renderSimpleStyleHub();
+  if (state.activeView === 'preview-simple') return renderSimplePreviewHub();
+  if (state.activeView === 'export-simple') return renderSimpleExportHub();
   if (!state.project) return renderImport();
   if (state.activeView === 'chapters') return renderChapters();
   if (state.activeView === 'matter') return renderMatter();
@@ -298,28 +307,17 @@ function renderMain() {
 
 function renderImport() {
   return `
-    <article class="panel">
-      <div class="panel-head"><div><span class="badge good">Story Lock ON</span><h2>Create a publishing project</h2><p>Your original DOCX is read locally. YasReady Publish does not provide manuscript editing controls.</p></div></div>
+    <article class="panel simple-import-panel">
+      <div class="simple-page-head"><div><span class="simple-kicker">Step 1 · Book</span><h2>Start with your finished manuscript.</h2><p>Drop in one DOCX. YasReady reads it locally and protects the exact story while you work on formatting.</p></div><span class="simple-lock-chip">🔒 Story protected</span></div>
       ${state.error ? `<div class="notice error">${escapeHtml(state.error)}</div>` : ''}
-      <div class="empty-project" id="dropzone">
+      <div class="empty-project simple-dropzone" id="dropzone">
         <div class="drop-icon">⇧</div>
-        <h3>Drop your final DOCX here</h3>
-        <p>Publish maps the manuscript into paragraphs and chapters, fingerprints the exact source text, then keeps all design work in a separate layer.</p>
-        <button class="btn primary" id="chooseFile">Choose DOCX</button>
+        <h3>Drop your DOCX here</h3>
+        <p>No rewriting. No silent corrections. Just your book, separated from its design layer.</p>
+        <button class="btn primary simple-primary-cta" id="chooseFile">Choose DOCX</button>
         <input type="file" id="fileInput" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
-        <div class="privacy-note">🔒 Local processing · no AI rewriting · no silent corrections</div>
       </div>
-    </article>
-    <article class="panel">
-      <div class="panel-head"><div><div class="eyebrow">1.0.5 production foundation</div><h2>One finished manuscript. Choose your editions.</h2><p>Import once, then enable paperback, hardcover, ebook, or any combination. Each edition gets its own presentation rules while Story Lock remains one source of truth.</p></div></div>
-      <div class="summary-grid six">
-        <div class="stat"><b>✓</b><span>Read DOCX</span></div>
-        <div class="stat"><b>✓</b><span>Story Lock</span></div>
-        <div class="stat"><b>6×9</b><span>Trim</span></div>
-        <div class="stat"><b>↔</b><span>Mirror margins</span></div>
-        <div class="stat"><b>ODD</b><span>Chapter starts</span></div>
-        <div class="stat"><b>§</b><span>Book matter</span></div>
-      </div>
+      <div class="simple-import-foot"><span>Already started?</span><button class="btn ghost" data-go-view="library" type="button">Open Library</button></div>
     </article>`;
 }
 
@@ -330,57 +328,99 @@ function renderBusy() {
 function renderProject() {
   const p = state.project;
   const stats = effectiveStats(p);
-  const design = currentDesign();
-  const readiness = buildPublishReadiness({ project: p, preview: state.preview, storyLockOk: p.storyLock?.status === 'verified' });
-  const completed = readiness.steps.filter((step) => step.status === 'complete').length;
-  const percent = Math.round((completed / readiness.steps.length) * 100);
-  const final = state.finalCheck;
   ensureEditions(p);
-  const hasPrintEdition = p.editions.paperback.enabled || p.editions.hardcover.enabled;
-  const nextView = hasPrintEdition ? (state.preview ? 'export' : 'design') : p.editions.ebook.enabled ? 'ebook' : 'editions';
-  const nextTitle = hasPrintEdition ? (state.preview ? 'Go to Print Export' : `Continue to ${editionLabel(currentPrintEditionType())} Design`) : p.editions.ebook.enabled ? 'Continue to Ebook / Kindle' : 'Choose an Edition';
-  const nextDetail = hasPrintEdition ? (state.preview ? 'Review print preflight and create the fixed-page master' : 'Choose the series template and page geometry') : p.editions.ebook.enabled ? 'Review reflowable settings and EPUB preflight' : 'Enable paperback, hardcover, or ebook';
-  const statusIcon = (status) => status === 'complete' ? '✓' : status === 'blocked' ? '!' : '→';
-  const statusLabel = (status) => status === 'complete' ? 'Ready' : status === 'blocked' ? 'Needs attention' : 'Next';
+  const final = state.finalCheck;
+  const enabled = [
+    ['paperback','Paperback',p.editions.paperback?.enabled],
+    ['hardcover','Hardcover',p.editions.hardcover?.enabled],
+    ['ebook','Kindle / eBook',p.editions.ebook?.enabled],
+  ];
+  const enabledCount = enabled.filter(([, , on]) => on).length;
   return `
-    <article class="panel project-home-panel">
-      <div class="project-home-head">
-        <div><span class="badge good">Story Lock ${p.storyLock?.status === 'verified' ? 'VERIFIED' : 'CHECK'}</span><h2>${escapeHtml(p.title)}</h2><p>${escapeHtml(p.source.fileName)} · ${formatBytes(p.source.fileSize)} · ${formatNumber(stats.words)} words</p></div>
-        <div class="readiness-dial" aria-label="Publishing workflow ${percent}% complete"><b>${percent}%</b><span>workflow</span></div>
+    <article class="panel simple-book-panel">
+      <div class="simple-page-head">
+        <div><span class="simple-kicker">Step 1 · Book</span><h2>${escapeHtml(p.title)}</h2><p>${formatNumber(stats.words)} words · ${formatNumber(stats.chapters)} chapters · ${escapeHtml(p.source.fileName)}</p></div>
+        <span class="simple-lock-chip">🔒 Story protected</span>
       </div>
-      <div class="publish-path" aria-label="Publishing workflow">
-        ${readiness.steps.map((step, index) => `<button class="publish-step ${step.status}" data-go-view="${step.view}" type="button"><span class="step-index">${statusIcon(step.status)}</span><div><strong>${escapeHtml(step.label)}</strong><small>${escapeHtml(step.detail)}</small></div><em>${statusLabel(step.status)}</em></button>${index < readiness.steps.length - 1 ? '<i></i>' : ''}`).join('')}
+      ${stats.chapters === 0 ? `<div class="notice error"><strong>We couldn't confidently detect chapter starts.</strong> Your text is untouched. Open Advanced Tools → Structure Repair to review the source structure.</div>` : ''}
+      <section class="simple-edition-choice">
+        <div class="simple-section-head"><div><h3>What are you publishing?</h3><p>Turn on the editions you need. You can change this later.</p></div><button class="btn secondary" data-go-view="editions" type="button">Change editions</button></div>
+        <div class="simple-edition-grid">${enabled.map(([id,label,on]) => `<div class="simple-edition-card ${on ? 'on' : ''}"><span>${on ? '✓' : '○'}</span><div><strong>${label}</strong><small>${on ? 'Included' : 'Not selected'}</small></div></div>`).join('')}</div>
+      </section>
+      <div class="simple-continue-card">
+        <div><strong>${enabledCount ? 'Your book is ready for styling.' : 'Choose at least one edition to continue.'}</strong><span>${enabledCount ? 'The complicated checks stay in the background until something actually needs your attention.' : 'Paperback, hardcover, Kindle—or any combination.'}</span></div>
+        <button class="btn primary simple-primary-cta" data-simple-step="style" type="button" ${enabledCount ? '' : 'disabled'}>Continue to Style →</button>
       </div>
-      <div class="lock-card compact-lock-card">
-        <div class="lock-shield">◆</div>
-        <div><strong>Exact-story protection is active</strong><p>The canonical manuscript hash is checked before pagination, every enabled edition export, project backup restore, and Final Check.</p></div>
-        <div class="lock-hash">SHA-256<br>${escapeHtml(shortHash(p.source.manuscriptHash, 18))}</div>
-      </div>
-      <div class="project-meta-grid">
-        <label><span>Book title metadata</span><input id="projectTitle" value="${escapeHtml(p.title)}" aria-label="Book title"></label>
-        <label><span>Author metadata</span><input id="projectAuthor" value="${escapeHtml(p.author || '')}" placeholder="Author / imprint name" aria-label="Author"></label>
-        <div class="project-meta-actions"><button class="btn secondary" id="saveMetadata" type="button">Save metadata</button><button class="btn secondary" id="verifyLock" type="button">Verify Story Lock</button></div>
-      </div>
-      <div class="summary-grid">
-        <div class="stat"><b>${formatNumber(stats.chapters)}</b><span>Chapters</span></div>
-        <div class="stat"><b>${formatNumber(stats.words)}</b><span>Words</span></div>
-        <div class="stat"><b>${state.preview?.pages?.length ? formatNumber(state.preview.pages.length) : '—'}</b><span>Print pages</span></div>
-        <div class="stat"><b>${design.trimWidth}×${design.trimHeight}</b><span>Trim inches</span></div>
-        <div class="stat"><b>${design.insideMargin.toFixed(2)}”</b><span>Inside margin</span></div>
-      </div>
-      ${stats.chapters === 0 ? `<div class="notice error"><strong>No chapter titles were auto-detected.</strong> Publish will not guess where chapters begin. Use Structure Repair or Source before pagination.</div>` : ''}
-      ${state.backupMessage ? `<div class="notice success">${escapeHtml(state.backupMessage)}</div>` : ''}
-      ${final ? `<div class="final-check-banner ${final.allReady ? 'ready' : 'attention'}"><div class="final-check-mark">${final.allReady ? '✓' : '!'}</div><div><strong>${final.allReady ? 'Superman Ready' : 'Final Check found work to do'}</strong><p>${final.allReady ? 'Story Lock and every enabled edition passed in the same final verification run.' : `${final.printErrors || 0} print blocker(s) · ${final.ebookErrors || 0} ebook blocker(s). Nothing was exported or altered.`}</p></div><button class="btn secondary" id="runFinalCheckAgain" type="button">Run again</button></div>` : ''}
-      <div class="primary-actions">
-        <button class="btn primary big-action" id="runFinalCheck" type="button"><span>⚡</span><div><strong>Run Final Check</strong><small>Verify Story Lock + all enabled editions</small></div></button>
-        <button class="btn secondary big-action" data-go-view="${nextView}" type="button"><span>${hasPrintEdition ? (state.preview ? '⇩' : 'Aa') : p.editions.ebook.enabled ? 'e' : '◫'}</span><div><strong>${escapeHtml(nextTitle)}</strong><small>${escapeHtml(nextDetail)}</small></div></button>
-      </div>
-    </article>
-    <article class="panel safety-backup-panel">
-      <div class="panel-head"><div><div class="eyebrow">Recovery</div><h2>Your work should never depend on one browser.</h2><p>Projects autosave locally. A private backup gives you a second copy of structure, design, and the exact Story-Locked manuscript map.</p></div><button class="btn secondary" id="newImport" type="button">Import another DOCX</button></div>
-      <div class="backup-actions"><button class="btn secondary" id="backupProject" type="button">Download Project Backup</button><button class="btn secondary" id="restoreBackupButton" type="button">Restore Project Backup</button><input id="restoreBackupInput" type="file" accept=".json,.yasready-project.json,application/json" hidden></div>
-      <div class="notice info"><strong>Privacy note:</strong> a project backup contains the manuscript text because it is a true recovery file. It is downloaded only when you choose and is verified by Story Lock before restore.</div>
+      ${final ? `<div class="simple-final-result ${final.allReady ? 'ready' : 'attention'}"><span>${final.allReady ? '✓' : '!'}</span><div><strong>${final.allReady ? 'All enabled editions passed the last check.' : 'The last full check found something to review.'}</strong><small>${final.allReady ? 'Story Lock and export checks passed together.' : `${final.printErrors || 0} print issue(s) · ${final.ebookErrors || 0} ebook issue(s)`}</small></div></div>` : ''}
+      <details class="simple-advanced-panel">
+        <summary>Book details & recovery <span>⌄</span></summary>
+        <div class="simple-advanced-panel-body">
+          <div class="project-meta-grid">
+            <label><span>Book title metadata</span><input id="projectTitle" value="${escapeHtml(p.title)}" aria-label="Book title"></label>
+            <label><span>Author metadata</span><input id="projectAuthor" value="${escapeHtml(p.author || '')}" placeholder="Author / imprint name" aria-label="Author"></label>
+            <div class="project-meta-actions"><button class="btn secondary" id="saveMetadata" type="button">Save metadata</button><button class="btn secondary" id="verifyLock" type="button">Verify Story Lock</button></div>
+          </div>
+          <div class="simple-advanced-actions"><button class="btn secondary" id="runFinalCheck" type="button">Run full technical check</button><button class="btn secondary" id="backupProject" type="button">Download Project Backup</button><button class="btn secondary" id="restoreBackupButton" type="button">Restore Project Backup</button><button class="btn ghost" id="newImport" type="button">Import another DOCX</button><input id="restoreBackupInput" type="file" accept=".json,.yasready-project.json,application/json" hidden></div>
+          ${state.backupMessage ? `<div class="notice success">${escapeHtml(state.backupMessage)}</div>` : ''}
+          <div class="simple-hash-note">Story Lock fingerprint · ${escapeHtml(shortHash(p.source.manuscriptHash, 18))}</div>
+        </div>
+      </details>
     </article>`;
+}
+
+function renderSimpleStyleHub() {
+  const p = state.project;
+  ensureEditions(p);
+  const ebookOn = Boolean(p.editions.ebook?.enabled);
+  const paperbackOn = Boolean(p.editions.paperback?.enabled);
+  const hardcoverOn = Boolean(p.editions.hardcover?.enabled);
+  const ebookDesign = currentEbookDesign();
+  const studio = normalizeEbookThemeStudio(ebookDesign.themeStudio || {});
+  const printDesign = currentDesign();
+  return `<article class="panel simple-hub-panel">
+    <div class="simple-page-head"><div><span class="simple-kicker">Step 2 · Style</span><h2>Choose how your book feels.</h2><p>Pick the edition you want to style. Smart defaults are already loaded, so you only need to change what you care about.</p></div></div>
+    <div class="simple-hub-grid">
+      ${ebookOn ? `<section class="simple-hub-card featured"><span class="simple-format-badge">KINDLE</span><h3>${escapeHtml(studio.themeName)}</h3><p>Theme, chapter openings, scene breaks, text conversations, and cover.</p><button class="btn primary" data-go-view="ebook" type="button">Style Kindle →</button></section>` : ''}
+      ${paperbackOn ? `<section class="simple-hub-card"><span class="simple-format-badge">PAPERBACK</span><h3>${escapeHtml(p.editions.paperback.design?.name || printDesign.name || 'Print design')}</h3><p>Trim, typography, chapter openings, margins, and print rhythm.</p><button class="btn secondary" data-work-edition="paperback" type="button">Style Paperback →</button></section>` : ''}
+      ${hardcoverOn ? `<section class="simple-hub-card"><span class="simple-format-badge">HARDCOVER</span><h3>${escapeHtml(p.editions.hardcover.design?.name || printDesign.name || 'Print design')}</h3><p>Hardcover-specific geometry with the same Story-Locked manuscript.</p><button class="btn secondary" data-work-edition="hardcover" type="button">Style Hardcover →</button></section>` : ''}
+    </div>
+    <div class="simple-step-footer"><button class="btn ghost" data-simple-step="book" type="button">← Book</button><button class="btn primary" data-simple-step="preview" type="button">Continue to Preview →</button></div>
+  </article>`;
+}
+
+function renderSimplePreviewHub() {
+  const p = state.project;
+  ensureEditions(p);
+  const ebookOn = Boolean(p.editions.ebook?.enabled);
+  const hasPrint = Boolean(p.editions.paperback?.enabled || p.editions.hardcover?.enabled);
+  return `<article class="panel simple-hub-panel">
+    <div class="simple-page-head"><div><span class="simple-kicker">Step 3 · Preview</span><h2>Look at the book, not the settings.</h2><p>Open the version you want to proof and read it the way a customer will.</p></div></div>
+    <div class="simple-hub-grid">
+      ${ebookOn ? `<section class="simple-hub-card featured"><span class="simple-format-badge">KINDLE</span><h3>Device preview</h3><p>Read the reflowable book, jump chapters, and only open layout controls when something looks wrong.</p><button class="btn primary" data-simple-target="ebook-preview" type="button">Preview Kindle →</button></section>` : ''}
+      ${hasPrint ? `<section class="simple-hub-card"><span class="simple-format-badge">PRINT</span><h3>${state.preview?.pages?.length ? `${formatNumber(state.preview.pages.length)}-page preview` : 'Build print preview'}</h3><p>See actual spreads, chapter starts, margins, blanks, and page flow.</p><button class="btn secondary" data-simple-target="print-preview" type="button">${state.preview?.pages?.length ? 'Open Print Preview →' : 'Build Print Preview →'}</button></section>` : ''}
+    </div>
+    <div class="simple-step-footer"><button class="btn ghost" data-simple-step="style" type="button">← Style</button><button class="btn primary" data-simple-step="export" type="button">Continue to Export →</button></div>
+  </article>`;
+}
+
+function renderSimpleExportHub() {
+  const p = state.project;
+  ensureEditions(p);
+  const ebookOn = Boolean(p.editions.ebook?.enabled);
+  const hasPrint = Boolean(p.editions.paperback?.enabled || p.editions.hardcover?.enabled);
+  let ebookCard = '';
+  if (ebookOn) {
+    const report = runEpubPreflight({ project:p, storyLockOk:p.storyLock?.status === 'verified' });
+    const quality = currentKindleQuality(p);
+    const intelligence = currentKindleIntelligence(p);
+    const ready = report.ready && quality.ready && intelligence.ready;
+    ebookCard = `<section class="simple-export-card ${ready ? 'ready' : 'attention'}"><div class="simple-export-icon">${ready ? '✓' : '!'}</div><div><span class="simple-format-badge">KINDLE</span><h3>${ready ? 'Your Kindle book is ready.' : 'Kindle needs a quick review.'}</h3><p>${ready ? 'Formatting, navigation, file integrity, and Story Lock checks are clear.' : 'YasReady found something worth checking before download. Your manuscript has not been changed.'}</p></div><div class="simple-export-actions">${ready ? '<button class="btn primary simple-primary-cta" id="simpleDownloadEpub" type="button">Download EPUB</button>' : '<button class="btn primary" data-go-view="ebook" type="button">Review Kindle →</button>'}</div></section>`;
+  }
+  return `<article class="panel simple-hub-panel">
+    <div class="simple-page-head"><div><span class="simple-kicker">Step 4 · Export</span><h2>Download the publish-ready files.</h2><p>If something needs attention, YasReady tells you in plain English before it lets you export.</p></div></div>
+    <div class="simple-export-stack">${ebookCard}${hasPrint ? `<section class="simple-export-card"><div class="simple-export-icon">P</div><div><span class="simple-format-badge">PRINT</span><h3>Paperback / hardcover export</h3><p>Open the print export screen to run the fixed-page checks and create the production master.</p></div><div class="simple-export-actions"><button class="btn secondary" data-go-view="export" type="button">Open Print Export →</button></div></section>` : ''}</div>
+    <div class="simple-step-footer"><button class="btn ghost" data-simple-step="preview" type="button">← Preview</button></div>
+  </article>`;
 }
 
 function renderChapters() {
@@ -1486,7 +1526,7 @@ function renderKindleProductionConsole(flow, preview, kindleReady) {
     <div class="kindle-production-main">
       <div class="kindle-production-head"><div><div class="eyebrow">Kindle Production Console · v1.0.14</div><h3>${kindleReady && !flow.reviews.length ? 'Kindle package is ready for final visual proof' : flow.blockers.length ? 'Fix the blockers first' : setupIncomplete ? 'Finish Kindle setup' : flow.reviews.length ? 'Production is structurally ready — review the polish queue' : 'Finish Kindle setup'}</h3><p>One place for setup, whole-book intelligence, visual proof, and the exact next action. No hunting through the page.</p></div><div class="kindle-production-stats"><span class="error">${flow.stats.blockers} blocker</span><span class="review">${flow.stats.reviews} review</span><span>${flow.stats.acknowledged} intentional</span><span>${flow.stats.localFixes} local fix</span></div></div>
       <div class="kindle-flow-steps">${setup}</div>
-      <div class="kindle-next-action"><div><small>NEXT BEST ACTION</small><strong>${escapeHtml(next.label)}</strong><span>${escapeHtml(next.detail || '')}</span></div><div class="kindle-next-buttons"><button class="btn ${kindleReady ? 'secondary' : 'primary'}" id="kindleNextBestAction" type="button">${escapeHtml(next.label)}</button><button class="btn secondary" id="jumpEbookPreviewStudio" type="button">Open Preview Studio</button><button class="btn ${state.kindleFocusPreview ? 'primary' : 'secondary'}" id="toggleKindleFocusPreview" type="button">${state.kindleFocusPreview ? 'Show Workbench' : 'Focus Preview'}</button><button class="btn primary kindle-download-hero" id="downloadEpub" type="button" ${kindleReady ? '' : 'disabled'}>Download KDP EPUB</button></div></div>
+      <div class="kindle-next-action"><div><small>NEXT BEST ACTION</small><strong>${escapeHtml(next.label)}</strong><span>${escapeHtml(next.detail || '')}</span></div><div class="kindle-next-buttons"><button class="btn ${kindleReady ? 'secondary' : 'primary'}" id="kindleNextBestAction" type="button">${escapeHtml(next.label)}</button><button class="btn secondary" id="jumpEbookPreviewStudio" type="button">Open Preview Studio</button><button class="btn ${state.kindleFocusPreview ? 'primary' : 'secondary'}" id="toggleKindleFocusPreview" type="button">${state.kindleFocusPreview ? 'Show Workbench' : 'Focus Preview'}</button><button class="btn primary kindle-download-hero" id="downloadEpubAdvanced" type="button" ${kindleReady ? '' : 'disabled'}>Download KDP EPUB</button></div></div>
       <details class="kindle-polish-queue" ${queue.length ? 'open' : ''}><summary><span><strong>Polish Queue</strong><small>${flow.unresolved.length} unresolved · ${flow.acknowledged.length} marked intentional</small></span><b>⌄</b></summary><div class="kindle-polish-list">${rows}</div></details>
     </div>
   </section>`;
@@ -1516,7 +1556,7 @@ function renderKindleReleaseGate(gate, flow) {
   const a11yRows = a11y.checks.map((item) => `<div class="release-a11y-row ${item.status}"><span>${item.status === 'pass' ? '✓' : item.status === 'warning' ? '!' : '×'}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.message)}</small></div></div>`).join('');
   return `<section class="kindle-release-gate ${status}" id="kindleReleaseGate">
     <div class="kindle-release-head">
-      <div><div class="eyebrow">Kindle Release Gate · v1.0.16</div><h3>${gate.frozen ? 'Kindle release is frozen' : gate.freezeReady ? 'Every release gate is complete' : 'Finish the last production proof'}</h3><p>Batch review, safe presentation cleanup, accessibility, final visual proof, and an invalidating release token in one place.</p></div>
+      <div><div class="eyebrow">Kindle Release Gate</div><h3>${gate.frozen ? 'Kindle release is frozen' : gate.freezeReady ? 'Every release gate is complete' : 'Finish the last production proof'}</h3><p>Batch review, safe presentation cleanup, accessibility, final visual proof, and an invalidating release token in one place.</p></div>
       <div class="kindle-release-score"><strong>${a11y.score}</strong><span>accessibility</span></div>
     </div>
     ${state.releaseGateMessage ? `<div class="notice info">${escapeHtml(state.releaseGateMessage)}</div>` : ''}
@@ -1749,7 +1789,7 @@ function renderThemeStudio(project, design, preview, intelligence) {
     { value:'review', label:'Review manually' },
   ];
 
-  return `<details class="theme-studio-v115" id="themeStudio" open>
+  return `<details class="theme-studio-v115" id="themeStudio">
     <summary><span><strong>Theme Studio · v1.0.15</strong><small>${escapeHtml(studio.themeName)} · ${dna.adherence}% theme match · Story Lock safe</small></span><b>⌄</b></summary>
     <div class="theme-studio-body">
       ${state.themeStudioMessage ? `<div class="notice info">${escapeHtml(state.themeStudioMessage)}</div>` : ''}
@@ -1862,6 +1902,41 @@ function renderThemeStudio(project, design, preview, intelligence) {
   </details>`;
 }
 
+function renderSimpleEbookThemeChooser(design) {
+  const studio = normalizeEbookThemeStudio(design.themeStudio || {});
+  const featured = ['tres-amigos-private','contemporary-romance','classic-literary','clean-commercial'];
+  const card = (theme) => `<article class="simple-theme-card ${studio.themeId === theme.id ? 'selected' : ''}">
+    <div class="simple-theme-swatch theme-${escapeHtml(theme.id)}"><span>Aa</span><i></i><i></i><i></i></div>
+    <div><strong>${escapeHtml(theme.name)}${theme.private ? ' · Private' : ''}</strong><small>${escapeHtml(theme.description)}</small></div>
+    <button class="btn ${studio.themeId === theme.id ? 'primary' : 'secondary'}" data-apply-ebook-theme="${escapeHtml(theme.id)}" type="button">${studio.themeId === theme.id ? 'Selected ✓' : 'Use this style'}</button>
+  </article>`;
+  const main = EBOOK_THEME_FAMILIES.filter((theme) => featured.includes(theme.id));
+  const more = EBOOK_THEME_FAMILIES.filter((theme) => !featured.includes(theme.id));
+  return `<section class="simple-kindle-style" id="simpleBookStyle">
+    <div class="simple-section-head"><div><span class="simple-kicker">Book style</span><h3>Pick a look. You can fine-tune it later.</h3><p>These change presentation only—never the words.</p></div><span class="simple-lock-chip">${escapeHtml(studio.themeName)}</span></div>
+    <div class="simple-theme-grid">${main.map(card).join('')}</div>
+    <details class="simple-more-styles"><summary>More styles <span>⌄</span></summary><div class="simple-theme-grid">${more.map(card).join('')}</div></details>
+  </section>`;
+}
+
+function renderSimpleKindleStatus({ report, quality, intelligence, flow, gate, kindleReady }) {
+  const safeFixes = gate.safeFixes?.length || 0;
+  const reviewCount = flow.reviews?.length || 0;
+  const blockerCount = flow.blockers?.length || 0;
+  const issueCount = blockerCount + reviewCount;
+  const title = kindleReady ? 'Your Kindle book is ready.' : issueCount ? `${issueCount} thing${issueCount === 1 ? '' : 's'} need attention.` : 'Finish the Kindle setup.';
+  const detail = kindleReady
+    ? 'YasReady checked the EPUB package, navigation, formatting consistency, and Story Lock.'
+    : blockerCount ? 'There is a real export blocker. Open the review only when you want the technical detail.'
+      : reviewCount ? 'These are review items, not manuscript changes. You decide whether they are intentional.'
+        : 'Add the remaining setup item, then YasReady will run the production checks again.';
+  return `<section class="simple-kindle-status ${kindleReady ? 'ready' : 'attention'}" id="simpleKindleExport">
+    <div class="simple-status-mark">${kindleReady ? '✓' : '!'}</div>
+    <div class="simple-status-copy"><span class="simple-kicker">Publish check</span><h3>${escapeHtml(title)}</h3><p>${escapeHtml(detail)}</p>${safeFixes ? `<small>${safeFixes} safe formatting fix${safeFixes === 1 ? '' : 'es'} available.</small>` : ''}</div>
+    <div class="simple-status-actions">${safeFixes ? '<button class="btn secondary" id="simpleApplyKindleSafeFixBatch" type="button">Fix safe issues</button>' : ''}<button class="btn secondary" id="openKindleAdvanced" type="button">${kindleReady ? 'View checks' : 'Review details'}</button><button class="btn primary simple-primary-cta" id="downloadEpub" type="button" ${kindleReady ? '' : 'disabled'}>Download EPUB</button></div>
+  </section>`;
+}
+
 function renderEbook() {
   const project = state.project;
   ensurePresentationOverrides(project);
@@ -1878,155 +1953,73 @@ function renderEbook() {
   const sectionRows = preview.sections.map((section, index) => {
     const badge = section.type === 'cover' ? 'CV' : section.type === 'chapter' ? 'CH' : section.type === 'front' ? 'FR' : section.type === 'back' ? 'BK' : 'TOC';
     const detail = section.type === 'cover'
-      ? 'Live preview · packaged as EPUB cover-image'
-      : section.synthetic
-        ? 'Generated linked Contents · no page numbers'
-        : `${formatNumber(section.wordCount)} words · source ${section.startBlockIndex + 1}–${section.endBlockIndex + 1}`;
-    return `
-    <button class="ebook-toc-row ${index === preview.index ? 'active' : ''}" data-ebook-section="${index}" data-ebook-title="${escapeHtml(String(section.title || '').toLowerCase())}">
-      <span>${badge}</span>
-      <div><strong>${escapeHtml(section.title)}</strong><small>${escapeHtml(detail)}</small></div>
-    </button>`;
+      ? 'Cover'
+      : section.synthetic ? 'Contents' : `${formatNumber(section.wordCount)} words`;
+    return `<button class="ebook-toc-row ${index === preview.index ? 'active' : ''}" data-ebook-section="${index}" data-ebook-title="${escapeHtml(String(section.title || '').toLowerCase())}"><span>${badge}</span><div><strong>${escapeHtml(section.title)}</strong><small>${escapeHtml(detail)}</small></div></button>`;
   }).join('');
-
   const coverSummary = cover
-    ? `<div class="ebook-cover-current"><img src="${escapeHtml(cover.dataUrl)}" alt="Ebook cover preview"><div><strong>${escapeHtml(cover.fileName)}</strong><small>${cover.width} × ${cover.height}px · ${formatBytes(cover.fileSize)}</small></div></div>`
-    : `<div class="ebook-cover-empty"><div class="ebook-cover-placeholder">e</div><div><strong>Add the Kindle cover</strong><small>Front cover only · JPEG or PNG · stored outside Story Lock</small></div></div>`;
-
+    ? `<div class="ebook-cover-current"><img src="${escapeHtml(cover.dataUrl)}" alt="Ebook cover preview"><div><strong>${escapeHtml(cover.fileName)}</strong><small>${cover.width} × ${cover.height}px</small></div></div>`
+    : `<div class="ebook-cover-empty"><div class="ebook-cover-placeholder">e</div><div><strong>Add your Kindle cover</strong><small>Front cover only · JPEG or PNG</small></div></div>`;
   const checkById = (id) => report.checks.find((item) => item.id === id);
   const coverReady = checkById('cover')?.status === 'pass';
-  const printParked = !project.editions?.paperback?.enabled && !project.editions?.hardcover?.enabled;
   const overrideCount = countPresentationOverrides(project, 'ebook');
   const semanticCounts = semanticRoleCounts(project, preview.sourceSections);
   const noteCount = (project.manuscript?.notes || []).length;
   const mediaCount = (project.manuscript?.media || []).length;
 
   return `
-    <article class="panel ebook-panel ebook-studio">
-      <div class="ebook-studio-top">
-        <div class="ebook-studio-title">
-          <span class="badge ${kindleReady ? 'good' : 'bad'}">${kindleReady ? 'KDP EPUB READY' : 'KINDLE SETUP'}</span>
-          <h2>Kindle / eBook</h2>
-          <div class="ebook-platform-line">Amazon KDP · Reflowable EPUB 3</div>
-          <p>One Story-Locked manuscript → one clean reflowable EPUB for Amazon KDP. Preview it, tune presentation safely, then export.</p>
-        </div>
-        <div class="ebook-top-actions">
-          <button class="btn secondary" id="focusEbookOnly" type="button" ${printParked ? 'disabled' : ''}>${printParked ? 'Print editions parked' : 'Focus on ebook'}</button>
-          <button class="btn secondary" data-go-view="import" type="button">Book metadata</button>
-        </div>
+    <article class="panel ebook-panel ebook-studio simple-kindle-page">
+      <div class="simple-page-head">
+        <div><span class="simple-kicker">Kindle</span><h2>Make it look like a book.</h2><p>Choose the style, add the cover, then read the preview. Everything technical stays out of the way unless it actually needs you.</p></div>
+        <span class="simple-lock-chip">🔒 Story protected</span>
       </div>
-
       ${state.ebookMessage ? `<div class="notice info ebook-message">${escapeHtml(state.ebookMessage)}</div>` : ''}
-      ${report.placeholders?.length ? `<div class="notice error ebook-message"><strong>Source cleanup needed before final EPUB:</strong> ${escapeHtml(report.placeholders.map((item) => item.text).join(', '))}. YasReady will preview these words but will not silently remove them from the Story-Locked manuscript.</div>` : ''}
+      ${report.placeholders?.length ? `<div class="notice error ebook-message"><strong>Source cleanup needed:</strong> ${escapeHtml(report.placeholders.map((item) => item.text).join(', '))}. YasReady will not silently remove these words.</div>` : ''}
 
-      ${renderKindleProductionConsole(flow, preview, kindleReady)}
+      ${renderSimpleEbookThemeChooser(design)}
 
-      ${renderKindleReleaseGate(releaseGate, flow)}
-
-      ${renderThemeStudio(project, design, preview, intelligence)}
-
-      <details class="kindle-health-details" id="kindleHealthDetails" ${flow.blockers.length || flow.reviews.length ? 'open' : ''}>
-        <summary><span><strong>Book Health & Intelligence</strong><small>${quality.score}/100 quality · ${flow.stats.reviews} active review · ${flow.stats.acknowledged} intentional · ${intelligence.summary.autoFixable} safe fixes</small></span><b>⌄</b></summary>
-        <div class="kindle-health-body">
-          ${renderKindleQualityPanel(quality, preview)}
-          ${renderKindleIntelligencePanel(intelligence, preview)}
-        </div>
-      </details>
-
-      <div class="ebook-setup-grid-v107">
+      <div class="simple-kindle-setup-grid">
         <section class="ebook-setup-card ebook-cover-card" id="kindleCoverSetup">
-          <div class="ebook-card-head"><div><div class="eyebrow">Cover</div><h3>Kindle cover</h3></div><span class="mini-status ${coverReady ? 'good' : 'needs'}">${coverReady ? 'Ready' : 'Needed'}</span></div>
+          <div class="ebook-card-head"><div><span class="simple-kicker">Cover</span><h3>Kindle cover</h3></div><span class="mini-status ${coverReady ? 'good' : 'needs'}">${coverReady ? 'Ready' : 'Needed'}</span></div>
           ${coverSummary}
-          <div class="ebook-cover-actions"><input id="ebookCoverInput" type="file" accept="image/jpeg,image/png" hidden><button class="btn secondary" id="chooseEbookCover" type="button">${cover ? 'Replace cover' : 'Choose cover'}</button>${cover ? '<button class="btn danger" id="removeEbookCover" type="button">Remove</button>' : ''}</div>
-          <p class="ebook-helper">The cover now appears as item 1 in Preview Studio, while the EPUB still packages it correctly as one cover-image without a duplicate HTML cover page.</p>
+          <div class="ebook-cover-actions"><input id="ebookCoverInput" type="file" accept="image/jpeg,image/png" hidden><button class="btn ${cover ? 'secondary' : 'primary'}" id="chooseEbookCover" type="button">${cover ? 'Replace cover' : 'Choose cover'}</button>${cover ? '<button class="btn danger" id="removeEbookCover" type="button">Remove</button>' : ''}</div>
         </section>
-
         <section class="ebook-setup-card ebook-core-card">
-          <div class="ebook-card-head"><div><div class="eyebrow">Essentials</div><h3>Kindle setup</h3></div><span class="mini-status good">Smart defaults</span></div>
-          <div class="ebook-core-fields">
-            <label class="design-field"><span>Language</span><input id="ebookLanguage" value="${escapeHtml(design.language)}" placeholder="en"></label>
-            <label class="design-field"><span>Publisher / imprint</span><input id="ebookPublisher" value="${escapeHtml(design.publisher)}" placeholder="3Dudes1Life Creative"></label>
-          </div>
-          <div class="ebook-smart-defaults">
-            <div><span>✓</span><p><strong>Visible Contents</strong><small>Placed before Chapter 1</small></p></div>
-            <div><span>✓</span><p><strong>Kindle Go To TOC</strong><small>All ${report.chapterEntries} chapters linked</small></p></div>
-            <div><span>✓</span><p><strong>Clean front matter</strong><small>Print-only blank spacing removed</small></p></div>
-            <div><span>✓</span><p><strong>Reader-controlled text</strong><small>No forced body size or line height</small></p></div>
-          </div>
-          <button class="btn primary" id="saveEbookSettings" type="button">Save & Refresh Preview</button>
+          <div class="ebook-card-head"><div><span class="simple-kicker">Basics</span><h3>Book details</h3></div><span class="mini-status good">Smart defaults</span></div>
+          <div class="ebook-core-fields"><label class="design-field"><span>Language</span><input id="ebookLanguage" value="${escapeHtml(design.language)}" placeholder="en"></label><label class="design-field"><span>Publisher / imprint</span><input id="ebookPublisher" value="${escapeHtml(design.publisher)}" placeholder="3Dudes1Life Creative"></label></div>
+          <div class="simple-smart-list"><span>✓ Clickable Contents</span><span>✓ Reader-controlled text</span><span>✓ Clean front matter</span><span>✓ Kindle navigation</span></div>
+          <button class="btn secondary" id="saveEbookSettings" type="button">Save details</button>
         </section>
       </div>
 
-      <section class="kindle-style-palette">
-        <div class="kindle-style-palette-head">
-          <div><div class="eyebrow">Kindle feature parity</div><h3>Semantic Style Palette</h3><p>YasReady recognizes fiction-specific elements and gives them Kindle-safe structure without changing a single source word. Auto uses Word styles and source patterns; Preview Studio can override one block safely.</p></div>
-          <span class="mini-status good">Story Lock safe</span>
-        </div>
-        <div class="semantic-count-grid">
-          <div><b>${semanticCounts.subhead}</b><span>Subheads</span></div>
-          <div><b>${semanticCounts['block-quote']}</b><span>Block quotes</span></div>
-          <div><b>${semanticCounts['written-note']}</b><span>Notes / letters</span></div>
-          <div><b>${semanticCounts.verse}</b><span>Verse</span></div>
-          <div><b>${semanticCounts['text-message']}</b><span>Text messages</span></div>
-          <div><b>${semanticCounts['scene-break']}</b><span>Scene breaks</span></div>
-          <div><b>${noteCount}</b><span>Foot/endnotes</span></div>
-          <div><b>${mediaCount}</b><span>Inline images</span></div>
-        </div>
-        <div class="semantic-style-controls">
-          <label class="design-field"><span>Subhead alignment</span><select id="ebookSubheadAlignment"><option value="left" ${design.subheadAlignment === 'left' ? 'selected' : ''}>Left</option><option value="center" ${design.subheadAlignment === 'center' ? 'selected' : ''}>Center</option><option value="right" ${design.subheadAlignment === 'right' ? 'selected' : ''}>Right</option></select></label>
-          <label class="design-field"><span>Subhead size</span><div class="number-wrap"><input id="ebookSubheadSize" type="number" min="0.9" max="1.8" step="0.05" value="${design.subheadSizeEm}"><em>em</em></div></label>
-          <label class="design-field"><span>Block quotes</span><select id="ebookBlockQuoteStyle"><option value="plain" ${design.blockQuoteStyle === 'plain' ? 'selected' : ''}>Clean indent</option><option value="italic" ${design.blockQuoteStyle === 'italic' ? 'selected' : ''}>Indented italic</option></select></label>
-          <label class="design-field"><span>Block quote indent</span><div class="number-wrap"><input id="ebookBlockQuoteIndent" type="number" min="0" max="3" step="0.05" value="${design.blockQuoteIndentEm}"><em>em</em></div></label>
-          <label class="design-field"><span>Written notes</span><select id="ebookWrittenNoteStyle"><option value="inset" ${design.writtenNoteStyle === 'inset' ? 'selected' : ''}>Inset note</option><option value="plain" ${design.writtenNoteStyle === 'plain' ? 'selected' : ''}>Plain text</option></select></label>
-          <label class="design-field"><span>Text conversations</span><select id="ebookTextMessageStyle"><option value="transcript" ${design.textMessageStyle === 'transcript' ? 'selected' : ''}>Clean transcript</option><option value="bubbles" ${design.textMessageStyle === 'bubbles' ? 'selected' : ''}>Subtle bubbles</option><option value="left-right" ${design.textMessageStyle === 'left-right' ? 'selected' : ''}>Left / right</option><option value="inset" ${design.textMessageStyle === 'inset' ? 'selected' : ''}>Readable inset</option><option value="compact" ${design.textMessageStyle === 'compact' ? 'selected' : ''}>Compact</option></select></label>
-          <label class="design-field"><span>Text conversation indent</span><div class="number-wrap"><input id="ebookTextMessageIndent" type="number" min="0" max="4" step="0.05" value="${design.textMessageIndentEm}"><em>em</em></div></label>
-          <label class="design-field"><span>Scene-break ornament</span><select id="ebookSceneBreakTreatment"><option value="source" ${design.sceneBreakTreatment === 'source' ? 'selected' : ''}>Use source marks</option><option value="whitespace" ${design.sceneBreakTreatment === 'whitespace' ? 'selected' : ''}>Whitespace only</option><option value="asterisks" ${design.sceneBreakTreatment === 'asterisks' ? 'selected' : ''}>* * *</option><option value="dots" ${design.sceneBreakTreatment === 'dots' ? 'selected' : ''}>• • •</option><option value="diamond" ${design.sceneBreakTreatment === 'diamond' ? 'selected' : ''}>◆</option><option value="flourish" ${design.sceneBreakTreatment === 'flourish' ? 'selected' : ''}>✦</option><option value="custom-text" ${design.sceneBreakTreatment === 'custom-text' ? 'selected' : ''}>Custom glyph / text</option><option value="custom-image" ${design.sceneBreakTreatment === 'custom-image' ? 'selected' : ''}>Custom artwork</option></select></label>
-          <label class="design-field"><span>Verse indent</span><div class="number-wrap"><input id="ebookVerseIndent" type="number" min="0" max="3" step="0.05" value="${design.verseIndentEm}"><em>em</em></div></label>
-        </div>
-        <div class="semantic-style-foot"><p><strong>Tip:</strong> In Adjust Layout, select a paragraph and change <strong>Content style</strong> to Subhead, Block Quote, Written Note, Verse, Text Conversation, or Scene Break. That choice is edition presentation metadata only.</p><button class="btn primary" id="saveEbookSemanticStyles" type="button">Save Style Palette</button></div>
-      </section>
+      <div class="ebook-device-card simple-device-proof"><div><span class="simple-kicker">Optional device proof</span><h3>Read it on your iPhone or iPad</h3><p>Creates a standalone read-only proof. Nothing is uploaded by YasReady.</p>${state.devicePreviewMessage ? `<small>${escapeHtml(state.devicePreviewMessage)}</small>` : ''}</div><div class="ebook-device-actions"><button class="btn secondary" id="shareDevicePreview" type="button">Open device proof</button><button class="btn ghost" id="downloadDevicePreview" type="button">Download proof</button></div></div>
+    </article>
 
-      <div class="ebook-device-card">
-        <div><div class="eyebrow">Device proof</div><h3>Read it on your iPhone or iPad before export</h3><p>Creates a standalone, read-only Kindle-style proof with the cover, Contents, front matter, and every chapter. Nothing is uploaded by YasReady.</p>${state.devicePreviewMessage ? `<small>${escapeHtml(state.devicePreviewMessage)}</small>` : ''}</div>
-        <div class="ebook-device-actions"><button class="btn primary" id="shareDevicePreview" type="button">Preview on iPhone / iPad</button><button class="btn secondary" id="downloadDevicePreview" type="button">Download device proof</button></div>
+    <article class="panel ebook-workbench-panel kindle-preview-studio-v110 simple-preview-panel" id="ebookPreviewStudio">
+      <div class="simple-page-head compact"><div><span class="simple-kicker">Step 3 · Preview</span><h2>${escapeHtml(preview.section.title)}</h2><p>Read first. Only switch to Adjust Layout when something actually looks wrong.</p></div><span class="kindle-studio-position">${preview.index + 1} / ${preview.sections.length}</span></div>
+      ${renderKindlePreviewToolbar(state.kindlePreview, preview)}
+      <div class="preview-studio-grid-v110 ${state.kindlePreview.mode === 'adjust' ? 'is-adjusting' : 'is-reading'} ${state.kindleFocusPreview ? 'focus-preview' : ''}">
+        <aside class="ebook-toc preview-pane-column"><div class="ebook-toc-head ebook-toc-head-v114"><div><strong>Chapters</strong><span>${preview.sections.length} items</span></div><label><span class="sr-only">Search reading order</span><input id="ebookNavigatorSearch" type="search" placeholder="Jump to chapter…" value="${escapeHtml(state.ebookNavigatorSearch)}"></label></div><div class="ebook-toc-list">${sectionRows}</div></aside>
+        ${state.kindleQaMatrix ? renderKindleQaMatrix(preview, state.kindlePreview) : renderKindleSimulatorFrame(preview, state.kindlePreview)}
+        <div id="ebookInspectorSlot" class="preview-pane-column inspector-column">${state.kindleQaMatrix ? `<aside class="ebook-format-inspector read-mode"><div class="inspector-head"><div><div class="eyebrow">QA Matrix</div><h3>Read-only stress test</h3></div><span class="mini-status good">3 views</span></div><div class="inspector-empty-icon">3×</div><strong>Compare before you adjust.</strong><p>Return to Single Preview to make formatting changes.</p><button class="btn primary" id="exitKindleQaMatrix" type="button">Return to Single Preview</button></aside>` : renderEbookInspector(project, design)}</div>
       </div>
+    </article>
 
-      <details class="ebook-advanced">
-        <summary><span><strong>Advanced typography</strong><small>Tres Amigos defaults are already loaded. Change these only if the preview needs it.</small></span><b>⌄</b></summary>
-        <div class="ebook-settings-grid ebook-settings-advanced">
-          <label class="design-field"><span>First-line indent</span><div class="number-wrap"><input id="ebookFirstIndent" type="number" min="0" max="3" step="0.05" value="${design.firstLineIndentEm}"><em>em</em></div></label>
-          <label class="design-field"><span>Paragraph spacing</span><div class="number-wrap"><input id="ebookParagraphGap" type="number" min="0" max="2" step="0.05" value="${design.paragraphGapEm}"><em>em</em></div></label>
-          <label class="design-field"><span>Chapter blank lines</span><select id="ebookBodyBlankPolicy"><option value="collapse" ${design.bodyBlankPolicy === 'collapse' ? 'selected' : ''}>Collapse source blank lines</option><option value="normalize" ${design.bodyBlankPolicy === 'normalize' ? 'selected' : ''}>One spacer per blank run</option><option value="preserve" ${design.bodyBlankPolicy === 'preserve' ? 'selected' : ''}>Preserve every source blank line</option></select></label>
-          <label class="design-field"><span>Normalized blank space</span><div class="number-wrap"><input id="ebookBodyBlankSpace" type="number" min="0" max="2" step="0.05" value="${design.bodyBlankSpaceEm}"><em>em</em></div></label>
-          <label class="design-field"><span>Chapter title alignment</span><select id="ebookChapterAlignment"><option value="left" ${design.chapterTitleAlignment === 'left' ? 'selected' : ''}>Left</option><option value="center" ${design.chapterTitleAlignment === 'center' ? 'selected' : ''}>Center</option><option value="right" ${design.chapterTitleAlignment === 'right' ? 'selected' : ''}>Right</option></select></label>
+    <article class="panel simple-kindle-finish-panel">
+      ${renderSimpleKindleStatus({ report, quality, intelligence, flow, gate:releaseGate, kindleReady })}
+      <details class="simple-advanced-panel kindle-advanced-master" id="kindleAdvancedTools">
+        <summary>Advanced Tools <span>Only open this if you need the technical controls. ⌄</span></summary>
+        <div class="simple-advanced-panel-body kindle-advanced-stack">
+          ${renderKindleProductionConsole(flow, preview, kindleReady)}
+          ${renderKindleReleaseGate(releaseGate, flow)}
+          ${renderThemeStudio(project, design, preview, intelligence)}
+          <details class="kindle-health-details" id="kindleHealthDetails" ${flow.blockers.length ? 'open' : ''}><summary><span><strong>Book Health & Intelligence</strong><small>${quality.score}/100 quality · ${flow.stats.reviews} review · ${intelligence.summary.autoFixable} safe fixes</small></span><b>⌄</b></summary><div class="kindle-health-body">${renderKindleQualityPanel(quality, preview)}${renderKindleIntelligencePanel(intelligence, preview)}</div></details>
+          <section class="kindle-style-palette"><div class="kindle-style-palette-head"><div><div class="eyebrow">Semantic formatting</div><h3>Content Style Palette</h3><p>Fine-tune special fiction elements only when the automatic mapping needs help.</p></div><span class="mini-status good">Story Lock safe</span></div><div class="semantic-count-grid"><div><b>${semanticCounts.subhead}</b><span>Subheads</span></div><div><b>${semanticCounts['block-quote']}</b><span>Block quotes</span></div><div><b>${semanticCounts['written-note']}</b><span>Notes / letters</span></div><div><b>${semanticCounts.verse}</b><span>Verse</span></div><div><b>${semanticCounts['text-message']}</b><span>Text messages</span></div><div><b>${semanticCounts['scene-break']}</b><span>Scene breaks</span></div><div><b>${noteCount}</b><span>Foot/endnotes</span></div><div><b>${mediaCount}</b><span>Inline images</span></div></div><div class="semantic-style-controls"><label class="design-field"><span>Subhead alignment</span><select id="ebookSubheadAlignment"><option value="left" ${design.subheadAlignment === 'left' ? 'selected' : ''}>Left</option><option value="center" ${design.subheadAlignment === 'center' ? 'selected' : ''}>Center</option><option value="right" ${design.subheadAlignment === 'right' ? 'selected' : ''}>Right</option></select></label><label class="design-field"><span>Subhead size</span><div class="number-wrap"><input id="ebookSubheadSize" type="number" min="0.9" max="1.8" step="0.05" value="${design.subheadSizeEm}"><em>em</em></div></label><label class="design-field"><span>Block quotes</span><select id="ebookBlockQuoteStyle"><option value="plain" ${design.blockQuoteStyle === 'plain' ? 'selected' : ''}>Clean indent</option><option value="italic" ${design.blockQuoteStyle === 'italic' ? 'selected' : ''}>Indented italic</option></select></label><label class="design-field"><span>Block quote indent</span><div class="number-wrap"><input id="ebookBlockQuoteIndent" type="number" min="0" max="3" step="0.05" value="${design.blockQuoteIndentEm}"><em>em</em></div></label><label class="design-field"><span>Written notes</span><select id="ebookWrittenNoteStyle"><option value="inset" ${design.writtenNoteStyle === 'inset' ? 'selected' : ''}>Inset note</option><option value="plain" ${design.writtenNoteStyle === 'plain' ? 'selected' : ''}>Plain text</option></select></label><label class="design-field"><span>Text conversations</span><select id="ebookTextMessageStyle"><option value="transcript" ${design.textMessageStyle === 'transcript' ? 'selected' : ''}>Clean transcript</option><option value="bubbles" ${design.textMessageStyle === 'bubbles' ? 'selected' : ''}>Subtle bubbles</option><option value="left-right" ${design.textMessageStyle === 'left-right' ? 'selected' : ''}>Left / right</option><option value="inset" ${design.textMessageStyle === 'inset' ? 'selected' : ''}>Readable inset</option><option value="compact" ${design.textMessageStyle === 'compact' ? 'selected' : ''}>Compact</option></select></label><label class="design-field"><span>Text conversation indent</span><div class="number-wrap"><input id="ebookTextMessageIndent" type="number" min="0" max="4" step="0.05" value="${design.textMessageIndentEm}"><em>em</em></div></label><label class="design-field"><span>Scene break</span><select id="ebookSceneBreakTreatment"><option value="source" ${design.sceneBreakTreatment === 'source' ? 'selected' : ''}>Use source marks</option><option value="whitespace" ${design.sceneBreakTreatment === 'whitespace' ? 'selected' : ''}>Whitespace only</option><option value="asterisks" ${design.sceneBreakTreatment === 'asterisks' ? 'selected' : ''}>* * *</option><option value="dots" ${design.sceneBreakTreatment === 'dots' ? 'selected' : ''}>• • •</option><option value="diamond" ${design.sceneBreakTreatment === 'diamond' ? 'selected' : ''}>◆</option><option value="flourish" ${design.sceneBreakTreatment === 'flourish' ? 'selected' : ''}>✦</option><option value="custom-text" ${design.sceneBreakTreatment === 'custom-text' ? 'selected' : ''}>Custom glyph / text</option><option value="custom-image" ${design.sceneBreakTreatment === 'custom-image' ? 'selected' : ''}>Custom artwork</option></select></label><label class="design-field"><span>Verse indent</span><div class="number-wrap"><input id="ebookVerseIndent" type="number" min="0" max="3" step="0.05" value="${design.verseIndentEm}"><em>em</em></div></label></div><div class="semantic-style-foot"><button class="btn secondary" id="saveEbookSemanticStyles" type="button">Save advanced styles</button></div></section>
+          <details class="ebook-advanced"><summary><span><strong>Advanced typography</strong><small>Change these only if the preview needs it.</small></span><b>⌄</b></summary><div class="ebook-settings-grid ebook-settings-advanced"><label class="design-field"><span>First-line indent</span><div class="number-wrap"><input id="ebookFirstIndent" type="number" min="0" max="3" step="0.05" value="${design.firstLineIndentEm}"><em>em</em></div></label><label class="design-field"><span>Paragraph spacing</span><div class="number-wrap"><input id="ebookParagraphGap" type="number" min="0" max="2" step="0.05" value="${design.paragraphGapEm}"><em>em</em></div></label><label class="design-field"><span>Chapter blank lines</span><select id="ebookBodyBlankPolicy"><option value="collapse" ${design.bodyBlankPolicy === 'collapse' ? 'selected' : ''}>Collapse source blank lines</option><option value="normalize" ${design.bodyBlankPolicy === 'normalize' ? 'selected' : ''}>One spacer per blank run</option><option value="preserve" ${design.bodyBlankPolicy === 'preserve' ? 'selected' : ''}>Preserve every source blank line</option></select></label><label class="design-field"><span>Normalized blank space</span><div class="number-wrap"><input id="ebookBodyBlankSpace" type="number" min="0" max="2" step="0.05" value="${design.bodyBlankSpaceEm}"><em>em</em></div></label><label class="design-field"><span>Chapter title alignment</span><select id="ebookChapterAlignment"><option value="left" ${design.chapterTitleAlignment === 'left' ? 'selected' : ''}>Left</option><option value="center" ${design.chapterTitleAlignment === 'center' ? 'selected' : ''}>Center</option><option value="right" ${design.chapterTitleAlignment === 'right' ? 'selected' : ''}>Right</option></select></label></div></details>
+          <section class="ebook-preflight-panel" id="kindlePreflight"><div class="panel-head"><div><span class="badge ${report.ready ? 'good' : 'bad'}">${report.ready ? 'TECHNICAL CHECK PASSED' : 'TECHNICAL CHECK NEEDS WORK'}</span><h2>EPUB technical details</h2><p>${escapeHtml(report.kdp.message)}</p></div><button class="btn secondary" id="downloadEpubPreflight" type="button">Download Preflight Report</button></div><div class="preflight-list ebook-preflight">${report.checks.map(renderPreflightCheck).join('')}</div></section>
+          <div class="ebook-summary-grid"><div><b>${preview.sections.length}</b><span>Preview items</span></div><div><b>${report.chapterEntries}</b><span>Chapter links</span></div><div><b>${report.tocEntries}</b><span>TOC links</span></div><div><b>${overrideCount}</b><span>Custom format fixes</span></div></div>
         </div>
       </details>
-
-      <div class="ebook-summary-grid">
-        <div><b>${preview.sections.length}</b><span>Preview items</span></div>
-        <div><b>${report.chapterEntries}</b><span>Chapter links</span></div>
-        <div><b>${report.tocEntries}</b><span>TOC links</span></div>
-        <div><b>${overrideCount}</b><span>Custom format fixes</span></div>
-      </div>
-    </article>
-
-    <article class="panel ebook-workbench-panel kindle-preview-studio-v110" id="ebookPreviewStudio">
-      <div class="kindle-studio-head">
-        <div><div class="eyebrow">Kindle Preview Studio · Production Workbench</div><h2>${escapeHtml(preview.section.title)}</h2><p>Read, inspect, and polish the same reflowable XHTML/CSS source used by the final EPUB. Use ⌘K to jump chapters, E to toggle Edit/Read, and Option+←/→ to move through the book.</p></div>
-        <span class="kindle-studio-position">${preview.index + 1} / ${preview.sections.length}</span>
-      </div>
-      ${renderKindlePreviewToolbar(state.kindlePreview, preview)}
-      <div class="kindle-studio-status ${state.kindlePreview.mode === 'adjust' ? 'adjust' : 'read'}"><strong>${state.kindlePreview.mode === 'adjust' ? 'Adjust Layout' : 'Read Mode'}</strong><span>${state.kindlePreview.mode === 'adjust' ? 'Click a paragraph or heading. Changes preview instantly and save as presentation metadata only.' : 'No selection boxes. Read the book like a customer, then switch to Adjust Layout only when something needs work.'}</span></div>
-      <div class="preview-studio-grid-v110 ${state.kindlePreview.mode === 'adjust' ? 'is-adjusting' : 'is-reading'} ${state.kindleFocusPreview ? 'focus-preview' : ''}">
-        <aside class="ebook-toc preview-pane-column"><div class="ebook-toc-head ebook-toc-head-v114"><div><strong>Reading Order</strong><span>${preview.sections.length} items</span></div><label><span class="sr-only">Search reading order</span><input id="ebookNavigatorSearch" type="search" placeholder="Jump to chapter… ⌘K" value="${escapeHtml(state.ebookNavigatorSearch)}"></label></div><div class="ebook-toc-list">${sectionRows}</div></aside>
-        ${state.kindleQaMatrix ? renderKindleQaMatrix(preview, state.kindlePreview) : renderKindleSimulatorFrame(preview, state.kindlePreview)}
-        <div id="ebookInspectorSlot" class="preview-pane-column inspector-column">${state.kindleQaMatrix ? `<aside class="ebook-format-inspector read-mode"><div class="inspector-head"><div><div class="eyebrow">QA Matrix</div><h3>Read-only stress test</h3></div><span class="mini-status good">3 views</span></div><div class="inspector-empty-icon">3×</div><strong>Compare before you adjust.</strong><p>Small phone, normal Kindle, and large tablet views render the same section at once. Return to Single Preview to make formatting changes.</p><button class="btn primary" id="exitKindleQaMatrix" type="button">Return to Single Preview</button></aside>` : renderEbookInspector(project, design)}</div>
-      </div>
-    </article>
-
-    <article class="panel ebook-preflight-panel" id="kindlePreflight">
-      <div class="panel-head"><div><span class="badge ${report.ready ? 'good' : 'bad'}">${report.ready ? 'KDP CHECK PASSED' : 'KDP CHECK NEEDS WORK'}</span><h2>Kindle preflight</h2><p>${escapeHtml(report.kdp.message)} This is the technical gate before the EPUB download is enabled.</p></div><button class="btn secondary" id="downloadEpubPreflight" type="button">Download Preflight Report</button></div>
-      <div class="preflight-list ebook-preflight">${report.checks.map(renderPreflightCheck).join('')}</div>
     </article>`;
 }
 
@@ -2168,7 +2161,26 @@ function bindEvents() {
   bindDynamicEvents();
 }
 
+function goToSimpleStep(step) {
+  if (!state.project && step !== 'book') return;
+  state.simpleStep = step;
+  if (step === 'book') state.activeView = 'import';
+  else if (step === 'style') state.activeView = 'style-simple';
+  else if (step === 'preview') state.activeView = 'preview-simple';
+  else if (step === 'export') state.activeView = 'export-simple';
+  updateMain();
+}
+
 function bindDynamicEvents() {
+  document.querySelectorAll('[data-simple-step]').forEach((button) => button.addEventListener('click', () => { if (!button.disabled) goToSimpleStep(button.dataset.simpleStep); }));
+  document.querySelectorAll('[data-simple-target]').forEach((button) => button.addEventListener('click', async () => {
+    const target = button.dataset.simpleTarget;
+    if (target === 'ebook-preview') { state.simpleStep = 'preview'; state.activeView = 'ebook'; updateMain(); requestAnimationFrame(() => document.querySelector('#ebookPreviewStudio')?.scrollIntoView({ behavior:'smooth', block:'start' })); }
+    if (target === 'print-preview') { state.simpleStep = 'preview'; if (!state.preview) await buildPreview(); state.activeView = 'print'; updateMain(); }
+  }));
+  document.querySelector('#simpleDownloadEpub')?.addEventListener('click', downloadEpub);
+  document.querySelector('#simpleApplyKindleSafeFixBatch')?.addEventListener('click', applyKindleSafeFixesBatch);
+  document.querySelector('#openKindleAdvanced')?.addEventListener('click', () => { const tools = document.querySelector('#kindleAdvancedTools'); if (tools) { tools.open = true; tools.scrollIntoView({ behavior:'smooth', block:'start' }); } });
   const choose = document.querySelector('#chooseFile');
   const input = document.querySelector('#fileInput');
   const dropzone = document.querySelector('#dropzone');
@@ -2252,6 +2264,7 @@ function bindDynamicEvents() {
   document.querySelector('#ebookCoverInput')?.addEventListener('change', (event) => event.target.files?.[0] && importEbookCover(event.target.files[0]));
   document.querySelector('#removeEbookCover')?.addEventListener('click', removeEbookCover);
   document.querySelector('#downloadEpub')?.addEventListener('click', downloadEpub);
+  document.querySelector('#downloadEpubAdvanced')?.addEventListener('click', downloadEpub);
   document.querySelector('#downloadEpubPreflight')?.addEventListener('click', downloadEpubPreflight);
   document.querySelector('#shareDevicePreview')?.addEventListener('click', shareDevicePreview);
   document.querySelector('#downloadDevicePreview')?.addEventListener('click', downloadDevicePreview);
@@ -2287,6 +2300,7 @@ function bindDynamicEvents() {
 
   document.querySelectorAll('[data-go-view]').forEach((button) => button.addEventListener('click', () => {
     state.activeView = button.dataset.goView;
+    if (button.dataset.goView === 'import') state.simpleStep = 'book';
     updateMain();
   }));
 

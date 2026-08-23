@@ -3,7 +3,7 @@ import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const VERSION = '1.0.16';
+const VERSION = '1.0.17';
 
 function walk(dir) {
   const out = [];
@@ -43,7 +43,7 @@ const dynamic = [
   'data-go-view','data-open-project','data-delete-project','data-nav-page','data-ebook-section','data-repair-block',
   'data-apply-theme','data-export-theme','data-delete-theme','data-edition-enabled','data-work-edition','data-kindle-mode',
   'data-kindle-pref-key','data-quality-section','data-intelligence-section','data-intelligence-fix','data-kindle-command',
-  'data-polish-section','data-kindle-review-source','data-inspector-preset',
+  'data-polish-section','data-kindle-review-source','data-inspector-preset','data-simple-step','data-simple-target',
 ];
 for (const attr of dynamic) {
   if (main.includes(attr) && !main.includes(`querySelectorAll('[${attr}]')`) && !main.includes(`querySelectorAll("[${attr}]")`)) {
@@ -85,7 +85,7 @@ const ebookModel = readFileSync(join(ROOT, 'src/lib/ebook-model.js'), 'utf8');
 if (!ebookModel.includes('matterSectionHeading') || !ebookModel.includes('detectEbookPlaceholders')) throw new Error('Kindle front-matter/placeholder hardening is missing.');
 const kindleQuality = readFileSync(join(ROOT, 'src/lib/kindle-quality.js'), 'utf8');
 for (const marker of ['scanKindleQuality','enhancedTypesettingAudit','kindleTorturePresets','semanticRoleCounts']) if (!kindleQuality.includes(marker)) throw new Error(`Missing Kindle Pro quality marker: ${marker}`);
-for (const marker of ['Kindle Pro consistency scan','3-View Torture Test','referencePt','toggleKindleQaMatrix','Semantic Style Palette','Content style','Kindle Intelligence','Compare Chapters','Kindle Production Console · v1.0.14','Theme Studio · v1.0.15','Style Gallery','Book DNA','Smart Word Style Mapper','Show me every place using this style','Polish Queue','NEXT BEST ACTION','Focus Preview','Kindle Release Gate · v1.0.16','Apply all safe fixes','Freeze Kindle release','FINAL NEXT ACTION']) if (!main.includes(marker)) throw new Error(`Missing Kindle Pro UI marker: ${marker}`);
+for (const marker of ['Kindle Pro consistency scan','3-View Torture Test','referencePt','toggleKindleQaMatrix','Semantic Style Palette','Content style','Kindle Intelligence','Compare Chapters','Kindle Production Console · v1.0.14','Theme Studio · v1.0.15','Style Gallery','Book DNA','Smart Word Style Mapper','Show me every place using this style','Polish Queue','NEXT BEST ACTION','Focus Preview','Kindle Release Gate · v1.0.16','Apply all safe fixes','Freeze Kindle release','FINAL NEXT ACTION','Step 1 · Book','Step 2 · Style','Step 3 · Preview','Step 4 · Export','Advanced Tools','simpleKindleExport']) if (!main.includes(marker)) throw new Error(`Missing Kindle Pro UI marker: ${marker}`);
 const themeStudio = readFileSync(join(ROOT, 'src/lib/ebook-theme-studio.js'), 'utf8');
 for (const marker of ['EBOOK_THEME_FAMILIES','normalizeEbookThemeStudio','applyEbookThemeFamily','calculateBookDNA','ebookStyleUsage','sourceStyleRecords']) if (!themeStudio.includes(marker)) throw new Error(`Missing Theme Studio marker: ${marker}`);
 for (const marker of ['theme-artwork','paragraph-after-break','scene-source-hidden',"design.textMessageStyle === 'left-right'"]) if (!epub.includes(marker)) throw new Error(`Missing Theme Studio EPUB marker: ${marker}`);
@@ -108,4 +108,5 @@ console.log(`- ${srcJs.length} application JS files syntax/import checked`);
 console.log(`- ${new Set(buttonIds).size} literal button IDs audited`);
 console.log(`- ${dynamic.length} dynamic control families audited`);
 console.log('- no fetch/XHR/WebSocket/sendBeacon manuscript egress paths found');
+console.log('- Simple Mode four-step UX + hidden advanced systems present');
 console.log('- proof ownership, edition invalidation, semantic Kindle styles, Theme Studio families/mapping/artwork, exact-token review decisions, keyboard/search/focus workflow, safe note/media import, finished EPUB audit, calibrated preview, chapter anomaly mapping, safe presentation fixes, accessibility audit, batch review/fix workflow, invalidating visual-proof/release freeze tokens, Final Check intelligence, and whole-book QA guards present');

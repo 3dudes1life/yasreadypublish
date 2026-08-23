@@ -1,10 +1,19 @@
 # YasReady Publish
 
-**Current release: v1.0.16 — Kindle Release Gate** v1.0.15
+**Current release: v1.0.17 — Simple Mode**
 
 Private publishing studio for Story-Locked manuscripts.
 
-Version 1.0.15 is the **Theme Studio pass**. It is built directly on the 1.0.14 Kindle Production UX and keeps that workflow intact while adding a whole-book visual design system: eight coordinated book families, live theme controls, chapter-heading design, scene-break treatments, text-conversation styles, transparent Word-style mapping, chapter overrides, whole-book style usage review, and Book DNA.
+Version 1.0.17 is the **simplification pass**. It keeps the full publishing engine from 1.0.12–1.0.16—Theme Studio, Kindle Intelligence, accessibility audits, production proofing, Release Gate, Story Lock, print controls, and EPUB validation—but stops putting all of that machinery in the author's face.
+
+The default workflow is now four steps:
+
+1. **Book** — import the finished manuscript and choose editions.
+2. **Style** — choose a polished book look, with deeper customization only when wanted.
+3. **Preview** — read the actual output and visually check the book.
+4. **Export** — see a plain-language ready/not-ready status, fix safe issues, and download the finished edition.
+
+Everything else lives behind **Advanced Tools**. No publishing capability was removed, and project schema 25 remains unchanged because this release changes UX rather than Story-Locked manuscript data.
 
 ## Story Lock remains the first rule
 

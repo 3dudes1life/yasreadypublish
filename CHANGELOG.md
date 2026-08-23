@@ -1,5 +1,18 @@
 # YasReady Publish Changelog
 
+## 1.0.17 — Simple Mode
+
+- Rebuilt the default author experience around four plain-language steps: **Book → Style → Preview → Export**.
+- Replaced the technical 11-item default sidebar with a four-step workflow; existing expert destinations remain available under one collapsed **Advanced Tools** section.
+- Simplified the Kindle workspace so the default view leads with visual theme selection, cover/details, the live book preview, and one human-language publish status.
+- Added a compact visual theme gallery for the most useful fiction styles while preserving every Theme Studio control behind Advanced Tools.
+- Replaced the always-visible Production Console / Release Gate / Book Health stack with a single ready/not-ready author-facing status and safe-fix action.
+- Kept Kindle Intelligence, Book DNA, accessibility diagnostics, Release Gate tokens/freezing, source inspection, structure repair, semantic mapping, and deep typography available without forcing normal authors to understand them.
+- Reduced repeated Story Lock explanations to a quiet **Story protected** status while keeping all Story Lock enforcement and release validation intact.
+- Theme Studio is collapsed by default instead of opening an expert control surface automatically.
+- No project schema change: schema 25 and all 1.0.16 persisted data remain intact. This is a UX-only release and does not rewrite manuscript blocks, notes, media, Story Lock hashes, edition design state, review decisions, or release proof state.
+- QA: 173/173 automated tests passing; static verification PASS; Superman audit PASS.
+
 ## 1.0.16 — Kindle Release Gate
 
 - Added a final Kindle Release Gate that combines technical preflight, whole-book quality/intelligence, accessibility, visual proof, and release freeze state.

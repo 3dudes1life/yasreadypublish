@@ -18,7 +18,7 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
   const project = {
     id: crypto.randomUUID(),
     version: 25,
-    appVersion: '1.0.16',
+    appVersion: '1.0.17',
     title: baseName,
     author: '',
     createdAt: now,
@@ -258,8 +258,10 @@ export function migrateProject(project) {
     }
   }
 
+  // 1.0.17 is a simplification-only UX release. It deliberately adds no new
+  // project schema and does not alter manuscript or edition metadata.
   project.version = Math.max(oldVersion, 25);
-  project.appVersion = '1.0.16';
+  project.appVersion = '1.0.17';
   return project;
 }
 

@@ -1,46 +1,29 @@
-# YasReady Publish v1.0.15 — Superman QA
+# YasReady Publish v1.0.17 — Superman QA
 
-**Automated release gate:** 164 automated tests passing + static verification + Superman audit.
+**Automated release gate:** 173 automated tests passing + static verification + Superman audit.
 
 ## Release target
 
-Turn the mature Kindle engine into a faster, clearer production workflow without weakening Story Lock, finished-EPUB checks, or the existing semantic/intelligence systems.
+Make the mature publishing engine feel obvious to a first-time author without deleting or weakening any advanced production capability. Default UX is **Book → Style → Preview → Export**; expert systems remain behind **Advanced Tools**.
 
 ## Automated release gate
 
-- 155 automated tests
-- 155 pass
+- 173 automated tests
+- 173 pass
 - 0 fail
 - static verification PASS
 - Superman audit PASS
 
-## v1.0.15 regressions covered
+## v1.0.17 regressions covered
 
-Theme Studio release guards include:
-
-- applying any of the eight theme families does not alter Story-Locked manuscript blocks
-- Word-style remapping changes semantic presentation only
-- chapter-specific heading overrides remain presentation-only
-- custom scene-break artwork is packaged in EPUB while source break marks remain preserved
-- Book DNA and style-usage scans are derived from semantic/presentation state and do not write into source
-- legacy 1.0.14 Production Console and release gates remain present
-
-- schema migrates to 24 / app 1.0.15 without changing manuscript blocks
-- Kindle review decisions survive edition normalization
-- non-blocking findings may be marked intentional for the **exact** current finding
-- changed finding tokens automatically invalidate old intentional-review decisions
-- blocking errors and informational notices cannot be marked intentional; only warning/review findings are eligible
-- Production Flow prioritizes missing setup, then blockers, then review items, then final visual proof
-- Polish Queue separates unresolved from acknowledged findings and never lets an acknowledged duplicate hide an unresolved finding
-- production review workflow cannot mutate Story-Locked manuscript blocks
-- Production Console / Polish Queue / Next Best Action controls are present
-- Reading Order search, keyboard commands, Focus Preview, and inspector quick-polish controls are wired
-- `Run Final Check` includes Kindle Intelligence in the ebook readiness gate
-- button-audit parsing distinguishes literal button IDs from `data-*-id` attributes
-
-## Existing Kindle regressions retained
-
-The complete suite still covers Story Lock, exact source coverage/order, front-matter reflow, visible/logical TOC, single-cover packaging, EPUB container integrity, Preview Studio Read/Adjust isolation, live layout overrides, Undo/Redo, 3-View Torture Test, Enhanced Typesetting-oriented CSS checks, semantic fiction roles, footnotes/endnotes, inline images, media fingerprints, accessibility review, whole-book chapter anomaly mapping, chapter comparison, safe presentation fixes, print-proof ownership, edition invalidation, and fixed-page print safety.
+- migration from 1.0.16 remains on schema 25 and keeps Story-Locked manuscript blocks byte-identical
+- four Simple Mode steps are present and ordered Book → Style → Preview → Export
+- Advanced Tools remains available without occupying the default workflow
+- Theme Studio is collapsed by default
+- legacy Theme Studio, Kindle Intelligence, Release Gate, accessibility, semantic, preview, print, and export systems remain present underneath Simple Mode
+- missing simplified-form controls fall back to the persisted ebook design instead of erasing advanced settings
+- Story Lock, exact source coverage/order, media/note fingerprints, and edition invalidation remain enforced
+- finished EPUB audit, KDP preflight, accessibility audit, release proof token, and freeze invalidation remain unchanged
 
 ## Superman static audit
 
@@ -48,17 +31,13 @@ The complete suite still covers Story Lock, exact source coverage/order, front-m
 - literal button IDs must have bindings
 - dynamic control families must have bindings
 - no application source may contain `fetch`, `XMLHttpRequest`, `WebSocket`, or `sendBeacon` manuscript-egress pathways
-- Production Flow, review-decision safeguards, finished EPUB audit, and Final Check intelligence markers must exist
+- Simple Mode markers and hidden advanced production systems must both remain present
 
-## Manual acceptance still required
+## Manual acceptance before a production freeze
 
-Automated tests cannot replace a black-box pass with the real production manuscript. Before freezing Kindle:
-
-1. inspect the Production Console and Polish Queue
-2. mark/unmark one non-blocking finding as intentional
-3. jump to an issue and verify the correct chapter/block is selected
-4. use ⌘K search and keyboard navigation
-5. use Tighter / Theme / Airier on one selected paragraph, then Undo/Redo/Reset
-6. verify Focus Preview returns cleanly to the workbench
-7. run the 3-View Torture Test on early/middle/late chapters
-8. export the exact EPUB and open it in Amazon Kindle Previewer
+1. import the real production DOCX and confirm the four-step workflow feels obvious
+2. choose a theme from Style and verify the preview changes without source-text changes
+3. read early, middle, and late sections in Preview
+4. confirm Export reports issues in plain language and safe fixes behave correctly
+5. open Advanced Tools once and verify the production diagnostics are still available
+6. export the exact EPUB and inspect it in Amazon Kindle Previewer before KDP submission

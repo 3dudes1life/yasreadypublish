@@ -23,7 +23,7 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
 }
 const main = readFileSync('src/main.js', 'utf8');
 for (const marker of [
-  "const VERSION = '1.0.16'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
+  "const VERSION = '1.0.17'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
   'Amazon KDP · Reflowable EPUB 3', 'Kindle Preview Studio', 'Adjust Layout', 'preview-studio-grid-v110',
   'Kindle Pro consistency scan', '3-View Torture Test', '11 pt reference', 'Semantic Style Palette', 'Content style',
   'saveEbookSemanticStyles', 'Kindle Intelligence', 'Compare Chapters', 'compareKindleChaptersButton', 'Undo', 'Redo',
@@ -31,7 +31,7 @@ for (const marker of [
   'Kindle Production Console · v1.0.14', 'Polish Queue', 'NEXT BEST ACTION', 'ebookNavigatorSearch',
   'data-kindle-command', 'data-kindle-review-source', 'data-inspector-preset', 'Focus Preview',
 ]) {
-  if (!main.includes(marker)) throw new Error(`1.0.16 production workspace is missing: ${marker}`);
+  if (!main.includes(marker)) throw new Error(`1.0.17 production workspace is missing: ${marker}`);
 }
 const printModel = readFileSync('src/lib/print-model.js', 'utf8');
 if (!printModel.includes("tocTitle: 'Table of Contents'") || !printModel.includes('printToc: true') || !printModel.includes("tocStartSide: 'left'") || !printModel.includes('paragraphGap: 0.12,') || !printModel.includes("bodyBlankPolicy: 'collapse'")) {
@@ -46,13 +46,14 @@ for (const dynamicBinding of [
   '[data-apply-theme]','[data-export-theme]','[data-delete-theme]','[data-edition-enabled]','[data-work-edition]',
   '[data-kindle-mode]','[data-kindle-pref-key]','[data-quality-section]','[data-intelligence-section]','[data-intelligence-fix]',
   '[data-kindle-command]','[data-polish-section]','[data-kindle-review-source]','[data-inspector-preset]',
+  '[data-simple-step]','[data-simple-target]',
 ]) {
   if (!main.includes(`querySelectorAll('${dynamicBinding}')`) && !main.includes(`querySelectorAll("${dynamicBinding}")`)) throw new Error(`Missing dynamic control binding: ${dynamicBinding}`);
 }
 
 const project = readFileSync('src/lib/project.js', 'utf8');
-if (!project.includes("appVersion: '1.0.16'") || !project.includes('version: 25') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
-  throw new Error('Project schema/app version was not migrated to 1.0.16 Kindle Release Gate safety state.');
+if (!project.includes("appVersion: '1.0.17'") || !project.includes('version: 25') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
+  throw new Error('Project app version was not migrated to 1.0.17 while preserving schema 25 safety state.');
 }
 const editions = readFileSync('src/lib/editions.js', 'utf8');
 if (!editions.includes('reviewDecisions:')) throw new Error('Edition normalization does not preserve Kindle review decisions.');
@@ -85,6 +86,9 @@ for (const marker of ['Theme Studio · v1.0.15','Style Gallery','Smart Word Styl
 for (const marker of ['theme-artwork','paragraph-after-break','scene-source-hidden',"design.textMessageStyle === 'left-right'"]) {
   if (!epub.includes(marker)) throw new Error(`Theme Studio EPUB renderer is missing: ${marker}`);
 }
+for (const marker of ['Step 1 · Book','Step 2 · Style','Step 3 · Preview','Step 4 · Export','Advanced Tools','simpleKindleExport','simpleBookStyle']) {
+  if (!main.includes(marker)) throw new Error(`1.0.17 Simple Mode is missing: ${marker}`);
+}
 const releaseGate = readFileSync('src/lib/kindle-release-gate.js', 'utf8');
 for (const marker of ['buildKindleReleaseGate','auditKindleAccessibility','applySafeFixBatch','markKindleVisualProofComplete','freezeKindleRelease','kindleReleaseReport']) {
   if (!releaseGate.includes(marker)) throw new Error(`Kindle Release Gate is missing: ${marker}`);
@@ -92,4 +96,4 @@ for (const marker of ['buildKindleReleaseGate','auditKindleAccessibility','apply
 for (const marker of ['Kindle Release Gate · v1.0.16','Apply all safe fixes','Mark current reviews intentional','Mark visual proof complete','Freeze Kindle release','Download release report','FINAL NEXT ACTION']) {
   if (!main.includes(marker)) throw new Error(`1.0.16 Release Gate UI is missing: ${marker}`);
 }
-console.log('YasReady Publish v1.0.16 static verification passed.');
+console.log('YasReady Publish v1.0.17 static verification passed.');
