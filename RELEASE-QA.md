@@ -41,3 +41,10 @@ Make the mature publishing engine feel obvious to a first-time author without de
 4. confirm Export reports issues in plain language and safe fixes behave correctly
 5. open Advanced Tools once and verify the production diagnostics are still available
 6. export the exact EPUB and inspect it in Amazon Kindle Previewer before KDP submission
+
+## v1.0.22 Book 1 front matter match
+- Confirm Tres Amigos title page uses spaced uppercase title hierarchy and generous vertical position.
+- Confirm copyright first line is not rendered as an oversized heading.
+- Confirm dedication is centered/italic with no forced bold heading.
+- Confirm switching to a non-Tres-Amigos theme leaves generic clean front matter intact.
+- Confirm source block JSON remains byte-identical through migration/export.

@@ -292,8 +292,73 @@ function hiddenMatterBlank(block, previewMode = false) {
   return `<span id="${id}" class="matter-source-blank"${attrs} aria-hidden="true"></span>`;
 }
 
+function usesTresAmigosMatterMatch(design = {}) {
+  const studio = normalizeEbookThemeStudio(design?.themeStudio || {});
+  return String(studio.themeId || design?.themeId || '') === 'tres-amigos-private';
+}
+
+function renderTresAmigosMatterFlow(section, project, design, previewMode = false, role = 'front') {
+  const blocks = section.blocks || [];
+  const out = [];
+  let group = [];
+  let pendingBlanks = [];
+  let groupAfterBlank = false;
+
+  const flush = (extraClass = '') => {
+    if (!group.length) return;
+    const spans = group.map((block) => renderMatterInlineBlock(block, { project, sectionType: section.type, previewMode })).join(' ');
+    const classes = ['matter-flow'];
+    if (extraClass) classes.push(extraClass);
+    if (groupAfterBlank) classes.push('matter-after-blank');
+    out.push(`<p class="${classes.join(' ')}">${spans}</p>`);
+    group = [];
+    groupAfterBlank = false;
+  };
+
+  for (const block of blocks) {
+    if (block.mediaRefs?.length) {
+      flush();
+      if (pendingBlanks.length) out.push(pendingBlanks.map((blank) => hiddenMatterBlank(blank, previewMode)).join(''));
+      pendingBlanks = [];
+      out.push(renderBlock(block, { blankMode:'collapse', sectionType:section.type, design, project, previewMode }));
+      continue;
+    }
+    if (block.kind === 'blank') {
+      pendingBlanks.push(block);
+      continue;
+    }
+    if (matterSectionHeading(block, section.type)) {
+      flush();
+      groupAfterBlank = pendingBlanks.length > 0;
+      if (pendingBlanks.length) out.push(pendingBlanks.map((blank) => hiddenMatterBlank(blank, previewMode)).join(''));
+      pendingBlanks = [];
+      group = [block];
+      flush(`matter-${role}-lead`);
+      continue;
+    }
+
+    const previous = group.at(-1);
+    const hasBlankBoundary = pendingBlanks.length > 0;
+    const metadata = matterMetadataLine(block.text) || (previous && matterMetadataLine(previous.text));
+    const naturalSentenceBoundary = previous && endsSentence(previous.text) && !startsLowercase(block.text);
+    const continueAcrossBlank = previous && hasBlankBoundary && !endsSentence(previous.text) && startsLowercase(block.text);
+    const shouldBreak = group.length && (metadata || (hasBlankBoundary && !continueAcrossBlank) || (!hasBlankBoundary && naturalSentenceBoundary));
+    if (shouldBreak) flush();
+    if (!group.length && pendingBlanks.length) groupAfterBlank = true;
+    if (pendingBlanks.length) {
+      out.push(pendingBlanks.map((blank) => hiddenMatterBlank(blank, previewMode)).join(''));
+      pendingBlanks = [];
+    }
+    group.push(block);
+  }
+  flush();
+  if (pendingBlanks.length) out.push(pendingBlanks.map((blank) => hiddenMatterBlank(blank, previewMode)).join(''));
+  return `<div class="matter-clean matter-${escapeXml(section.role || section.type)} matter-book1-${escapeXml(role)}">${out.join('\n')}</div>`;
+}
+
 function renderCleanMatterSection(section, project, design, previewMode = false) {
   const blocks = section.blocks || [];
+  const book1Match = usesTresAmigosMatterMatch(design);
   if (section.role === 'title') {
     const visible = blocks.filter((block) => block.kind !== 'blank' || block.mediaRefs?.length);
     const lines = visible.map((block, index) => {
@@ -306,7 +371,14 @@ function renderCleanMatterSection(section, project, design, previewMode = false)
       return `<p id="${id}" class="${cls}${inspectClass}"${attrs}${style ? ` style="${style}"` : ''}>${inlineRuns(block, project)}</p>`;
     });
     const blanks = blocks.filter((block) => block.kind === 'blank').map((block) => hiddenMatterBlank(block, previewMode));
-    return `<div class="matter-title-page">${lines.join('\n')}${blanks.join('')}</div>`;
+    return `<div class="matter-title-page${book1Match ? ' matter-book1-title' : ''}">${lines.join('\n')}${blanks.join('')}</div>`;
+  }
+
+  if (book1Match && section.role === 'copyright') {
+    return renderTresAmigosMatterFlow(section, project, design, previewMode, 'copyright');
+  }
+  if (book1Match && section.role === 'dedication') {
+    return renderTresAmigosMatterFlow(section, project, design, previewMode, 'dedication');
   }
 
   const out = [];
@@ -451,6 +523,21 @@ p.matter-body { text-indent:0; }
 .matter-title-line { margin:.45em 0 0; }
 .matter-dedication { text-align:center; max-width:31em; padding-top:2.2em; }
 .matter-dedication .matter-flow { margin-bottom:1.1em; }
+.matter-book1-title { max-width:31em; margin:0 auto; padding-top:8em; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif; }
+.matter-book1-title .matter-title-primary { margin:0; font-size:1.45em; line-height:1.45; font-weight:400; letter-spacing:.14em; text-transform:uppercase; }
+.matter-book1-title .matter-title-secondary { margin:2.15em 0 0; font-size:1.02em; line-height:1.35; font-weight:400; }
+.matter-book1-title .matter-title-byline { margin:3.5em 0 0; font-size:1.06em; line-height:1.3; font-weight:400; }
+.matter-book1-title .matter-title-line { margin:5.4em 0 0; font-family:${ebookFontStack(design.fontFamily)}; font-size:1em; line-height:1.3; font-weight:700; }
+.matter-book1-copyright { max-width:31em; margin:0 auto; padding-top:5.1em; text-align:center; font-size:.94em; line-height:1.45; }
+.matter-book1-copyright .matter-flow { margin:0 0 .32em; text-indent:0; }
+.matter-book1-copyright .matter-flow.matter-after-blank { margin-top:1.18em; }
+.matter-book1-copyright .matter-copyright-lead { margin-bottom:.32em; font-size:1em; line-height:1.35; font-weight:400; }
+.matter-book1-copyright strong, .matter-book1-copyright .matter-copyright-lead strong { font-weight:400; }
+.matter-book1-dedication { max-width:29em; margin:0 auto; padding-top:6.4em; text-align:center; font-size:.96em; line-height:1.35; font-style:italic; }
+.matter-book1-dedication .matter-flow { margin:0 0 .3em; text-indent:0; }
+.matter-book1-dedication .matter-flow.matter-after-blank { margin-top:1.55em; }
+.matter-book1-dedication .matter-dedication-lead { margin-bottom:.3em; font-size:1em; line-height:1.35; font-weight:400; }
+.matter-book1-dedication strong, .matter-book1-dedication .matter-dedication-lead strong { font-weight:400; }
 body.front p.blank, body.back p.blank { display:none; min-height:0; height:0; margin:0; padding:0; }
 p.scene-break { margin:${design.sceneBreakSpaceEm}em 0; text-indent:0; text-align:center; }
 .scene-source-hidden { display:none; }

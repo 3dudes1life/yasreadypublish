@@ -1,3 +1,13 @@
+# v1.0.22 — Book 1 Front Matter Match
+
+- Added semantic Book 1-style auto-formatting for the private Tres Amigos Kindle title page, copyright page, and dedication page.
+- Title pages now use the airy centered house hierarchy: spaced uppercase title, subtitle, author/byline, and lower imprint line when present.
+- Copyright pages render as centered legal matter instead of turning the copyright line into an oversized heading.
+- Dedication pages render as a centered, italic, restrained house-style page with Book 1-like vertical rhythm.
+- Preview Studio and production EPUB share the exact same front-matter renderer.
+- Other theme families keep their existing clean front-matter behavior.
+- Existing ebook preflight, visual-proof, and freeze state is invalidated because rendered output changes; Story Lock manuscript text and hashes are untouched.
+
 # v1.0.21 — Simple Metadata Restore
 
 - Restores required Book Details to Step 1 of Simple Mode: title, author, language, and publisher/imprint.

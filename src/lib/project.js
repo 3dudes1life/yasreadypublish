@@ -18,7 +18,7 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
   const project = {
     id: crypto.randomUUID(),
     version: 25,
-    appVersion: '1.0.21',
+    appVersion: '1.0.22',
     title: baseName,
     author: '',
     createdAt: now,
@@ -326,10 +326,25 @@ export function migrateProject(project) {
     }
   }
 
-  // The renderer may visually separate "Chapter 10:" from its title, but the
-  // stored source block, canonical text, ordering, and Story Lock hash remain exact.
+  // 1.0.22 gives the private Tres Amigos Kindle theme semantic Book 1-style
+  // front-matter presentation for title, copyright, and dedication pages.
+  // Because the EPUB renderer changes, prior ebook preflight/proof/freeze state
+  // must be rechecked. Canonical manuscript blocks, words, runs, and hashes are untouched.
+  if (priorAppVersion !== '1.0.22') {
+    ensureEditions(project);
+    if (project.editions?.ebook) {
+      project.editions.ebook.lastPreflight = null;
+      if (project.editions.ebook.releaseGate && typeof project.editions.ebook.releaseGate === 'object') {
+        project.editions.ebook.releaseGate.visualProof = null;
+        project.editions.ebook.releaseGate.freeze = null;
+      }
+    }
+  }
+
+  // The renderer may visually separate "Chapter 10:" from its title and apply
+  // semantic front-matter layouts, but stored source text/order/hash remain exact.
   project.version = Math.max(oldVersion, 25);
-  project.appVersion = '1.0.21';
+  project.appVersion = '1.0.22';
   return project;
 }
 
