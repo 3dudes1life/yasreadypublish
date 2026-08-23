@@ -1,6 +1,6 @@
-# YasReady Publish 1.0.13 — Kindle Production Rules
+# YasReady Publish 1.0.14 — Kindle Production Rules
 
-YasReady deliberately produces a conservative reflowable EPUB for Amazon KDP.
+YasReady deliberately produces a conservative reflowable EPUB for Amazon KDP while keeping Preview Studio simulation and editing metadata separate from production content.
 
 ## Core production rules
 
@@ -14,52 +14,35 @@ YasReady deliberately produces a conservative reflowable EPUB for Amazon KDP.
 - relative-unit chapter and semantic styling
 - Story Lock SHA-256 embedded in package metadata
 
+## Preview versus EPUB
+
+Device type, orientation, appearance, preview reference size, Focus Preview, and the 3-View Torture Test are **simulation controls**. They do not alter the EPUB.
+
+Layout/semantic changes made through the Format Inspector are **edition presentation metadata**. They may alter generated XHTML/CSS presentation but may not alter manuscript wording, note text, media bytes, source IDs/order, or Story Lock hashes.
+
+## Production Console / review decisions
+
+The Production Console combines setup, technical preflight, Kindle Pro quality, and Kindle Intelligence. Its Polish Queue is a production workflow layer outside the EPUB package.
+
+- blocking errors can never be dismissed as intentional
+- a non-blocking finding may be marked intentional only for its exact current token (identity, severity, label, message, source location, fingerprint)
+- if that finding changes, the old acknowledgement does not match and the item resurfaces
+- an acknowledgement never changes source text, EPUB markup, or the underlying QA finding
+
 ## Semantic fiction roles
 
-Version 1.0.13 retains Kindle-safe structure for:
-
-- Subheads (`h2`)
-- Block Quotes (`blockquote`)
-- Written Notes / Letters (`aside`)
-- Verse / Poetry
-- Text Conversations
-- Scene Breaks
-- Footnotes / Endnotes with EPUB note semantics
-- Inline manuscript images with responsive sizing and alt text when supplied
-
-Role assignment is presentation metadata. Source words, block IDs, and source order remain locked.
-
+Kindle-safe semantic presentation includes Subheads, Block Quotes, Written Notes / Letters, Verse / Poetry, Text Conversations, Scene Breaks, Footnotes / Endnotes, and supported inline manuscript images. Role assignment remains presentation metadata.
 
 ## Kindle Intelligence rules
 
-Whole-book intelligence is presentation QA, not manuscript editing. It may:
-
-- compare chapter presentation fingerprints
-- flag isolated heading/opening/local-layout drift
-- navigate directly to a source-backed block
-- remove or normalize edition presentation metadata after an explicit user action
-
-It may not rewrite, normalize, delete, or reorder manuscript text. Safe fixes preserve semantic Content style when only layout properties are being reset.
+Whole-book intelligence may compare presentation fingerprints, flag isolated drift, navigate to source-backed blocks, and apply explicit presentation-only safe fixes. It may not rewrite, normalize, delete, or reorder manuscript text.
 
 ## Story Lock v2 for new imports
 
-New DOCX imports protect:
+New DOCX imports protect canonical paragraph wording/boundaries, footnote/endnote wording, and embedded-image SHA-256 fingerprints/file identity. Existing projects retain their canonical version/hash unless deliberately reimported.
 
-- canonical paragraph wording/boundaries
-- footnote/endnote wording
-- embedded-image SHA-256 fingerprints and file identity
+## Release gate
 
-Story Lock verification also recomputes embedded image bytes against their stored fingerprints. Existing projects keep canonical v1 unless they are deliberately reimported from DOCX.
+Kindle release requires Story Lock/source coverage, EPUB preflight, Kindle Pro quality, Kindle Intelligence, and finished-package audit. **Run Final Check uses the same intelligence gate in 1.0.14.**
 
-## Kindle Pro checks retained
-
-- finished navigation targets resolve
-- finished spine targets resolve
-- Story Lock metadata matches the current project
-- production CSS does not force body px/pt size
-- no fixed/absolute book-content positioning or negative-margin hacks
-- chapter headings use relative sizing and explicit breaks
-- whole book scanned for structural/presentation outliers
-- 3-View Torture Test for small phone, normal Kindle, and large tablet
-
-Amazon Kindle Previewer remains the final external rendering check.
+Amazon Kindle Previewer remains the final external rendering check for the exact exported EPUB.

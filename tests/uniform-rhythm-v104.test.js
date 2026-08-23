@@ -39,7 +39,7 @@ test('1.0.4 migrates existing Tres Amigos editions without altering manuscript t
     }
   };
   migrateProject(project);
-  assert.equal(project.version,22);
+  assert.equal(project.version,23);
   assert.equal(project.editions.paperback.design.paragraphGap,0.12);
   assert.equal(project.editions.paperback.design.bodyBlankPolicy,'collapse');
   assert.equal(project.editions.hardcover.design.paragraphGap,0.12);

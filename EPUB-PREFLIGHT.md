@@ -1,6 +1,6 @@
-# EPUB Preflight — v1.0.13
+# EPUB Preflight — v1.0.14
 
-Kindle release requires Story Lock plus the KDP EPUB, Kindle Pro quality, and Kindle Intelligence structure gates.
+Kindle release requires Story Lock plus KDP EPUB preflight, Kindle Pro quality, Kindle Intelligence, and finished-package auditing.
 
 ## Core package checks
 
@@ -14,23 +14,29 @@ Kindle release requires Story Lock plus the KDP EPUB, Kindle Pro quality, and Ki
 - reflowable structure with reader-controlled body sizing
 - Kindle HTML file count/section-size safety
 - clean front-matter reflow and source-placeholder detection
-- finished nav/spine target resolution
+- finished nav/spine/fragment target resolution
 - no Preview Studio classes/hooks in production output
 - Enhanced Typesetting-friendly CSS
+- semantic note/image package coverage
 
+## Production workflow layer
 
-## v1.0.13 intelligence checks
+The v1.0.14 Production Console and Polish Queue do not add files or markup to the EPUB. Intentional-review records are local edition QA metadata only. They cannot suppress blocking errors and cannot change production content.
+
+The queue combines Kindle Pro and Kindle Intelligence findings so the author can move directly to the next actionable location. Exact-finding review tokens ensure a changed issue resurfaces instead of remaining silently acknowledged.
+
+## Kindle Intelligence
 
 - every chapter receives a presentation fingerprint and consistency score
 - chapter-title and opening-paragraph structure are compared across the book
 - isolated local layout overrides are surfaced for review
-- orphan presentation overrides are surfaced with a safe removal action
+- orphan presentation overrides are surfaced with safe removal actions
 - chapter comparison never compares or rewrites story prose
-- safe fixes modify ebook presentation metadata only and remain undo-compatible
+- safe fixes modify ebook presentation metadata only and remain Undo-compatible
 
-The downloadable preflight JSON includes the full Kindle Intelligence report so production QA can be archived with the release.
+The downloadable preflight report includes the Kindle Intelligence report for archival QA.
 
-## v1.0.12 semantic-content checks
+## Semantic-content checks
 
 - semantic fiction blocks remain source-backed and presentation-only
 - embedded DOCX image references must resolve to packaged assets
@@ -39,6 +45,6 @@ The downloadable preflight JSON includes the full Kindle Intelligence report so 
 - footnote/endnote references must resolve to imported, Story-Locked note text
 - finished EPUB audit verifies manuscript-image manifest/file coverage and note targets
 
-New imports use Story Lock canonical v2 so note wording and embedded-media fingerprints participate in the source integrity gate. Existing projects are never silently re-hashed during migration.
+New imports use Story Lock canonical v2 for note wording and embedded-media fingerprints. Existing projects are never silently re-hashed during migration.
 
-A green YasReady preview is not final retailer acceptance. Open the exact exported EPUB in Amazon Kindle Previewer before upload.
+A green YasReady result is not final retailer acceptance. Open the exact exported EPUB in Amazon Kindle Previewer before upload.

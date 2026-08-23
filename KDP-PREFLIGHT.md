@@ -61,3 +61,7 @@ YasReady now evaluates the active physical edition independently.
 A print preview is now treated as a frozen production proof, not a generic cache. If the manuscript hash, title/author metadata, structure overrides, edition type, or print design differs from the state that produced the preview, preflight blocks export and requires a rebuild.
 
 YasReady also owns final sheet parity. If pagination would otherwise end on an odd physical page, one intentional terminal blank is appended inside the YasReady page map. This keeps final page count, page-number mapping, and cover/spine calculations under the same production model instead of relying on KDP to append an untracked page.
+
+## v1.0.14 Kindle Final Check alignment
+
+The physical-edition rules above remain unchanged while Kindle work is being finalized. Version 1.0.14 fixes Final Check so the ebook branch uses the same three internal gates shown in the Kindle workspace: EPUB preflight, Kindle Pro quality, and Kindle Intelligence. Intentional non-blocking review acknowledgements are production-workflow metadata only; they cannot dismiss Story Lock, package, navigation, or other blocking errors.

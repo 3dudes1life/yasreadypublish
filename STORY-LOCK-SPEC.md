@@ -196,3 +196,23 @@ A one-click intelligence fix is allowed only when the operation is presentation-
 Intelligence fixes must never write to `block.text`, run text, note text, media bytes, source order, source IDs, or canonical Story Lock hashes. Every accepted fix invalidates stale ebook proof/preflight state and remains compatible with the Preview Studio Undo history.
 
 Chapter comparison compares presentation fingerprints only. It must not create a prose diff, rewrite text, or use story-language similarity as a formatting decision.
+
+## Kindle Production UX isolation (v1.0.14)
+
+Version 1.0.14 adds production workflow metadata without expanding the set of operations allowed to modify source content.
+
+### Intentional-review decisions
+
+A Kindle quality/intelligence review item may be marked intentional only when it is non-blocking. The stored record contains an exact token derived from the finding's identity, severity, label, message, source block/section location, and fingerprint. If the finding later changes, the old decision no longer matches and the issue returns to the active Polish Queue.
+
+Review decisions live under ebook edition metadata. They do not modify manuscript blocks, notes, media, canonical hashes, generated XHTML, or EPUB package contents. Blocking errors may never be marked intentional.
+
+### Quick polish and Focus Preview
+
+Preview Studio's Tighter / Theme / Airier controls are presentation shortcuts for edition-scoped spacing metadata. Focus Preview, Reading Order search, keyboard navigation, and device simulation are UI state only. None may write manuscript prose.
+
+Every accepted presentation change invalidates stale ebook proof/preflight state. Story Lock remains the authoritative boundary.
+
+### Final Check alignment
+
+Version 1.0.14 requires the Final Check ebook branch to include Kindle Intelligence alongside EPUB preflight and Kindle Pro quality. A workflow UI may never bypass a stricter release gate that is already enforced by the Kindle production workspace.

@@ -17,8 +17,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   const project = {
     id: crypto.randomUUID(),
-    version: 22,
-    appVersion: '1.0.13',
+    version: 23,
+    appVersion: '1.0.14',
     title: baseName,
     author: '',
     createdAt: now,
@@ -222,8 +222,19 @@ export function migrateProject(project) {
     ensurePresentationOverrides(project);
     if (project.editions?.ebook) project.editions.ebook.lastPreflight = null;
   }
-  project.version = Math.max(oldVersion, 22);
-  project.appVersion = '1.0.13';
+
+  // 1.0.14 adds the Kindle Production Console, polish queue, intentional-review
+  // acknowledgements, and productivity shortcuts. Review decisions are edition
+  // presentation metadata only; migration never changes manuscript source data.
+  if (oldVersion < 23) {
+    ensureEditions(project);
+    if (project.editions?.ebook) {
+      if (!project.editions.ebook.reviewDecisions || typeof project.editions.ebook.reviewDecisions !== 'object') project.editions.ebook.reviewDecisions = {};
+      project.editions.ebook.lastPreflight = null;
+    }
+  }
+  project.version = Math.max(oldVersion, 23);
+  project.appVersion = '1.0.14';
   return project;
 }
 

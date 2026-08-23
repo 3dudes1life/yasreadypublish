@@ -46,6 +46,7 @@ export function ensureEditions(project) {
     type: 'ebook',
     design: normalizeEbookDesign(project.editions.ebook?.design || legacyEbook),
     cover: project.editions.ebook?.cover || null,
+    reviewDecisions: project.editions.ebook?.reviewDecisions && typeof project.editions.ebook.reviewDecisions === 'object' ? project.editions.ebook.reviewDecisions : {},
     lastPreflight: project.editions.ebook?.lastPreflight || null,
   };
   project.editions.activePrint = PRINT_EDITION_TYPES.includes(project.editions.activePrint) ? project.editions.activePrint : 'paperback';

@@ -96,15 +96,15 @@ test('1.0.13 orphan presentation overrides are removable without manuscript muta
 test('1.0.13 migration advances schema without rewriting Story-Locked blocks', () => {
   const p=project();
   const before=JSON.stringify(p.manuscript.blocks);
-  assert.equal(p.version,22);
-  assert.equal(p.appVersion,'1.0.13');
+  assert.equal(p.version,23);
+  assert.equal(p.appVersion,'1.0.14');
   assert.equal(JSON.stringify(p.manuscript.blocks),before);
 });
 
 test('1.0.13 UI exposes Kindle Intelligence, chapter map, comparison, and safe-fix controls', () => {
   const main=readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
   const css=readFileSync(new URL('../src/styles/app.css',import.meta.url),'utf8');
-  assert.match(main,/Kindle Intelligence · v1\.0\.13/);
+  assert.match(main,/Kindle Intelligence/);
   assert.match(main,/Compare Chapters/);
   assert.match(main,/data-intelligence-section/);
   assert.match(main,/data-intelligence-fix/);

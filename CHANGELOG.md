@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.0.14 — Kindle Production UX
+
+- Adds the **Kindle Production Console**, combining metadata, cover, navigation, Story Lock, quality, and intelligence into one guided release surface.
+- Adds **NEXT BEST ACTION** so the workspace directs the author to the most important unfinished setup item, blocker, review finding, visual proof, or preflight step.
+- Adds a merged **Polish Queue** for Kindle Pro and Kindle Intelligence findings with direct navigation and safe-fix actions.
+- Adds exact-finding **Intentional** review decisions for non-blocking items. Errors cannot be dismissed, and a changed finding automatically resurfaces because acknowledgements are tokened to the exact issue fingerprint/message/location.
+- Adds Reading Order search with **⌘K / Ctrl+K**, **E** Read/Edit toggle, **Option+Arrow** navigation, and **N** next-issue navigation. Keyboard commands are disabled while typing in form controls.
+- Adds **Focus Preview** to hide side panes temporarily while preserving the production workbench state.
+- Adds sticky production commands above Preview Studio: Previous/Next, Next Issue, Undo/Redo, Focus Preview, plus grouped reader-simulation controls.
+- Adds inspector **Theme baseline** visibility and Story-Lock-safe **Tighter / Theme / Airier** quick-polish presets with live visual feedback.
+- Moves detailed Kindle Quality + Intelligence into a collapsible **Book Health & Intelligence** area so routine production is guided without burying advanced diagnostics.
+- Fixes an edition-normalization bug that could drop persisted Kindle review decisions when `ensureEditions()` rebuilt ebook edition state.
+- Fixes a release-gate bug where **Run Final Check** included EPUB preflight + Kindle Quality but omitted Kindle Intelligence despite the Kindle workspace requiring it.
+- Hardens button auditing so `data-*-id` attributes are no longer falsely parsed as literal button `id` attributes.
+- Fixes Polish Queue deduplication so an acknowledged duplicate can never hide a still-unresolved finding from another QA source.
+- Tightens Intentional review UX so informational notices cannot be acknowledged as if they were review findings; only warning/review findings are eligible.
+- Focus Preview now carries the author directly into Preview Studio instead of changing layout below the fold with no visible feedback.
+- Project schema 23 / app 1.0.14. Migration initializes review-decision metadata and invalidates stale ebook preflight only; manuscript blocks, notes, media, canonical algorithm, and Story Lock hashes are untouched.
+- QA: 155/155 automated tests passing; static verification PASS; Superman audit PASS.
+
 ## v1.0.13 — Kindle Intelligence
 
 - Adds a whole-book **chapter consistency map** that fingerprints every chapter's heading, opening paragraph, local overrides, semantic usage, and source-style patterns.

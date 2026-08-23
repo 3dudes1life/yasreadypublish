@@ -41,8 +41,8 @@ test('1.0.5 migration preserves exact manuscript blocks while invalidating old p
   const before = JSON.stringify(project.manuscript.blocks);
   migrateProject(project);
   assert.equal(JSON.stringify(project.manuscript.blocks), before);
-  assert.equal(project.version, 22);
-  assert.equal(project.appVersion, '1.0.13');
+  assert.equal(project.version, 23);
+  assert.equal(project.appVersion, '1.0.14');
   assert.equal(project.editions.paperback.lastPageCount, null);
   assert.equal(project.editions.paperback.lastBuiltAt, null);
   assert.equal(project.editions.paperback.lastPreflight, null);

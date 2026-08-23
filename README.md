@@ -1,96 +1,93 @@
-# YasReady Publish v1.0.13
+# YasReady Publish v1.0.14
 
 Private publishing studio for Story-Locked manuscripts.
 
-Version 1.0.13 is the **Kindle Intelligence pass**. It keeps the semantic Kindle engine from 1.0.12 and adds whole-book formatting fingerprints, chapter-level anomaly mapping, direct issue navigation, safe presentation-only fixes, and chapter-to-chapter comparison.
+Version 1.0.14 is the **Kindle Production UX pass**. It keeps the semantic Kindle engine and whole-book intelligence from 1.0.12–1.0.13, then turns those systems into one guided production workflow: a Production Console, an exact next action, a reviewable Polish Queue, faster Preview Studio navigation, Focus Preview, and quick visual rhythm controls.
 
 ## Story Lock remains the first rule
 
 YasReady may change presentation. It may not rewrite manuscript language.
 
 - Source paragraphs remain immutable.
-- Content-style choices are stored as edition presentation metadata by source block ID.
+- Content-style and layout choices are stored as edition presentation metadata by source block ID.
+- Intentional-review decisions are QA metadata only; they never change source text or EPUB content.
 - Scene-break ornaments may visually replace source marks, but the locked source marks remain preserved in the EPUB source.
 - New DOCX imports use canonical Story Lock v2 so note wording and embedded-image fingerprints are protected alongside body paragraphs.
 - Existing projects keep their original Story Lock algorithm and hash during migration.
 
+## Kindle Production Console
+
+The top of the Kindle workspace now answers four questions immediately:
+
+1. Is metadata complete?
+2. Is the Kindle cover ready?
+3. Is navigation valid?
+4. Does Story Lock/source coverage pass?
+
+It combines those setup checks with Kindle Pro quality and Kindle Intelligence results, then presents one **NEXT BEST ACTION** instead of making the author hunt through the page.
+
+The **Polish Queue** merges whole-book quality and intelligence findings. Blocking errors can never be dismissed as intentional. Non-blocking review findings may be marked **Intentional** for that exact finding only; if its label/message/block/section/fingerprint changes later, it automatically returns to the active queue.
+
+## Faster Preview Studio
+
+Version 1.0.14 keeps the three-pane production workbench:
+
+**Reading Order | Live Book Preview | Format Inspector**
+
+and adds:
+
+- Reading Order search with **⌘K / Ctrl+K** jump focus
+- **E** to toggle Read / Adjust mode when not typing
+- **Option+Left / Option+Right** to move through reading order
+- **N** to jump to the next unresolved polish item
+- **Focus Preview** to temporarily hide the navigator and inspector
+- persistent Previous / Next, Undo / Redo, and Next Issue controls above the preview
+- section position indicator
+
+## Quick polish without prose editing
+
+When a source-backed block is selected in Adjust mode, the inspector shows the theme baseline and offers **Tighter / Theme / Airier** shortcuts before the fine controls.
+
+These shortcuts alter edition-scoped spacing presentation only. They never write to source text, note text, media bytes, source order, or Story Lock hashes. Undo / Redo remains available.
 
 ## Kindle Intelligence
 
-The new intelligence layer looks across the whole novel instead of only validating the chapter currently on screen. It provides:
+The whole-book intelligence layer still provides:
 
-- a chapter consistency map with per-chapter scores
+- chapter consistency map with per-chapter scores
 - isolated chapter-heading/opening drift detection
 - unusual local spacing, indent, and body-alignment detection
 - orphan presentation-override detection
 - rare Word-style fingerprints for source QA
-- direct **Go there** navigation to the exact chapter/block
-- presentation-only **safe fixes** that never edit manuscript wording
-- **Compare Chapters** for formatting fingerprints only
+- direct **Go there** navigation
+- presentation-only safe fixes
+- **Compare Chapters** for presentation fingerprints only
 
-A safe fix can reset suspicious layout properties while preserving an intentional semantic Content style such as Block Quote or Text Conversation. Story Lock remains the boundary: intelligence may recommend or alter presentation metadata, never prose.
+## Semantic Kindle content
 
-## Kindle semantic styles
+Preview Studio can recognize or assign Subhead, Block Quote, Written Note / Letter, Verse / Poetry, Text Conversation, and Scene Break presentation. New DOCX imports can also preserve supported embedded images plus footnotes/endnotes under canonical Story Lock v2.
 
-Preview Studio can now recognize or assign:
+## Kindle Pro / package QA
 
-- Subhead
-- Block Quote
-- Written Note / Letter
-- Verse / Poetry
-- Text Conversation
-- Scene Break
+The release pipeline retains:
 
-The **Semantic Style Palette** controls the book-wide presentation of these elements. In **Adjust Layout**, select a block and use **Content style** to override its role without editing its words.
-
-Word style names are treated as detection hints, not permission to rewrite content. Manual semantic overrides are presentation-only.
-
-## Inline images
-
-New DOCX imports can preserve embedded manuscript images and package them inside the Kindle EPUB. Image placement remains tied to its source paragraph. YasReady checks:
-
-- image asset/reference resolution
-- Kindle-safe image MIME types
-- EPUB manifest/package coverage
-- source alt text when available
-
-Meaningful images without alt text are surfaced as accessibility warnings rather than silently altered.
-
-## Footnotes and endnotes
-
-New DOCX imports can preserve footnotes and endnotes. Note text is included in Story Lock v2 and rendered with linked EPUB `noteref` / footnote/endnote semantics. Unresolved references block import or release rather than dropping note text.
-
-## Kindle Pro remains active
-
-1.0.13 retains:
-
-- 11pt-equivalent preview calibration without forcing EPUB body size
+- 11pt-equivalent preview reference without forcing EPUB body size
 - Kindle / Phone / Tablet simulation
 - 3-View Torture Test
-- whole-book consistency scan
 - Enhanced Typesetting-oriented CSS checks
 - finished EPUB autopsy
 - visible linked Contents and Kindle Go To navigation
 - single internal cover packaging
-- Preview Studio Read / Adjust modes
-- Undo / Redo / Reset for presentation overrides
+- package/nav/spine/Story Lock checks
+- source-placeholder detection
 
-## Existing Book 2 projects
+**Run Final Check now includes Kindle Intelligence in the ebook release gate.** A green result still does not replace Amazon Kindle Previewer; final release requires opening the exact exported EPUB there.
 
-You do **not** need to reimport an existing project merely to use semantic Content styles or the new Style Palette.
+## Existing projects
 
-A reimport is required only when you want YasReady to extract **footnotes/endnotes or embedded manuscript images** from the DOCX, because older project files never stored those assets. Reimporting creates a new canonical v2 Story Lock fingerprint; migration alone never changes the old fingerprint.
+No reimport is required merely to update an existing project to 1.0.14. Migration creates the new Kindle review-state container, invalidates stale ebook preflight status, and leaves manuscript blocks and Story Lock hashes untouched.
 
-## Final validation
-
-YasReady is not Amazon's rendering engine. Final Kindle release remains:
-
-1. Story Lock passes
-2. Kindle Pro scan passes
-3. KDP EPUB preflight passes
-4. Finished EPUB audit passes
-5. Download the EPUB
-6. Open that exact EPUB in Amazon Kindle Previewer
+A fresh import is required only when an older project needs DOCX footnotes/endnotes or embedded manuscript images that were never captured by its original importer.
 
 ## Local use
 

@@ -60,8 +60,8 @@ test('1.0.4 migration replaces legacy blank-dependent spacing with uniform rhyth
   };
   const before = JSON.stringify(project.manuscript.blocks);
   migrateProject(project);
-  assert.equal(project.version, 22);
-  assert.equal(project.appVersion, '1.0.13');
+  assert.equal(project.version, 23);
+  assert.equal(project.appVersion, '1.0.14');
   assert.equal(project.design.print.bodyBlankPolicy, 'collapse');
   assert.equal(project.design.ebook.bodyBlankPolicy, 'collapse');
   assert.equal(project.design.print.bodyBlankSpace, 0.12);
