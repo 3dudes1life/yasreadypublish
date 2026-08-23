@@ -3,7 +3,7 @@ import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const VERSION = '1.0.19';
+const VERSION = '1.0.20';
 
 function walk(dir) {
   const out = [];
@@ -43,7 +43,7 @@ const dynamic = [
   'data-go-view','data-open-project','data-delete-project','data-nav-page','data-ebook-section','data-repair-block',
   'data-apply-theme','data-export-theme','data-delete-theme','data-edition-enabled','data-work-edition','data-kindle-mode',
   'data-kindle-pref-key','data-quality-section','data-intelligence-section','data-intelligence-fix','data-kindle-command',
-  'data-polish-section','data-kindle-review-source','data-inspector-preset','data-simple-step','data-simple-target',
+  'data-polish-section','data-kindle-review-source','data-inspector-preset','data-simple-step','data-simple-target','data-bug-status','data-bug-delete',
 ];
 for (const attr of dynamic) {
   if (main.includes(attr) && !main.includes(`querySelectorAll('[${attr}]')`) && !main.includes(`querySelectorAll("[${attr}]")`)) {
@@ -108,5 +108,6 @@ console.log(`- ${srcJs.length} application JS files syntax/import checked`);
 console.log(`- ${new Set(buttonIds).size} literal button IDs audited`);
 console.log(`- ${dynamic.length} dynamic control families audited`);
 console.log('- no fetch/XHR/WebSocket/sendBeacon manuscript egress paths found');
-console.log('- Simple Mode four-step UX + hidden advanced systems present');
+if (!main.includes('🐞 Bug Log')) throw new Error('Bug Log UI missing.');
+console.log('- Simple Mode four-step UX + hidden advanced systems + local Bug Log present');
 console.log('- proof ownership, edition invalidation, semantic Kindle styles, Theme Studio families/mapping/artwork, exact-token review decisions, keyboard/search/focus workflow, safe note/media import, finished EPUB audit, calibrated preview, chapter anomaly mapping, safe presentation fixes, accessibility audit, batch review/fix workflow, invalidating visual-proof/release freeze tokens, Final Check intelligence, and whole-book QA guards present');

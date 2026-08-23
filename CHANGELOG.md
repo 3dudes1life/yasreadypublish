@@ -1,3 +1,10 @@
+# v1.0.20 — Tres Amigos Divider Hotfix + Bug Log
+
+- Removes stale legacy `✦` chapter divider metadata from the private Tres Amigos theme only.
+- Leaves ornaments in other themes untouched.
+- Adds a compact browser-local Bug Log under Advanced Tools with open/fixed states and notes.
+- Story Lock manuscript text and hashes remain untouched.
+
 # v1.0.19 — Tres Amigos Kindle Match
 
 - Tunes the private Tres Amigos Kindle chapter opening against the real Book 1 Kindle reference.

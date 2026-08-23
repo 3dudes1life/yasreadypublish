@@ -55,12 +55,13 @@ import {
   applyEbookThemeFamily, calculateBookDNA, ebookStyleUsage, inferSourceStyleRole,
   normalizeEbookThemeStudio, setChapterHeadingOverride, sourceStyleRecords, splitChapterHeading,
 } from './lib/ebook-theme-studio.js';
+import { addBug, deleteBug, loadBugLog, setBugStatus } from './lib/bug-log.js';
 import {
   applySafeFixBatch, auditKindleAccessibility, buildKindleReleaseGate, freezeKindleRelease,
   kindleReleaseReport, markAllCurrentReviewsIntentional, markKindleVisualProofComplete,
 } from './lib/kindle-release-gate.js';
 
-const VERSION = '1.0.19';
+const VERSION = '1.0.20';
 // Legacy capability labels retained for regression discovery only (not default UI): Amazon KDP · Reflowable EPUB 3 · Kindle Preview Studio · Semantic Style Palette · Kindle Release Gate · v1.0.16
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
@@ -276,6 +277,7 @@ function renderSidebar() {
           ${navButton('navigator', '⌘', 'Navigator', !hasProject)}
           ${navButton('source', '≡', 'Source Inspector', !hasProject)}
           ${navButton('library', '▦', 'Library')}
+          ${navButton('bugs', '🐞', 'Bug Log')}
         </div>
       </details>
     </aside>`;
@@ -288,6 +290,7 @@ function navButton(view, icon, label, disabled = false) {
 function renderMain() {
   if (state.busy) return renderBusy();
   if (state.activeView === 'library') return renderLibrary();
+  if (state.activeView === 'bugs') return renderBugLog();
   if (state.activeView === 'style-simple') return renderSimpleStyleHub();
   if (state.activeView === 'preview-simple') return renderSimplePreviewHub();
   if (state.activeView === 'export-simple') return renderSimpleExportHub();
@@ -2140,6 +2143,14 @@ function renderEditions() {
     </article>`;
 }
 
+function renderBugLog() {
+  const bugs = loadBugLog();
+  const open = bugs.filter((item) => item.status !== 'fixed');
+  const fixed = bugs.filter((item) => item.status === 'fixed');
+  const row = (item) => `<div class="bug-row ${item.status}"><div><span class="bug-status">${item.status === 'fixed' ? 'FIXED' : 'OPEN'}</span><strong>${escapeHtml(item.summary)}</strong><small>v${escapeHtml(item.version || VERSION)} · ${new Date(item.createdAt).toLocaleString()}</small>${item.notes ? `<p>${escapeHtml(item.notes)}</p>` : ''}</div><div class="bug-actions"><button class="btn secondary" data-bug-status="${escapeHtml(item.id)}" data-bug-next="${item.status === 'fixed' ? 'open' : 'fixed'}" type="button">${item.status === 'fixed' ? 'Reopen' : 'Mark fixed'}</button><button class="btn danger" data-bug-delete="${escapeHtml(item.id)}" type="button">Delete</button></div></div>`;
+  return `<article class="panel bug-log-panel"><div class="panel-head"><div><div class="eyebrow">Advanced Tools · local only</div><h2>🐞 Bug Log</h2><p>Keep the tiny software annoyances in one place without turning YasReady into project-management software.</p></div><span class="badge good">${open.length} open</span></div><div class="bug-add-grid"><label class="design-field"><span>What broke?</span><input id="bugSummary" maxlength="160" placeholder="Example: Tres Amigos chapter star appeared"></label><label class="design-field"><span>Notes</span><input id="bugNotes" maxlength="2000" placeholder="Optional: where you saw it or how to reproduce it"></label><button class="btn primary" id="addBugButton" type="button">Add bug</button></div>${bugs.length ? `<div class="bug-section"><h3>Open</h3>${open.length ? open.map(row).join('') : '<p class="muted">Nothing open. Miracles happen.</p>'}</div><div class="bug-section"><h3>Fixed</h3>${fixed.length ? fixed.map(row).join('') : '<p class="muted">No fixed bugs logged yet.</p>'}</div>` : '<div class="empty-project"><h3>No bugs logged</h3><p>When something looks weird, drop it here. Entries stay in this browser.</p></div>'}</article>`;
+}
+
 function renderLibrary() {
   return `
     <article class="panel">
@@ -2183,6 +2194,13 @@ function goToSimpleStep(step) {
 }
 
 function bindDynamicEvents() {
+  document.querySelector('#addBugButton')?.addEventListener('click', () => {
+    const summary = document.querySelector('#bugSummary')?.value || '';
+    const notes = document.querySelector('#bugNotes')?.value || '';
+    try { addBug({ summary, notes, version: VERSION }); updateMain(); } catch (error) { alert(error?.message || 'Could not add bug.'); }
+  });
+  document.querySelectorAll('[data-bug-status]').forEach((button) => button.addEventListener('click', () => { setBugStatus(button.dataset.bugStatus, button.dataset.bugNext); updateMain(); }));
+  document.querySelectorAll('[data-bug-delete]').forEach((button) => button.addEventListener('click', () => { deleteBug(button.dataset.bugDelete); updateMain(); }));
   document.querySelectorAll('[data-simple-step]').forEach((button) => button.addEventListener('click', () => { if (!button.disabled) goToSimpleStep(button.dataset.simpleStep); }));
   document.querySelectorAll('[data-simple-target]').forEach((button) => button.addEventListener('click', async () => {
     const target = button.dataset.simpleTarget;
