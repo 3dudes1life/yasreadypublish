@@ -1,8 +1,10 @@
 # YasReady Publish
 
-**Current release: v1.0.18 — Simple Mode**
+**Current release: v1.0.19 — Tres Amigos Kindle Match**
 
 Private publishing studio for Story-Locked manuscripts.
+
+Version 1.0.19 is the **Tres Amigos Kindle Match** pass. It keeps the 1.0.18 split chapter-number/title renderer and tunes the private Tres Amigos chapter-opening geometry against the real Book 1 Kindle reference: 8.0em top breathing room and 5.5em after the italic chapter title. Existing custom spacing is preserved.
 
 Version 1.0.17 is the **simplification pass**. It keeps the full publishing engine from 1.0.12–1.0.16—Theme Studio, Kindle Intelligence, accessibility audits, production proofing, Release Gate, Story Lock, print controls, and EPUB validation—but stops putting all of that machinery in the author's face.
 

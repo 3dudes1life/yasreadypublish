@@ -1,3 +1,11 @@
+# v1.0.19 — Tres Amigos Kindle Match
+
+- Tunes the private Tres Amigos Kindle chapter opening against the real Book 1 Kindle reference.
+- Moves the chapter number/title block lower with `8.0em` top breathing room while keeping the title-to-body gap essentially unchanged at `5.5em`.
+- Keeps the 1.0.18 source-safe split heading renderer, italic chapter title, flush opening paragraph, and normal indents after the opening.
+- Migrates only untouched 1.0.18 Tres Amigos spacing (`6.2em / 5.4em`); custom author spacing is preserved exactly.
+- Presentation-only update: Story Lock manuscript text and hashes remain untouched.
+
 # v1.0.18 — Kindle Chapter Styling
 
 - Adds source-safe split chapter headings so `Chapter 10: Ocean Air and Questions` can render as a separate `CHAPTER 10:` label and italic title without changing Story Lock source text.

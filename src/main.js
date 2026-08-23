@@ -60,7 +60,7 @@ import {
   kindleReleaseReport, markAllCurrentReviewsIntentional, markKindleVisualProofComplete,
 } from './lib/kindle-release-gate.js';
 
-const VERSION = '1.0.18';
+const VERSION = '1.0.19';
 // Legacy capability labels retained for regression discovery only (not default UI): Amazon KDP · Reflowable EPUB 3 · Kindle Preview Studio · Semantic Style Palette · Kindle Release Gate · v1.0.16
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
@@ -2895,8 +2895,8 @@ async function applySimpleChapterHeadingLayout(layout) {
   // combined style keeps a tighter conventional chapter opening.
   const next = normalizeEbookDesign({
     ...design,
-    chapterTopEm: layout === 'number-title' ? Math.max(Number(design.chapterTopEm) || 0, 6.2) : Math.min(Number(design.chapterTopEm) || 4.2, 4.2),
-    chapterAfterEm: layout === 'number-title' ? Math.max(Number(design.chapterAfterEm) || 0, 5.4) : Math.min(Number(design.chapterAfterEm) || 2.4, 2.4),
+    chapterTopEm: layout === 'number-title' ? Math.max(Number(design.chapterTopEm) || 0, 8.0) : Math.min(Number(design.chapterTopEm) || 4.2, 4.2),
+    chapterAfterEm: layout === 'number-title' ? Math.max(Number(design.chapterAfterEm) || 0, 5.5) : Math.min(Number(design.chapterAfterEm) || 2.4, 2.4),
     themeStudio:studio,
   });
   setEbookEditionDesign(state.project, next);

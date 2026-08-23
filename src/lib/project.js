@@ -18,7 +18,7 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
   const project = {
     id: crypto.randomUUID(),
     version: 25,
-    appVersion: '1.0.18',
+    appVersion: '1.0.19',
     title: baseName,
     author: '',
     createdAt: now,
@@ -284,10 +284,34 @@ export function migrateProject(project) {
       }
     }
   }
+  // 1.0.19 tunes the private Tres Amigos Kindle opening against the real Book 1
+  // Kindle rhythm. Only the untouched 1.0.18 Tres Amigos spacing pair migrates;
+  // any author-customized spacing remains exactly as saved. This is presentation
+  // metadata only and never changes the Story-Locked chapter heading or prose.
+  if (priorAppVersion !== '1.0.19') {
+    ensureEditions(project);
+    const ebook = project.editions?.ebook?.design;
+    if (ebook) {
+      const studio = ebook.themeStudio || {};
+      const top = Number(ebook.chapterTopEm);
+      const after = Number(ebook.chapterAfterEm);
+      const untouched118TresAmigos = studio.themeId === 'tres-amigos-private'
+        && studio.chapterHeadingLayout === 'number-title'
+        && Math.abs(top - 6.2) < 0.001
+        && Math.abs(after - 5.4) < 0.001;
+      if (untouched118TresAmigos) {
+        ebook.chapterTopEm = 8.0;
+        ebook.chapterAfterEm = 5.5;
+        project.design.ebook = { ...ebook };
+        project.editions.ebook.lastPreflight = null;
+      }
+    }
+  }
+
   // The renderer may visually separate "Chapter 10:" from its title, but the
   // stored source block, canonical text, ordering, and Story Lock hash remain exact.
   project.version = Math.max(oldVersion, 25);
-  project.appVersion = '1.0.18';
+  project.appVersion = '1.0.19';
   return project;
 }
 

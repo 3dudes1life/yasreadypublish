@@ -78,7 +78,7 @@ export const EBOOK_THEME_FAMILIES = Object.freeze([
   }, { chapterHeadingLayout:'combined', chapterLabelSizeEm:1.3, chapterNameSizeEm:1.0, chapterNameGapEm:.9, chapterNameItalic:false, firstParagraphTreatment:'flush', chapterTitleSizeEm:1.52, chapterTitleWeight:700, chapterTitleLetterSpacingEm:0.035, chapterTitleTransform:'uppercase', chapterDivider:'none', contentsStyle:'clean', contentsAlignment:'left' }),
   makeTheme('tres-amigos-private', 'Tres Amigos — Private', 'The house style: warm contemporary fiction, restrained chapter drama, clean message hierarchy.', {
     fontFamily:'reader', lineHeight:1.42, firstLineIndentEm:1.35, paragraphGapEm:0.7,
-    chapterTitleAlignment:'center', chapterTopEm:6.2, chapterAfterEm:5.4,
+    chapterTitleAlignment:'center', chapterTopEm:8.0, chapterAfterEm:5.5,
     subheadAlignment:'left', subheadSizeEm:1.12, blockQuoteStyle:'plain', writtenNoteStyle:'inset',
     textMessageStyle:'transcript', sceneBreakTreatment:'flourish',
   }, { chapterHeadingLayout:'number-title', chapterLabelSizeEm:1.42, chapterNameSizeEm:.94, chapterNameGapEm:1.3, chapterNameItalic:true, firstParagraphTreatment:'flush', chapterTitleSizeEm:1.58, chapterTitleWeight:700, chapterTitleLetterSpacingEm:0.018, chapterTitleTransform:'none', chapterDivider:'none', contentsStyle:'clean', contentsAlignment:'left' }, true),

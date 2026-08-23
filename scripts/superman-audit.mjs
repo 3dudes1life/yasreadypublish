@@ -3,7 +3,7 @@ import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const VERSION = '1.0.18';
+const VERSION = '1.0.19';
 
 function walk(dir) {
   const out = [];
