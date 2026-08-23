@@ -42,6 +42,14 @@ Make the mature publishing engine feel obvious to a first-time author without de
 5. open Advanced Tools once and verify the production diagnostics are still available
 6. export the exact EPUB and inspect it in Amazon Kindle Previewer before KDP submission
 
+## v1.0.23 format-first flow + dedication spacing
+
+- Import a new DOCX and confirm Kindle, Paperback, and Hardcover all begin unselected.
+- Select only Kindle and confirm print controls stay out of the normal four-step flow.
+- Open the Tres Amigos dedication page and confirm each semantic paragraph has obvious breathing room.
+- Export a ready Kindle EPUB and confirm the Export step offers Continue with Paperback and Continue with Hardcover.
+- Confirm an existing 1.0.22 project keeps its previously saved edition selections.
+
 ## v1.0.22 Book 1 front matter match
 - Confirm Tres Amigos title page uses spaced uppercase title hierarchy and generous vertical position.
 - Confirm copyright first line is not rendered as an oversized heading.

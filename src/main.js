@@ -61,7 +61,7 @@ import {
   kindleReleaseReport, markAllCurrentReviewsIntentional, markKindleVisualProofComplete,
 } from './lib/kindle-release-gate.js';
 
-const VERSION = '1.0.22';
+const VERSION = '1.0.23';
 // Legacy capability labels retained for regression discovery only (not default UI): Amazon KDP · Reflowable EPUB 3 · Kindle Preview Studio · Semantic Style Palette · Kindle Release Gate · v1.0.16
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
@@ -112,6 +112,7 @@ const state = {
   themeStudioMessage: '',
   releaseGateMessage: '',
   simpleStep: 'book',
+  lastExportedEdition: '',
 };
 
 const app = document.querySelector('#app');
@@ -334,9 +335,9 @@ function renderProject() {
   ensureEditions(p);
   const final = state.finalCheck;
   const enabled = [
-    ['paperback','Paperback',p.editions.paperback?.enabled],
-    ['hardcover','Hardcover',p.editions.hardcover?.enabled],
-    ['ebook','Kindle / eBook',p.editions.ebook?.enabled],
+    ['ebook','Kindle / eBook',p.editions.ebook?.enabled,'Reflowable EPUB for Amazon Kindle'],
+    ['paperback','Paperback',p.editions.paperback?.enabled,'Print-ready paperback interior'],
+    ['hardcover','Hardcover',p.editions.hardcover?.enabled,'Independent hardcover interior'],
   ];
   const enabledCount = enabled.filter(([, , on]) => on).length;
   return `
@@ -347,6 +348,11 @@ function renderProject() {
       </div>
       ${state.error ? `<div class="notice error">${escapeHtml(state.error)}</div>` : ''}
       ${stats.chapters === 0 ? `<div class="notice error"><strong>We couldn't confidently detect chapter starts.</strong> Your text is untouched. Open Advanced Tools → Structure Repair to review the source structure.</div>` : ''}
+      <section class="simple-edition-choice ${enabledCount ? '' : 'onboarding'}">
+        <div class="simple-section-head"><div><h3>${enabledCount ? 'Formats for this book' : 'What are you making?'}</h3><p>${enabledCount ? 'Use only the editions you actually need. You can add another format later.' : 'Pick one or more. Nothing is assumed after upload.'}</p></div>${enabledCount ? '<span class="simple-required-chip">Change anytime</span>' : '<span class="simple-required-chip">Start here</span>'}</div>
+        <div class="simple-edition-grid">${enabled.map(([id,label,on,copy]) => `<label class="simple-edition-card ${on ? 'on' : ''}"><input class="simple-edition-checkbox" type="checkbox" data-edition-enabled="${id}" ${on ? 'checked' : ''}><span>${on ? '✓' : '○'}</span><div><strong>${label}</strong><small>${on ? 'Selected · ' : ''}${copy}</small></div></label>`).join('')}</div>
+        ${!enabledCount ? '<div class="simple-edition-hint">Testing Kindle right now? Choose <strong>Kindle eBook</strong> and the print workflow stays out of your way.</div>' : ''}
+      </section>
       <section class="simple-book-details" id="simpleBookDetails">
         <div class="simple-section-head"><div><h3>Book details</h3><p>These details travel with your Kindle file and are required before export.</p></div><span class="simple-required-chip">Required for Kindle</span></div>
         <div class="simple-metadata-grid">
@@ -356,10 +362,6 @@ function renderProject() {
           <label><span>Publisher / imprint</span><input id="projectPublisher" value="${escapeHtml(currentEbookDesign().publisher || '')}" placeholder="Optional" aria-label="Publisher or imprint"></label>
         </div>
         <div class="simple-metadata-actions"><button class="btn primary" id="saveMetadata" type="button">Save book details</button><span>Title + author + language unlock the Kindle production check.</span></div>
-      </section>
-      <section class="simple-edition-choice">
-        <div class="simple-section-head"><div><h3>What are you publishing?</h3><p>Turn on the editions you need. You can change this later.</p></div><button class="btn secondary" data-go-view="editions" type="button">Change editions</button></div>
-        <div class="simple-edition-grid">${enabled.map(([id,label,on]) => `<div class="simple-edition-card ${on ? 'on' : ''}"><span>${on ? '✓' : '○'}</span><div><strong>${label}</strong><small>${on ? 'Included' : 'Not selected'}</small></div></div>`).join('')}</div>
       </section>
       <div class="simple-continue-card">
         <div><strong>${enabledCount ? 'Your book is ready for styling.' : 'Choose at least one edition to continue.'}</strong><span>${enabledCount ? 'The complicated checks stay in the background until something actually needs your attention.' : 'Paperback, hardcover, Kindle—or any combination.'}</span></div>
@@ -416,18 +418,24 @@ function renderSimpleExportHub() {
   const p = state.project;
   ensureEditions(p);
   const ebookOn = Boolean(p.editions.ebook?.enabled);
-  const hasPrint = Boolean(p.editions.paperback?.enabled || p.editions.hardcover?.enabled);
+  const paperbackOn = Boolean(p.editions.paperback?.enabled);
+  const hardcoverOn = Boolean(p.editions.hardcover?.enabled);
+  const hasPrint = paperbackOn || hardcoverOn;
   let ebookCard = '';
   if (ebookOn) {
     const report = runEpubPreflight({ project:p, storyLockOk:p.storyLock?.status === 'verified' });
     const quality = currentKindleQuality(p);
     const intelligence = currentKindleIntelligence(p);
     const ready = report.ready && quality.ready && intelligence.ready;
-    ebookCard = `<section class="simple-export-card ${ready ? 'ready' : 'attention'}"><div class="simple-export-icon">${ready ? '✓' : '!'}</div><div><span class="simple-format-badge">KINDLE</span><h3>${ready ? 'Your Kindle book is ready.' : 'Kindle needs a quick review.'}</h3><p>${ready ? 'Formatting, navigation, file integrity, and Story Lock checks are clear.' : 'YasReady found something worth checking before download. Your manuscript has not been changed.'}</p></div><div class="simple-export-actions">${ready ? '<button class="btn primary simple-primary-cta" id="simpleDownloadEpub" type="button">Download EPUB</button>' : '<button class="btn primary" data-go-view="ebook" type="button">Review Kindle →</button>'}</div></section>`;
+    const downloaded = state.lastExportedEdition === 'ebook';
+    ebookCard = `<section class="simple-export-card ${ready ? 'ready' : 'attention'}"><div class="simple-export-icon">${downloaded ? '↓' : ready ? '✓' : '!'}</div><div><span class="simple-format-badge">KINDLE</span><h3>${downloaded ? 'EPUB downloaded.' : ready ? 'Your Kindle book is ready.' : 'Kindle needs a quick review.'}</h3><p>${downloaded ? 'Your Kindle file is finished. Keep going with print whenever you are ready.' : ready ? 'Formatting, navigation, file integrity, and Story Lock checks are clear.' : 'YasReady found something worth checking before download. Your manuscript has not been changed.'}</p></div><div class="simple-export-actions">${ready ? '<button class="btn primary simple-primary-cta" id="simpleDownloadEpub" type="button">Download EPUB</button>' : '<button class="btn primary" data-go-view="ebook" type="button">Review Kindle →</button>'}</div></section>`;
   }
+  const followup = state.lastExportedEdition === 'ebook'
+    ? `<section class="simple-format-followup"><div><span class="simple-kicker">Keep publishing</span><h3>Want to make another edition?</h3><p>Your Kindle EPUB is done. Add a print edition now without importing the manuscript again.</p></div><div class="simple-format-followup-actions">${!paperbackOn ? '<button class="btn secondary" data-continue-print="paperback" type="button">Continue with Paperback →</button>' : '<button class="btn secondary" data-work-edition="paperback" type="button">Continue Paperback →</button>'}${!hardcoverOn ? '<button class="btn secondary" data-continue-print="hardcover" type="button">Continue with Hardcover →</button>' : '<button class="btn secondary" data-work-edition="hardcover" type="button">Continue Hardcover →</button>'}<button class="btn ghost" data-simple-step="book" type="button">Done for now</button></div></section>`
+    : '';
   return `<article class="panel simple-hub-panel">
     <div class="simple-page-head"><div><span class="simple-kicker">Step 4 · Export</span><h2>Download the publish-ready files.</h2><p>If something needs attention, YasReady tells you in plain English before it lets you export.</p></div></div>
-    <div class="simple-export-stack">${ebookCard}${hasPrint ? `<section class="simple-export-card"><div class="simple-export-icon">P</div><div><span class="simple-format-badge">PRINT</span><h3>Paperback / hardcover export</h3><p>Open the print export screen to run the fixed-page checks and create the production master.</p></div><div class="simple-export-actions"><button class="btn secondary" data-go-view="export" type="button">Open Print Export →</button></div></section>` : ''}</div>
+    <div class="simple-export-stack">${ebookCard}${hasPrint ? `<section class="simple-export-card"><div class="simple-export-icon">P</div><div><span class="simple-format-badge">PRINT</span><h3>Paperback / hardcover export</h3><p>Open the print export screen to run the fixed-page checks and create the production master.</p></div><div class="simple-export-actions"><button class="btn secondary" data-go-view="export" type="button">Open Print Export →</button></div></section>` : ''}${followup}</div>
     <div class="simple-step-footer"><button class="btn ghost" data-simple-step="preview" type="button">← Preview</button></div>
   </article>`;
 }
@@ -2094,6 +2102,24 @@ async function updateEditionEnabled(type, enabled) {
   updateMain();
 }
 
+async function continueToPrintAfterEbook(type) {
+  if (!state.project || !['paperback','hardcover'].includes(type)) return;
+  ensureEditions(state.project);
+  setEditionEnabled(state.project, type, true);
+  setActivePrintEdition(state.project, type);
+  state.printEdition = type;
+  state.preview = null;
+  state.spreadIndex = 0;
+  state.finalCheck = null;
+  state.editionMessage = `${editionLabel(type)} added. Kindle stays finished; now style this print edition.`;
+  state.project.updatedAt = new Date().toISOString();
+  await saveProject(state.project);
+  state.projects = await listProjects();
+  state.simpleStep = 'style';
+  state.activeView = 'style-simple';
+  updateMain();
+}
+
 async function workOnPrintEdition(type) {
   if (!state.project) return;
   ensureEditions(state.project);
@@ -2214,6 +2240,7 @@ function bindDynamicEvents() {
   document.querySelectorAll('[data-bug-status]').forEach((button) => button.addEventListener('click', () => { setBugStatus(button.dataset.bugStatus, button.dataset.bugNext); updateMain(); }));
   document.querySelectorAll('[data-bug-delete]').forEach((button) => button.addEventListener('click', () => { deleteBug(button.dataset.bugDelete); updateMain(); }));
   document.querySelectorAll('[data-simple-step]').forEach((button) => button.addEventListener('click', () => { if (!button.disabled) goToSimpleStep(button.dataset.simpleStep); }));
+  document.querySelectorAll('[data-continue-print]').forEach((button) => button.addEventListener('click', () => continueToPrintAfterEbook(button.dataset.continuePrint)));
   document.querySelectorAll('[data-simple-target]').forEach((button) => button.addEventListener('click', async () => {
     const target = button.dataset.simpleTarget;
     if (target === 'ebook-preview') { state.simpleStep = 'preview'; state.activeView = 'ebook'; updateMain(); requestAnimationFrame(() => document.querySelector('#ebookPreviewStudio')?.scrollIntoView({ behavior:'smooth', block:'start' })); }
@@ -3398,6 +3425,7 @@ async function downloadEpub() {
   state.project.updatedAt = new Date().toISOString();
   await saveProject(state.project);
 
+  let exported = false;
   state.busy = true;
   state.busyMessage = 'Packaging EPUB without touching the manuscript…';
   updateMain();
@@ -3410,13 +3438,20 @@ async function downloadEpub() {
     const packaged = await buildEpubBlob({ project: state.project });
     downloadBlobFile(`${safeExportBaseName()}.epub`, packaged.blob);
     state.ebookMessage = `EPUB built with ${packaged.sections.length} reading-order files and ${packaged.toc.length} clickable Contents links. Story Lock verified immediately before packaging.`;
+    state.lastExportedEdition = 'ebook';
+    exported = true;
   } catch (error) {
     console.error(error);
     alert(error?.message || 'EPUB export failed safely.');
   } finally {
     state.busy = false;
     state.busyMessage = '';
-    state.activeView = 'ebook';
+    if (exported) {
+      state.simpleStep = 'export';
+      state.activeView = 'export-simple';
+    } else {
+      state.activeView = 'ebook';
+    }
     updateMain();
   }
 }

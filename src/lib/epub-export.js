@@ -534,9 +534,10 @@ p.matter-body { text-indent:0; }
 .matter-book1-copyright .matter-copyright-lead { margin-bottom:.32em; font-size:1em; line-height:1.35; font-weight:400; }
 .matter-book1-copyright strong, .matter-book1-copyright .matter-copyright-lead strong { font-weight:400; }
 .matter-book1-dedication { max-width:29em; margin:0 auto; padding-top:6.4em; text-align:center; font-size:.96em; line-height:1.35; font-style:italic; }
-.matter-book1-dedication .matter-flow { margin:0 0 .3em; text-indent:0; }
-.matter-book1-dedication .matter-flow.matter-after-blank { margin-top:1.55em; }
-.matter-book1-dedication .matter-dedication-lead { margin-bottom:.3em; font-size:1em; line-height:1.35; font-weight:400; }
+.matter-book1-dedication .matter-flow { margin:0 0 1.75em; text-indent:0; }
+.matter-book1-dedication .matter-flow:last-of-type { margin-bottom:0; }
+.matter-book1-dedication .matter-flow.matter-after-blank { margin-top:0; }
+.matter-book1-dedication .matter-dedication-lead { margin-bottom:2em; font-size:1em; line-height:1.35; font-weight:400; }
 .matter-book1-dedication strong, .matter-book1-dedication .matter-dedication-lead strong { font-weight:400; }
 body.front p.blank, body.back p.blank { display:none; min-height:0; height:0; margin:0; padding:0; }
 p.scene-break { margin:${design.sceneBreakSpaceEm}em 0; text-indent:0; text-align:center; }

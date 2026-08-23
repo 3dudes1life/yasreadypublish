@@ -1,3 +1,12 @@
+# v1.0.23 — Format-First Flow + Dedication Spacing
+
+- New DOCX imports start with **no edition assumed**. Authors explicitly choose Kindle eBook, Paperback, Hardcover, or any combination.
+- Step 1 now puts **What are you making?** before metadata and makes the format cards directly selectable.
+- Tres Amigos dedication pages use larger semantic paragraph spacing so separate dedication thoughts no longer read like one continuous block.
+- After a successful Kindle EPUB export, the Export step offers **Continue with Paperback** and **Continue with Hardcover** without re-importing the manuscript.
+- Existing projects keep their saved edition selections exactly as-is.
+- Story Lock source text, order, hashes, and semantic content remain unchanged.
+
 # v1.0.22 — Book 1 Front Matter Match
 
 - Added semantic Book 1-style auto-formatting for the private Tres Amigos Kindle title page, copyright page, and dedication page.

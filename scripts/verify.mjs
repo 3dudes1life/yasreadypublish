@@ -23,7 +23,7 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
 }
 const main = readFileSync('src/main.js', 'utf8');
 for (const marker of [
-  "const VERSION = '1.0.22'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
+  "const VERSION = '1.0.23'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
   'Amazon KDP · Reflowable EPUB 3', 'Kindle Preview Studio', 'Adjust Layout', 'preview-studio-grid-v110',
   'Kindle Pro consistency scan', '3-View Torture Test', '11 pt reference', 'Semantic Style Palette', 'Content style',
   'saveEbookSemanticStyles', 'Kindle Intelligence', 'Compare Chapters', 'compareKindleChaptersButton', 'Undo', 'Redo',
@@ -31,7 +31,7 @@ for (const marker of [
   'Kindle Production Console · v1.0.14', 'Polish Queue', 'NEXT BEST ACTION', 'ebookNavigatorSearch',
   'data-kindle-command', 'data-kindle-review-source', 'data-inspector-preset', 'Focus Preview',
 ]) {
-  if (!main.includes(marker)) throw new Error(`1.0.22 production workspace is missing: ${marker}`);
+  if (!main.includes(marker)) throw new Error(`1.0.23 production workspace is missing: ${marker}`);
 }
 const printModel = readFileSync('src/lib/print-model.js', 'utf8');
 if (!printModel.includes("tocTitle: 'Table of Contents'") || !printModel.includes('printToc: true') || !printModel.includes("tocStartSide: 'left'") || !printModel.includes('paragraphGap: 0.12,') || !printModel.includes("bodyBlankPolicy: 'collapse'")) {
@@ -46,14 +46,14 @@ for (const dynamicBinding of [
   '[data-apply-theme]','[data-export-theme]','[data-delete-theme]','[data-edition-enabled]','[data-work-edition]',
   '[data-kindle-mode]','[data-kindle-pref-key]','[data-quality-section]','[data-intelligence-section]','[data-intelligence-fix]',
   '[data-kindle-command]','[data-polish-section]','[data-kindle-review-source]','[data-inspector-preset]',
-  '[data-simple-step]','[data-simple-target]','[data-bug-status]','[data-bug-delete]',
+  '[data-simple-step]','[data-simple-target]','[data-continue-print]','[data-bug-status]','[data-bug-delete]',
 ]) {
   if (!main.includes(`querySelectorAll('${dynamicBinding}')`) && !main.includes(`querySelectorAll("${dynamicBinding}")`)) throw new Error(`Missing dynamic control binding: ${dynamicBinding}`);
 }
 
 const project = readFileSync('src/lib/project.js', 'utf8');
-if (!project.includes("appVersion: '1.0.22'") || !project.includes('version: 25') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
-  throw new Error('Project app version was not migrated to 1.0.22 while preserving schema 25 safety state.');
+if (!project.includes("appVersion: '1.0.23'") || !project.includes('version: 25') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
+  throw new Error('Project app version was not migrated to 1.0.23 while preserving schema 25 safety state.');
 }
 const editions = readFileSync('src/lib/editions.js', 'utf8');
 if (!editions.includes('reviewDecisions:')) throw new Error('Edition normalization does not preserve Kindle review decisions.');
@@ -90,7 +90,7 @@ for (const marker of ['theme-artwork','paragraph-after-break','scene-source-hidd
   if (!epub.includes(marker)) throw new Error(`Theme Studio EPUB renderer is missing: ${marker}`);
 }
 for (const marker of ['Step 1 · Book','Step 2 · Style','Step 3 · Preview','Step 4 · Export','Advanced Tools','simpleKindleExport','simpleBookStyle']) {
-  if (!main.includes(marker)) throw new Error(`1.0.22 Simple Mode is missing: ${marker}`);
+  if (!main.includes(marker)) throw new Error(`1.0.23 Simple Mode is missing: ${marker}`);
 }
 for (const marker of ['chapterTopEm: 8.0','chapterAfterEm: 5.5']) {
   if (!readFileSync('src/lib/ebook-model.js', 'utf8').includes(marker)) throw new Error(`1.0.22 Book 1 Kindle rhythm is missing: ${marker}`);
@@ -108,4 +108,11 @@ if (!main.includes('🐞 Bug Log') || !main.includes('data-bug-status') || !proj
 for (const marker of ['usesTresAmigosMatterMatch','matter-book1-title','matter-book1-copyright','matter-book1-dedication']) {
   if (!epub.includes(marker)) throw new Error(`1.0.22 Book 1 front-matter match is missing: ${marker}`);
 }
-console.log('YasReady Publish v1.0.22 static verification passed.');
+for (const marker of ['What are you making?','Nothing is assumed after upload','Continue with Paperback','Continue with Hardcover','lastExportedEdition']) {
+  if (!main.includes(marker)) throw new Error(`1.0.23 format-first workflow is missing: ${marker}`);
+}
+for (const marker of ['margin:0 0 1.75em','margin-bottom:2em']) {
+  if (!epub.includes(marker)) throw new Error(`1.0.23 dedication spacing is missing: ${marker}`);
+}
+if (!project.includes('paperback: { enabled: false }') || !project.includes('ebook: { enabled: false }')) throw new Error('1.0.23 new-project edition defaults are not opt-in.');
+console.log('YasReady Publish v1.0.23 static verification passed.');
