@@ -17,7 +17,7 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
   const project = {
     id: crypto.randomUUID(),
     version: 20,
-    appVersion: '1.0.10',
+    appVersion: '1.0.11',
     title: baseName,
     author: '',
     createdAt: now,
@@ -201,8 +201,10 @@ export function migrateProject(project) {
   ensureEbookDesign(project);
   ensureEditions(project);
   ensurePresentationOverrides(project);
+  // 1.0.11 is a Kindle Pro QA/preview calibration release. It adds no new
+  // persisted manuscript schema fields, so schema 20 remains current.
   project.version = Math.max(oldVersion, 20);
-  project.appVersion = '1.0.10';
+  project.appVersion = '1.0.11';
   return project;
 }
 

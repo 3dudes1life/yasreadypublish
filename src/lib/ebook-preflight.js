@@ -1,6 +1,7 @@
 import { buildEbookSections, detectEbookPlaceholders, ebookTocEntries, normalizeEbookDesign, verifyEbookSourceCoverage } from './ebook-model.js';
 import { auditEpubPackage } from './epub-audit.js';
 import { effectiveStats } from './structure-overrides.js';
+import { enhancedTypesettingAudit } from './kindle-quality.js';
 
 const check = (id, label, status, message) => ({ id, label, status, message });
 
@@ -56,6 +57,7 @@ export function runEpubPreflight({ project, storyLockOk = true } = {}) {
   const paragraphSeparationOk = Number(design.firstLineIndentEm) > 0 || Number(design.paragraphGapEm) > 0;
   const placeholders = detectEbookPlaceholders(project);
   const packageAudit = auditEpubPackage({ project });
+  const enhanced = enhancedTypesettingAudit(project);
 
   const checks = [
     check('story-lock', 'Story Lock', storyLockOk ? 'pass' : 'error', storyLockOk ? 'Source manuscript hash is verified.' : 'Story Lock failed. Kindle EPUB export is blocked.'),
@@ -73,6 +75,7 @@ export function runEpubPreflight({ project, storyLockOk = true } = {}) {
     check('language', 'Language metadata', languageOk ? 'pass' : 'error', languageOk ? `Language tag: ${design.language}` : `“${design.language}” is not a supported language-tag format.`),
     check('reflowable', 'Kindle reflowable structure', 'pass', 'No trim size, gutter, print folios, fixed print page numbers, or print blank versos are packaged into the ebook.'),
     check('reader-defaults', 'Reader-controlled body text', 'pass', 'Kindle export leaves body font size and line height to the reader while preserving emphasis, paragraph indents, scene breaks, and chapter styling.'),
+    ...enhanced.checks.map((item) => check(`enhanced-${item.id}`, `Enhanced Typesetting · ${item.label}`, item.ok ? 'pass' : item.severity === 'error' ? 'error' : 'warning', item.message)),
     check('paragraph-separation', 'Paragraph separation', paragraphSeparationOk ? 'pass' : 'error', paragraphSeparationOk ? 'Body paragraphs remain visually distinguishable with relative-unit spacing/indentation.' : 'Kindle body paragraphs need either an indent or paragraph spacing.'),
     check('html-file-count', 'Kindle HTML file count', fileCountOk ? 'pass' : 'error', `${htmlFileCount} XHTML reading-order/navigation file(s); Amazon requires fewer than 300.`),
     check('html-file-size', 'Kindle section size', sectionSizeOk ? 'pass' : 'error', sectionSizeOk ? 'Largest source section is safely below Amazon’s 30 MB per-HTML-file ceiling.' : 'A source section is too large for Kindle and must be split.'),
@@ -106,6 +109,7 @@ export function runEpubPreflight({ project, storyLockOk = true } = {}) {
     sourceCoverage: coverage,
     cover: cover.cover,
     packageAudit,
+    enhancedTypesetting: enhanced,
     placeholders,
     kdp: {
       ready,

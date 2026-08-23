@@ -24,7 +24,7 @@ function project() {
 
 test('Kindle preview presets normalize to supported device, orientation, text size and appearance', () => {
   assert.deepEqual(normalizeKindlePreview({device:'wat',orientation:'sideways',fontScale:'xxl',appearance:'blue',mode:'edit'}), {
-    device:'ereader', orientation:'portrait', fontFace:'serif', fontScale:'m', appearance:'white', mode:'read', simulateEink:false,
+    device:'ereader', orientation:'portrait', fontFace:'serif', fontScale:'m', appearance:'white', mode:'read', simulateEink:false, referencePt:11,
   });
   const portrait=kindleViewport({device:'phone',orientation:'portrait'});
   const landscape=kindleViewport({device:'phone',orientation:'landscape'});
@@ -63,6 +63,6 @@ test('1.0.9 migration leaves manuscript blocks byte-for-byte JSON identical', ()
   const before=JSON.stringify(raw.manuscript.blocks);
   const migrated=migrateProject(raw);
   assert.equal(migrated.version,20);
-  assert.equal(migrated.appVersion,'1.0.10');
+  assert.equal(migrated.appVersion,'1.0.11');
   assert.equal(JSON.stringify(migrated.manuscript.blocks),before);
 });

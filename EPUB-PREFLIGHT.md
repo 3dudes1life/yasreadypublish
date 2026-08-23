@@ -1,9 +1,12 @@
-# EPUB Preflight — v1.0.10
+# EPUB Preflight — v1.0.11
 
-The Kindle release gate verifies the Story-Locked source and the generated EPUB package.
+Kindle release requires Story Lock plus two gates:
 
-Blocking checks include Story Lock, exact source coverage, metadata, cover packaging, detected chapter navigation, visible Contents, logical navigation/landmarks, supported asset handling, KDP section/file guards, source placeholders, and the finished-package audit.
+1. KDP EPUB preflight
+2. Kindle Pro whole-book quality scan
 
-The finished-package audit opens YasReady's generated package data and confirms that production EPUB output contains no Preview Studio-only CSS/classes/hooks.
+The preflight validates exact source coverage, chapter navigation, visible Contents, logical TOC, landmarks, internal cover, metadata, language, reflowable structure, reader-controlled body text, paragraph separation, Kindle section/file limits, image safety, source placeholders, front-matter reflow, finished package structure, and Enhanced Typesetting-friendly CSS.
 
-Likely source placeholders are never silently deleted. They must be corrected deliberately in the master manuscript before a production EPUB can be marked ready.
+The Kindle Pro scan additionally looks across the whole book for chapter structure mismatches, suspicious local overrides, rare Word styles, and finished-package target resolution.
+
+A green preview alone is not sufficient. The final EPUB must still be opened in Amazon Kindle Previewer.

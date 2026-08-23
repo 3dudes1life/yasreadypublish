@@ -1,76 +1,88 @@
-# YasReady Publish v1.0.10
+# YasReady Publish v1.0.11
 
-Private Story-Locked publishing studio for `Tres Amigos, Una Vida` and future YasReady publishing projects.
+Private publishing studio for Story-Locked manuscripts.
 
-## Current production focus
+Version 1.0.11 is the **Kindle Pro production pass**. It keeps the stable reflowable EPUB engine from 1.0.10 and adds calibrated preview sizing, whole-book consistency analysis, responsive torture testing, Enhanced Typesetting safety checks, and a stronger finished-package autopsy.
 
-Version 1.0.10 is the **Kindle finalization pass**. Paperback and hardcover remain available but are intentionally parked while the reflowable KDP EPUB is brought to release quality.
+## Story Lock remains the first rule
 
-## Kindle Preview Studio
+YasReady may change presentation metadata. It may not rewrite manuscript language.
 
-Preview Studio is now a publishing workbench rather than a long web page. The core workspace is:
+- Source paragraphs remain immutable.
+- Kindle layout overrides are stored by source block ID.
+- Preview calibration never changes the EPUB.
+- Final export re-verifies Story Lock before packaging.
 
-**Reading Order | Live Book Preview | Format Inspector**
+## Kindle Pro 1.0.11
 
-Each pane scrolls independently. The preview controls remain at the top, and `Open Preview Studio` jumps directly from setup to the working area.
+### Calibrated reader preview
 
-The simulator uses the same section rendering and ebook stylesheet source as the EPUB package, but it does **not** claim to embed Amazon's proprietary Kindle Previewer. Amazon Kindle Previewer remains the final rendering authority before KDP submission.
+The browser preview previously inherited a 16px browser baseline, which can visually feel larger than an 11pt manuscript. 1.0.11 adds a **preview-only reference point size**. Normal defaults to **11pt equivalent** while the production EPUB continues to leave body text size to the Kindle reader.
 
-### Reader simulation
+Preview controls include:
 
-- Kindle / Phone / Tablet device classes
+- Kindle / Phone / Tablet
 - Portrait / Landscape
-- Reader text-size simulation
+- Small / Normal / Large reader text
+- 10.5 / 11 / 12pt visual reference
 - Light / Sepia / Dark
-- Color by default
-- Optional e-ink/grayscale simulation for Kindle device preview
+- Read / Adjust modes
 
-Reader-simulation controls never change the final EPUB.
+The reference point size is a simulator calibration only. It is never written as a fixed body font size into the production EPUB.
 
-### Safe live formatting
+### Whole-book consistency scan
 
-`Read Mode` is the default and contains no selection hooks. `Adjust Layout` must be entered explicitly.
+Kindle Pro scans the entire book, not only the section currently visible. It checks:
 
-When adjusting, a paragraph or heading can be selected and presentation-only values can be changed live: spacing before/after, first-line indent, alignment, and indent suppression. Undo/Redo and reset-to-theme controls are provided.
+- exact source coverage
+- chapter-section count
+- chapter-title structure
+- Kindle navigation count
+- Story Lock metadata in the finished package
+- nav and spine targets
+- source placeholders
+- unusually large local formatting overrides
+- rare Word paragraph styles in chapter prose
+- Enhanced Typesetting-friendly CSS
 
-There is **no manuscript text editor** in Preview Studio. Story wording remains immutable.
+Warnings can jump back to an affected chapter or source block when a direct target exists.
 
-## Front matter
+### 3-view torture test
 
-1.0.10 treats front matter as ebook presentation rather than blindly reproducing print line breaks. Copyright/legal lines can reflow into normal ebook paragraphs while every Story-Locked source block is retained. Generic Word heading styles no longer automatically split front matter into new reading items.
+One button renders the current section in three read-only stress views:
 
-Likely source placeholders such as `CHAPTERS PAGE` are flagged and block final EPUB release. YasReady never silently removes those words; the master manuscript must be corrected deliberately and reimported.
+1. Small reader text on a narrow phone
+2. Normal reader text on a Kindle-sized viewport
+3. Extra-large reader text on a tablet viewport
 
-## Finished EPUB audit
+This helps find wrapping, heading, spacing, and alignment problems before Kindle Previewer.
 
-Before release, YasReady audits the generated package itself for:
+### Stronger finished EPUB autopsy
 
-- title and author metadata
-- exactly one internal cover image and no duplicate cover XHTML
-- chapter XHTML count and logical chapter navigation count
-- visible linked Contents in the reading spine
+Before release, YasReady verifies the generated package itself, including:
+
+- project title and author metadata
+- current Story Lock SHA-256
+- exactly one internal cover image
+- no duplicate cover XHTML
+- chapter file count and chapter navigation count
+- visible Contents in the reading spine
 - Begin Reading landmark
-- Preview Studio-only CSS/classes/hooks leaking into production
-- source placeholder warnings
+- every navigation target exists
+- every spine target exists
+- no Preview Studio hooks leak into production
 
-Story Lock and exact source coverage remain separate mandatory gates.
+## Final validation
 
-## iPhone / iPad proof
+YasReady is not Amazon's rendering engine. The release workflow remains:
 
-`Preview on iPhone / iPad` creates a self-contained, read-only proof for Share Sheet/AirDrop or local download. No private web/QR upload service is included in this static build.
+1. Story Lock passes
+2. Kindle Pro consistency scan passes
+3. KDP EPUB preflight passes
+4. Download the EPUB
+5. Open that exact EPUB in Amazon Kindle Previewer
 
-## Kindle release workflow
-
-1. Import the final DOCX and verify Story Lock.
-2. Set book metadata and attach the Kindle cover.
-3. Open Preview Studio and proof cover, front matter, Contents, early/middle/late chapters.
-4. Use Adjust Layout only where presentation needs correction.
-5. Clear any source-placeholder warnings in the master DOCX and reimport if necessary.
-6. Pass KDP preflight + finished EPUB audit.
-7. Download the KDP EPUB.
-8. Open that exact EPUB in Amazon Kindle Previewer before submission.
-
-## Run locally
+## Local use
 
 ```bash
 npm run verify
@@ -79,6 +91,14 @@ npm run dev
 
 Then open `http://localhost:4173`.
 
-## QA
+`npm run verify` runs the full automated suite, static verification, and Superman audit.
 
-`npm run verify` runs the automated test suite, static verification, and Superman audit. Release QA for 1.0.10: **119/119 tests passing**.
+## Current release QA
+
+- **127/127 automated tests passing**
+- Static verification passing
+- Superman audit passing
+- 26 application JavaScript modules syntax/import checked
+- 46 literal button IDs audited
+- 14 dynamic control families audited
+- no fetch/XHR/WebSocket/sendBeacon manuscript-egress primitives in application source

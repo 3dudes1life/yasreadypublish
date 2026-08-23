@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.0.11 — Kindle Pro Production Studio
+
+- Calibrates Kindle Preview Studio to an 11pt-equivalent visual baseline by default while leaving production EPUB body sizing reader-controlled.
+- Adds 10.5 / 11 / 12pt preview reference controls.
+- Adds a whole-book Kindle Pro consistency scan with score, grade, errors, review items, and direct issue navigation when possible.
+- Adds a 3-view responsive torture test: small phone, normal Kindle, and large tablet.
+- Adds Enhanced Typesetting-oriented CSS checks for fixed body sizing, reflow metadata, fixed positioning, negative margins, relative heading sizing, and chapter breaks.
+- Strengthens finished EPUB autopsy with Story Lock metadata verification plus nav-target and spine-target resolution.
+- Kindle release status now requires both KDP preflight and Kindle Pro quality gates.
+- Keeps schema 20; app version advances to 1.0.11 because no new persisted manuscript schema fields are required.
+- Story Lock manuscript blocks remain unchanged by migration.
+- QA: 127/127 tests passing; static verification and Superman audit passing.
+
 ## v1.0.10 — Kindle Finalization + Preview Studio UX
 
 - Rebuilds Kindle Preview Studio as a fixed three-pane workbench: **Reading Order | Live Book Preview | Format Inspector**, with independent scrolling and a sticky top control bar.

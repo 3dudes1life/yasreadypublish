@@ -40,6 +40,7 @@ export const DEFAULT_KINDLE_PREVIEW = Object.freeze({
   appearance: 'white',
   mode: 'read',
   simulateEink: false,
+  referencePt: 11,
 });
 
 export function normalizeKindlePreview(input = {}) {
@@ -51,6 +52,8 @@ export function normalizeKindlePreview(input = {}) {
   if (!KINDLE_APPEARANCES[next.appearance]) next.appearance = DEFAULT_KINDLE_PREVIEW.appearance;
   if (!['read', 'adjust'].includes(next.mode)) next.mode = DEFAULT_KINDLE_PREVIEW.mode;
   next.simulateEink = Boolean(next.simulateEink);
+  const referencePt = Number(next.referencePt);
+  next.referencePt = Number.isFinite(referencePt) ? Math.min(14, Math.max(8, referencePt)) : DEFAULT_KINDLE_PREVIEW.referencePt;
   return next;
 }
 
@@ -80,5 +83,7 @@ export function kindlePreviewTokens(input = {}) {
     fontFace,
     viewport,
     grayscale: prefs.device === 'ereader' && prefs.simulateEink,
+    referencePt: prefs.referencePt,
+    referencePx: prefs.referencePt * (96 / 72) * font.scale,
   };
 }

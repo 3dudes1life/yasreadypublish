@@ -3,7 +3,7 @@ import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const VERSION = '1.0.10';
+const VERSION = '1.0.11';
 
 function walk(dir) {
   const out = [];
@@ -41,7 +41,7 @@ const buttonIds = [...main.matchAll(/<button\b[^>]*\bid="([^"]+)"/g)].map((m) =>
 const boundIds = new Set([...main.matchAll(/querySelector\(['"]#([^'"]+)['"]\)/g)].map((m) => m[1]));
 const unbound = [...new Set(buttonIds)].filter((id) => !boundIds.has(id));
 if (unbound.length) throw new Error(`Unbound button IDs: ${unbound.join(', ')}`);
-const dynamic = ['data-go-view','data-open-project','data-delete-project','data-nav-page','data-ebook-section','data-repair-block','data-apply-theme','data-export-theme','data-delete-theme','data-edition-enabled','data-work-edition','data-kindle-mode','data-kindle-pref-key'];
+const dynamic = ['data-go-view','data-open-project','data-delete-project','data-nav-page','data-ebook-section','data-repair-block','data-apply-theme','data-export-theme','data-delete-theme','data-edition-enabled','data-work-edition','data-kindle-mode','data-kindle-pref-key','data-quality-section'];
 for (const attr of dynamic) {
   if (main.includes(attr) && !main.includes(`querySelectorAll('[${attr}]')`) && !main.includes(`querySelectorAll("[${attr}]")`)) {
     throw new Error(`Dynamic control family lacks a binding: ${attr}`);
@@ -97,4 +97,7 @@ for (const marker of ['auditEpubPackage','audit-preview-leak','audit-cover','det
 }
 const ebookModel = readFileSync(join(ROOT, 'src/lib/ebook-model.js'), 'utf8');
 if (!ebookModel.includes('matterSectionHeading') || !ebookModel.includes('detectEbookPlaceholders')) throw new Error('Kindle front-matter/placeholder hardening is missing.');
-console.log('- proof ownership, edition invalidation, Kindle front matter, finished EPUB audit, and live Preview Studio guards present');
+const kindleQuality = readFileSync(join(ROOT, 'src/lib/kindle-quality.js'), 'utf8');
+for (const marker of ['scanKindleQuality','enhancedTypesettingAudit','kindleTorturePresets']) if (!kindleQuality.includes(marker)) throw new Error(`Missing Kindle Pro quality marker: ${marker}`);
+for (const marker of ['Kindle Pro consistency scan','3-View Torture Test','referencePt','toggleKindleQaMatrix']) if (!main.includes(marker)) throw new Error(`Missing Kindle Pro UI marker: ${marker}`);
+console.log('- proof ownership, edition invalidation, Kindle front matter, finished EPUB audit, calibrated preview, and whole-book QA guards present');

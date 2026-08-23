@@ -43,8 +43,9 @@ import {
   KINDLE_DEVICE_PRESETS, KINDLE_FONT_FACES, KINDLE_FONT_SCALES, KINDLE_APPEARANCES,
   normalizeKindlePreview, kindlePreviewTokens,
 } from './lib/kindle-preview-model.js';
+import { scanKindleQuality, kindleTorturePresets } from './lib/kindle-quality.js';
 
-const VERSION = '1.0.10';
+const VERSION = '1.0.11';
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
 
@@ -78,6 +79,9 @@ const state = {
   ebookUndoStack: [],
   ebookRedoStack: [],
   ebookHistoryArmed: false,
+  kindleQaMatrix: false,
+  kindleQualityCache: null,
+  kindleQualityKey: '',
 };
 
 const app = document.querySelector('#app');
@@ -939,19 +943,20 @@ function kindleSegmentButton(key, value, label, current) {
 
 function renderKindlePreviewToolbar(prefsInput) {
   const prefs = normalizeKindlePreview(prefsInput);
-  return `<div class="kindle-preview-toolbar-v110">
-    <div class="kindle-toolbar-group mode"><span>Mode</span><div class="kindle-segment">${kindleSegmentButton('mode','read','Read',prefs.mode)}${kindleSegmentButton('mode','adjust','Adjust Layout',prefs.mode)}</div></div>
+  return `<div class="kindle-preview-toolbar-v111">
+    <div class="kindle-toolbar-group mode"><span>Mode</span><div class="kindle-segment">${kindleSegmentButton('mode','read','Read',prefs.mode)}${kindleSegmentButton('mode','adjust','Adjust',prefs.mode)}</div></div>
     <div class="kindle-toolbar-group"><span>Device</span><div class="kindle-segment">${kindleSegmentButton('device','ereader','Kindle',prefs.device)}${kindleSegmentButton('device','phone','Phone',prefs.device)}${kindleSegmentButton('device','tablet','Tablet',prefs.device)}</div></div>
-    <div class="kindle-toolbar-group"><span>Orientation</span><div class="kindle-segment">${kindleSegmentButton('orientation','portrait','Portrait',prefs.orientation)}${kindleSegmentButton('orientation','landscape','Landscape',prefs.orientation)}</div></div>
-    <div class="kindle-toolbar-group"><span>Text</span><div class="kindle-segment compact">${kindleSegmentButton('fontScale','s','A−',prefs.fontScale)}${kindleSegmentButton('fontScale','m','A',prefs.fontScale)}${kindleSegmentButton('fontScale','l','A+',prefs.fontScale)}</div></div>
+    <div class="kindle-toolbar-group"><span>Text size</span><div class="kindle-segment compact">${kindleSegmentButton('fontScale','s','Small',prefs.fontScale)}${kindleSegmentButton('fontScale','m','Normal',prefs.fontScale)}${kindleSegmentButton('fontScale','l','Large',prefs.fontScale)}</div></div>
+    <div class="kindle-toolbar-group"><span>11 pt reference</span><div class="kindle-segment compact">${kindleSegmentButton('referencePt','10.5','10.5',String(prefs.referencePt))}${kindleSegmentButton('referencePt','11','11',String(prefs.referencePt))}${kindleSegmentButton('referencePt','12','12',String(prefs.referencePt))}</div></div>
     <div class="kindle-toolbar-group"><span>Appearance</span><div class="kindle-segment">${kindleSegmentButton('appearance','white','Light',prefs.appearance)}${kindleSegmentButton('appearance','sepia','Sepia',prefs.appearance)}${kindleSegmentButton('appearance','dark','Dark',prefs.appearance)}</div></div>
-    ${prefs.device === 'ereader' ? `<div class="kindle-toolbar-group eink"><span>Optional</span><div class="kindle-segment">${kindleSegmentButton('simulateEink','false','Color',String(prefs.simulateEink))}${kindleSegmentButton('simulateEink','true','E-ink',String(prefs.simulateEink))}</div></div>` : ''}
+    <div class="kindle-toolbar-group"><span>Orientation</span><div class="kindle-segment">${kindleSegmentButton('orientation','portrait','Portrait',prefs.orientation)}${kindleSegmentButton('orientation','landscape','Landscape',prefs.orientation)}</div></div>
+    <div class="kindle-toolbar-group quality"><span>QA</span><button class="kindle-qa-button ${state.kindleQaMatrix ? 'active' : ''}" id="toggleKindleQaMatrix" type="button">${state.kindleQaMatrix ? 'Single Preview' : '3-View Torture Test'}</button></div>
   </div>`;
 }
 
 function buildKindleFrameHtml(preview, prefsInput) {
   const tokens = kindlePreviewTokens(prefsInput);
-  const { appearance, font, fontFace, grayscale, prefs } = tokens;
+  const { appearance, fontFace, grayscale, prefs, referencePx } = tokens;
   const isCover = preview.section?.type === 'cover';
   const adjust = prefs.mode === 'adjust';
   const bodyClass = isCover ? 'yrp-sim-cover' : 'yrp-sim-text';
@@ -961,7 +966,7 @@ function buildKindleFrameHtml(preview, prefsInput) {
   const coverFilter = grayscale ? 'grayscale(100%) contrast(.98)' : 'none';
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
 ${preview.css}
-html{font-size:${Math.round(font.scale * 100)}%;background:${appearance.background};color:${appearance.color}}
+html{font-size:${referencePx.toFixed(2)}px;background:${appearance.background};color:${appearance.color}}
 body{font-family:${fontFace.stack}!important;margin:0;box-sizing:border-box;background:${appearance.background};color:${appearance.color};min-height:100vh;width:100%}
 body.yrp-sim-text{padding:2.2em 2em;max-width:none}
 body.yrp-sim-cover{padding:1.1em;display:grid;place-items:center;overflow:hidden;background:${appearance.background}}
@@ -972,19 +977,33 @@ a{color:inherit}${inspectCss}
 </style></head><body class="${bodyClass}">${preview.html}</body></html>`;
 }
 
-function renderKindleSimulatorFrame(preview, prefsInput) {
+function renderKindleSimulatorFrame(preview, prefsInput, frameId = 'ebookPreviewFrame') {
   const tokens = kindlePreviewTokens(prefsInput);
   const v = tokens.viewport;
   const frameHtml = buildKindleFrameHtml(preview, prefsInput);
   const label = tokens.prefs.device === 'ereader' ? 'Kindle preview' : tokens.prefs.device === 'phone' ? 'Phone preview' : 'Tablet preview';
   const tone = tokens.grayscale ? 'E-ink simulation' : 'Color preview';
   return `<section class="kindle-preview-pane">
-    <div class="kindle-preview-pane-head"><div><strong>${label}</strong><small>${tone} · ${escapeHtml(tokens.prefs.orientation)}</small></div><span>Same XHTML + CSS source as export</span></div>
+    <div class="kindle-preview-pane-head"><div><strong>${label}</strong><small>${tone} · ${escapeHtml(tokens.prefs.orientation)} · ${tokens.referencePt} pt reference</small></div><span>Preview only · EPUB stays reader-controlled</span></div>
     <div class="kindle-simulator-wrap">
       <div class="kindle-device kindle-device-${escapeHtml(tokens.prefs.device)} ${tokens.prefs.orientation === 'landscape' ? 'landscape' : 'portrait'}" style="--kindle-w:${v.width};--kindle-h:${v.height};--kindle-radius:${v.radius}px;--kindle-bezel:${v.bezel}px;--kindle-chrome:${escapeHtml(tokens.appearance.chrome)}">
-        <div class="kindle-screen"><iframe id="ebookPreviewFrame" class="ebook-reader kindle-render-frame" title="Kindle reflowable preview" srcdoc="${escapeHtml(frameHtml)}"></iframe></div>
+        <div class="kindle-screen"><iframe id="${escapeHtml(frameId)}" class="ebook-reader kindle-render-frame" title="Kindle reflowable preview" srcdoc="${escapeHtml(frameHtml)}"></iframe></div>
       </div>
     </div>
+  </section>`;
+}
+
+function renderKindleQaMatrix(preview, prefsInput) {
+  const presets = kindleTorturePresets(normalizeKindlePreview(prefsInput).referencePt);
+  return `<section class="kindle-qa-matrix">
+    <div class="kindle-qa-matrix-head"><div><div class="eyebrow">Responsive torture test</div><h3>Same section. Three reader stresses.</h3><p>If the selected chapter survives these three views, it is much less likely to surprise you in Kindle Previewer.</p></div><span>READ ONLY</span></div>
+    <div class="kindle-qa-grid">${presets.map((preset, index) => {
+      const qaPreview = buildEbookPreviewHtml({ project: state.project, sectionIndex: state.ebookSectionIndex, inspectMode: false });
+      const tokens = kindlePreviewTokens(preset.prefs);
+      const v = tokens.viewport;
+      const html = buildKindleFrameHtml(qaPreview, preset.prefs);
+      return `<div class="kindle-qa-card"><div class="kindle-qa-card-head"><strong>${escapeHtml(preset.label)}</strong><small>${escapeHtml(preset.detail)}</small></div><div class="kindle-qa-screen" style="--qa-ratio:${v.width}/${v.height}"><iframe id="kindleQaFrame${index}" title="${escapeHtml(preset.label)}" srcdoc="${escapeHtml(html)}"></iframe></div></div>`;
+    }).join('')}</div>
   </section>`;
 }
 
@@ -1079,6 +1098,7 @@ function bindKindlePreferenceButtons(root = document) {
       const key = button.dataset.kindlePrefKey;
       let value = button.dataset.kindlePrefValue;
       if (key === 'simulateEink') value = value === 'true';
+      if (key === 'referencePt') value = Number(value);
       updateKindlePreviewPreference(key, value);
     });
   });
@@ -1094,11 +1114,61 @@ function updateKindlePreviewPreference(key, value) {
 }
 
 
+function currentKindleQuality(project) {
+  const key = `${project?.updatedAt || ''}|${project?.storyLock?.status || ''}|${countPresentationOverrides(project, 'ebook')}`;
+  if (state.kindleQualityCache && state.kindleQualityKey === key) return state.kindleQualityCache;
+  state.kindleQualityCache = scanKindleQuality(project);
+  state.kindleQualityKey = key;
+  return state.kindleQualityCache;
+}
+
+function qualityIssueTargetIndex(issue, preview) {
+  if (!issue || !preview?.sections?.length) return -1;
+  if (issue.sectionId) return preview.sections.findIndex((section) => section.id === issue.sectionId);
+  if (issue.blockId) return preview.sections.findIndex((section) => (section.blocks || []).some((block) => block.id === issue.blockId));
+  return -1;
+}
+
+function renderKindleQualityPanel(quality, preview) {
+  const topIssues = quality.issues.filter((item) => item.severity !== 'info').slice(0, 8);
+  const informational = quality.issues.filter((item) => item.severity === 'info').slice(0, 3);
+  const issues = [...topIssues, ...informational];
+  const statusClass = quality.summary.errors ? 'bad' : quality.summary.warnings ? 'needs' : 'good';
+  const icon = (severity) => severity === 'error' ? '×' : severity === 'warning' ? '!' : 'i';
+  return `<section class="kindle-quality-card ${statusClass}">
+    <div class="kindle-quality-score"><strong>${quality.score}</strong><span>${escapeHtml(quality.grade)}</span></div>
+    <div class="kindle-quality-main">
+      <div class="kindle-quality-head"><div><div class="eyebrow">Kindle Pro consistency scan</div><h3>${quality.summary.errors ? 'Blocking quality issue found' : quality.summary.warnings ? 'Production-ready with review items' : 'Whole-book consistency looks clean'}</h3><p>Scans the finished EPUB structure, all chapter sections, local formatting overrides, navigation, and reflow safety—not just the chapter on screen.</p></div><div class="kindle-quality-counts"><span class="error">${quality.summary.errors} error</span><span class="warning">${quality.summary.warnings} review</span><span>${quality.overrideCount} local fixes</span></div></div>
+      <div class="kindle-quality-issues">${issues.length ? issues.map((item) => {
+        const target = qualityIssueTargetIndex(item, preview);
+        return `<div class="kindle-quality-issue ${item.severity}"><span>${icon(item.severity)}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.message)}</small></div>${target >= 0 ? `<button type="button" data-quality-section="${target}" data-quality-block="${escapeHtml(item.blockId || '')}">Go there</button>` : ''}</div>`;
+      }).join('') : `<div class="kindle-quality-clean"><span>✓</span><div><strong>No whole-book formatting anomalies detected.</strong><small>Keep doing the visual early/middle/late chapter check before final export.</small></div></div>`}</div>
+      <div class="kindle-quality-footer"><span>Enhanced Typesetting safety: ${quality.enhanced.errors ? 'BLOCKED' : quality.enhanced.warnings ? 'REVIEW' : 'PASS'}</span><span>${quality.chapters} chapters scanned</span><span>${quality.tocChapters} Kindle chapter links</span></div>
+    </div>
+  </section>`;
+}
+
+
+function jumpToKindleQualityIssue(index, blockId = '') {
+  if (!state.project) return;
+  const preview = buildEbookPreviewHtml({ project: state.project, sectionIndex: index, inspectMode: Boolean(blockId) });
+  state.ebookSectionIndex = preview.index;
+  state.kindleQaMatrix = false;
+  state.kindlePreview = normalizeKindlePreview({ ...state.kindlePreview, mode: blockId ? 'adjust' : 'read' });
+  state.selectedEbookBlockId = blockId || '';
+  state.inspectorMessage = blockId ? 'Quality scan brought you directly to this source block.' : '';
+  state.ebookFrameScrollY = 0;
+  updateMain();
+}
+
+
 function renderEbook() {
   const project = state.project;
   ensurePresentationOverrides(project);
   const design = currentEbookDesign();
   const report = runEpubPreflight({ project, storyLockOk: project.storyLock?.status === 'verified' });
+  const quality = currentKindleQuality(project);
+  const kindleReady = report.ready && quality.ready;
   const preview = buildEbookPreviewHtml({ project, sectionIndex: state.ebookSectionIndex, inspectMode: state.kindlePreview.mode === 'adjust' });
   state.ebookSectionIndex = preview.index;
   const cover = getEbookCover(project);
@@ -1128,7 +1198,8 @@ function renderEbook() {
   const setupSteps = [metadataReady, coverReady, navReady, lockReady];
   const readySteps = setupSteps.filter(Boolean).length;
   const printParked = !project.editions?.paperback?.enabled && !project.editions?.hardcover?.enabled;
-  const setupStatus = report.ready ? 'Ready for KDP' : `${report.summary.errors} thing${report.summary.errors === 1 ? '' : 's'} to fix`;
+  const totalBlocking = report.summary.errors + quality.summary.errors;
+  const setupStatus = kindleReady ? 'Ready for KDP' : `${totalBlocking} blocking thing${totalBlocking === 1 ? '' : 's'} to fix`;
   const overrideCount = countPresentationOverrides(project, 'ebook');
 
   const step = (ready, icon, label, detail) => `<div class="ebook-step ${ready ? 'done' : ''}"><span>${ready ? '✓' : icon}</span><div><strong>${label}</strong><small>${detail}</small></div></div>`;
@@ -1137,7 +1208,7 @@ function renderEbook() {
     <article class="panel ebook-panel ebook-studio">
       <div class="ebook-studio-top">
         <div class="ebook-studio-title">
-          <span class="badge ${report.ready ? 'good' : 'bad'}">${report.ready ? 'KDP EPUB READY' : 'KINDLE SETUP'}</span>
+          <span class="badge ${kindleReady ? 'good' : 'bad'}">${kindleReady ? 'KDP EPUB READY' : 'KINDLE SETUP'}</span>
           <h2>Kindle / eBook</h2>
           <p>One Story-Locked manuscript → one clean reflowable EPUB for Amazon KDP. Preview it, tune presentation safely, then export.</p>
         </div>
@@ -1150,13 +1221,13 @@ function renderEbook() {
       ${state.ebookMessage ? `<div class="notice info ebook-message">${escapeHtml(state.ebookMessage)}</div>` : ''}
       ${report.placeholders?.length ? `<div class="notice error ebook-message"><strong>Source cleanup needed before final EPUB:</strong> ${escapeHtml(report.placeholders.map((item) => item.text).join(', '))}. YasReady will preview these words but will not silently remove them from the Story-Locked manuscript.</div>` : ''}
 
-      <div class="ebook-release-card ${report.ready ? 'ready' : ''}">
+      <div class="ebook-release-card ${kindleReady ? 'ready' : ''}">
         <div class="ebook-release-status">
           <div class="ebook-kindle-mark">e</div>
-          <div><div class="eyebrow">Amazon KDP · Reflowable EPUB 3</div><h3>${setupStatus}</h3><p>${report.ready ? 'Story Lock, navigation, metadata, cover, and Kindle structure all passed.' : 'Finish the highlighted setup items, then download the same EPUB you will upload to KDP.'}</p></div>
+          <div><div class="eyebrow">Amazon KDP · Reflowable EPUB 3</div><h3>${setupStatus}</h3><p>${kindleReady ? 'Story Lock, navigation, metadata, cover, whole-book consistency, and Kindle structure all passed.' : 'Finish the highlighted setup and Kindle Pro review items, then download the same EPUB you will upload to KDP.'}</p></div>
         </div>
         <div class="ebook-release-progress"><strong>${readySteps}/4</strong><span>setup</span></div>
-        <div class="ebook-release-actions"><button class="btn secondary" id="jumpEbookPreviewStudio" type="button">Open Preview Studio</button><button class="btn primary ebook-download-main" id="downloadEpub" type="button" ${report.ready ? '' : 'disabled'}>Download KDP EPUB</button></div>
+        <div class="ebook-release-actions"><button class="btn secondary" id="jumpEbookPreviewStudio" type="button">Open Preview Studio</button><button class="btn primary ebook-download-main" id="downloadEpub" type="button" ${kindleReady ? '' : 'disabled'}>Download KDP EPUB</button></div>
       </div>
 
       <div class="ebook-steps">
@@ -1165,6 +1236,8 @@ function renderEbook() {
         ${step(navReady, '3', 'Navigation', navReady ? `${report.chapterEntries} chapters + linked Contents` : 'Contents needs attention')}
         ${step(lockReady, '4', 'Story Lock', lockReady ? `${formatNumber(project.manuscript.stats.words)} locked words verified` : 'Verification required')}
       </div>
+
+      ${renderKindleQualityPanel(quality, preview)}
 
       <div class="ebook-setup-grid-v107">
         <section class="ebook-setup-card ebook-cover-card">
@@ -1223,8 +1296,8 @@ function renderEbook() {
       <div class="kindle-studio-status ${state.kindlePreview.mode === 'adjust' ? 'adjust' : 'read'}"><strong>${state.kindlePreview.mode === 'adjust' ? 'Adjust Layout' : 'Read Mode'}</strong><span>${state.kindlePreview.mode === 'adjust' ? 'Click a paragraph or heading. Changes preview instantly and save as presentation metadata only.' : 'No selection boxes. Read the book like a customer, then switch to Adjust Layout only when something needs work.'}</span></div>
       <div class="preview-studio-grid-v110 ${state.kindlePreview.mode === 'adjust' ? 'is-adjusting' : 'is-reading'}">
         <aside class="ebook-toc preview-pane-column"><div class="ebook-toc-head"><strong>Reading Order</strong><span>${preview.sections.length} items</span></div><div class="ebook-toc-list">${sectionRows}</div></aside>
-        ${renderKindleSimulatorFrame(preview, state.kindlePreview)}
-        <div id="ebookInspectorSlot" class="preview-pane-column inspector-column">${renderEbookInspector(project, design)}</div>
+        ${state.kindleQaMatrix ? renderKindleQaMatrix(preview, state.kindlePreview) : renderKindleSimulatorFrame(preview, state.kindlePreview)}
+        <div id="ebookInspectorSlot" class="preview-pane-column inspector-column">${state.kindleQaMatrix ? `<aside class="ebook-format-inspector read-mode"><div class="inspector-head"><div><div class="eyebrow">QA Matrix</div><h3>Read-only stress test</h3></div><span class="mini-status good">3 views</span></div><div class="inspector-empty-icon">3×</div><strong>Compare before you adjust.</strong><p>Small phone, normal Kindle, and large tablet views render the same section at once. Return to Single Preview to make formatting changes.</p><button class="btn primary" id="exitKindleQaMatrix" type="button">Return to Single Preview</button></aside>` : renderEbookInspector(project, design)}</div>
       </div>
     </article>
 
@@ -1388,10 +1461,10 @@ function bindDynamicEvents() {
   });
 
   document.querySelector('#newImport')?.addEventListener('click', () => {
-    state.project = null; state.preview = null; state.ebookSectionIndex = 0; state.selectedEbookBlockId = ''; state.inspectorMessage = ''; state.ebookMessage = ''; state.ebookUndoStack = []; state.ebookRedoStack = []; state.ebookHistoryArmed = false; state.finalCheck = null; state.backupMessage = ''; state.activeView = 'import'; state.error = ''; renderShell();
+    state.project = null; state.preview = null; state.ebookSectionIndex = 0; state.selectedEbookBlockId = ''; state.inspectorMessage = ''; state.ebookMessage = ''; state.ebookUndoStack = []; state.ebookRedoStack = []; state.ebookHistoryArmed = false; state.kindleQaMatrix = false; state.kindleQualityCache = null; state.kindleQualityKey = ''; state.finalCheck = null; state.backupMessage = ''; state.activeView = 'import'; state.error = ''; renderShell();
   });
   document.querySelector('#libraryImport')?.addEventListener('click', () => {
-    state.project = null; state.preview = null; state.ebookSectionIndex = 0; state.selectedEbookBlockId = ''; state.inspectorMessage = ''; state.ebookMessage = ''; state.ebookUndoStack = []; state.ebookRedoStack = []; state.ebookHistoryArmed = false; state.finalCheck = null; state.backupMessage = ''; state.activeView = 'import'; state.error = ''; renderShell();
+    state.project = null; state.preview = null; state.ebookSectionIndex = 0; state.selectedEbookBlockId = ''; state.inspectorMessage = ''; state.ebookMessage = ''; state.ebookUndoStack = []; state.ebookRedoStack = []; state.ebookHistoryArmed = false; state.kindleQaMatrix = false; state.kindleQualityCache = null; state.kindleQualityKey = ''; state.finalCheck = null; state.backupMessage = ''; state.activeView = 'import'; state.error = ''; renderShell();
   });
   document.querySelector('#saveMetadata')?.addEventListener('click', saveProjectMetadata);
   document.querySelector('#verifyLock')?.addEventListener('click', verifyLock);
@@ -1428,6 +1501,9 @@ function bindDynamicEvents() {
   document.querySelector('#downloadEpubPreflight')?.addEventListener('click', downloadEpubPreflight);
   document.querySelector('#shareDevicePreview')?.addEventListener('click', shareDevicePreview);
   document.querySelector('#downloadDevicePreview')?.addEventListener('click', downloadDevicePreview);
+  document.querySelector('#toggleKindleQaMatrix')?.addEventListener('click', () => { state.kindleQaMatrix = !state.kindleQaMatrix; if (state.kindleQaMatrix) state.kindlePreview = normalizeKindlePreview({ ...state.kindlePreview, mode: 'read' }); updateMain(); });
+  document.querySelector('#exitKindleQaMatrix')?.addEventListener('click', () => { state.kindleQaMatrix = false; updateMain(); });
+  document.querySelectorAll('[data-quality-section]').forEach((button) => button.addEventListener('click', () => { const index = Number(button.dataset.qualitySection); if (Number.isFinite(index)) jumpToKindleQualityIssue(index, button.dataset.qualityBlock || ''); }));
   bindEbookInspectorControls();
   document.querySelector('#prevEbookSection')?.addEventListener('click', () => jumpEbookSection(state.ebookSectionIndex - 1));
   document.querySelector('#nextEbookSection')?.addEventListener('click', () => jumpEbookSection(state.ebookSectionIndex + 1));
@@ -1593,20 +1669,22 @@ async function runFinalCheck() {
     let ebookWarnings = 0;
     if (state.project.editions.ebook.enabled) {
       ebookReport = runEpubPreflight({ project: state.project, storyLockOk: true });
+      const ebookQuality = scanKindleQuality(state.project);
+      const ebookCombinedReady = ebookReport.ready && ebookQuality.ready;
       state.project.editions.ebook.lastPreflight = {
-        ready: ebookReport.ready,
+        ready: ebookCombinedReady,
         errors: ebookReport.summary.errors,
         warnings: ebookReport.summary.warnings,
         checkedAt: new Date().toISOString(),
       };
-      ebookErrors = ebookReport.summary.errors;
-      ebookWarnings = ebookReport.summary.warnings;
+      ebookErrors = ebookReport.summary.errors + ebookQuality.summary.errors;
+      ebookWarnings = ebookReport.summary.warnings + ebookQuality.summary.warnings;
     }
 
     const enabledCount = printTypes.length + (state.project.editions.ebook.enabled ? 1 : 0);
     const allReady = enabledCount > 0
       && Object.values(printReports).every((report) => report.ready)
-      && (!state.project.editions.ebook.enabled || ebookReport?.ready);
+      && (!state.project.editions.ebook.enabled || state.project.editions.ebook.lastPreflight?.ready);
     state.finalCheck = {
       allReady: Boolean(allReady),
       storyLockOk: true,
@@ -1615,7 +1693,7 @@ async function runFinalCheck() {
       ebookErrors,
       ebookWarnings,
       editionReports: Object.fromEntries(Object.entries(printReports).map(([type, report]) => [type, { ready: report.ready, pageCount: report.pageCount, errors: report.summary.errors, warnings: report.summary.warnings }])),
-      ebookReady: ebookReport?.ready ?? null,
+      ebookReady: state.project.editions.ebook.enabled ? Boolean(state.project.editions.ebook.lastPreflight?.ready) : null,
       checkedAt: new Date().toISOString(),
     };
     await saveProject(state.project);
@@ -2227,7 +2305,10 @@ async function ensureEpubReady() {
   state.project.storyLock.verifiedAt = new Date().toISOString();
   await saveProject(state.project);
   const report = runEpubPreflight({ project: state.project, storyLockOk: true });
-  return { ok: Boolean(report.ready), report };
+  const quality = scanKindleQuality(state.project);
+  state.kindleQualityCache = quality;
+  state.kindleQualityKey = `${state.project.updatedAt || ''}|${state.project.storyLock?.status || ''}|${countPresentationOverrides(state.project, 'ebook')}`;
+  return { ok: Boolean(report.ready && quality.ready), report, quality };
 }
 
 async function downloadEpub() {
@@ -2267,6 +2348,7 @@ async function downloadEpubPreflight() {
   setEbookEditionDesign(state.project, readEbookForm());
   const lock = await verifyProjectStoryLock(state.project);
   const report = runEpubPreflight({ project: state.project, storyLockOk: lock.ok });
+  const quality = scanKindleQuality(state.project);
   const payload = {
     yasreadyPublishVersion: VERSION,
     format: 'EPUB 3 reflowable',
@@ -2276,6 +2358,7 @@ async function downloadEpubPreflight() {
     manuscriptSha256: state.project.source.manuscriptHash,
     generatedAt: new Date().toISOString(),
     ...report,
+    kindleProQuality: quality,
   };
   downloadTextFile(`${safeExportBaseName()}-epub-preflight.json`, JSON.stringify(payload, null, 2));
 }

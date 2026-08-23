@@ -40,9 +40,20 @@ export function auditEpubPackage({ project } = {}) {
   const chaptersOk = chapterFiles.length === expectedChapters && chapterNavLinks === expectedChapters;
   const navInSpine = /<itemref idref="nav"\/>/.test(opf);
   const beginReading = /epub:type="bodymatter"/.test(nav);
+  const storyLockMeta = unescapeXml(opf.match(/<meta property="yasready:storyLockSha256">([\s\S]*?)<\/meta>/i)?.[1] || '');
+  const storyLockMetaOk = storyLockMeta === String(project?.source?.manuscriptHash || '');
+  const filePaths = new Set([...files.keys()].map((path) => path.replace(/^OEBPS\//, '')));
+  const navTargets = [...nav.matchAll(/href="([^"#]+(?:#[^"]*)?)"/g)].map((match) => match[1].split('#')[0]).filter(Boolean);
+  const navTargetsOk = navTargets.every((href) => href === 'nav.xhtml' || filePaths.has(href));
+  const manifestById = new Map([...opf.matchAll(/<item\s+id="([^"]+)"\s+href="([^"]+)"/g)].map((match) => [match[1], match[2]]));
+  const spineIds = [...opf.matchAll(/<itemref\s+idref="([^"]+)"\s*\/>/g)].map((match) => match[1]);
+  const spineTargetsOk = spineIds.every((id) => manifestById.has(id) && filePaths.has(manifestById.get(id)));
   const checks = [
     { id:'audit-title', ok:titleOk, message:titleOk ? 'EPUB title metadata matches the project title.' : 'EPUB title metadata does not match the project title.' },
     { id:'audit-author', ok:authorOk, message:authorOk ? 'EPUB creator metadata matches the project author.' : 'EPUB creator metadata does not match the project author.' },
+    { id:'audit-story-lock-meta', ok:storyLockMetaOk, message:storyLockMetaOk ? 'Finished EPUB embeds the current Story Lock SHA-256.' : 'Finished EPUB Story Lock metadata does not match the current manuscript hash.' },
+    { id:'audit-nav-targets', ok:navTargetsOk, message:navTargetsOk ? 'Every EPUB navigation link resolves to a packaged file.' : 'One or more EPUB navigation links point to missing package files.' },
+    { id:'audit-spine-targets', ok:spineTargetsOk, message:spineTargetsOk ? 'Every reading-order spine item resolves to a manifest file.' : 'One or more spine entries point to missing manifest/package files.' },
     { id:'audit-cover', ok:coverOk, message:coverOk ? 'Exactly one internal cover image is packaged and no duplicate cover XHTML exists.' : 'Cover packaging is inconsistent or duplicated.' },
     { id:'audit-chapters', ok:chaptersOk, message:chaptersOk ? `${expectedChapters} chapter XHTML files and ${expectedChapters} chapter navigation links match.` : `Chapter package count/navigation does not match ${expectedChapters} detected chapters.` },
     { id:'audit-nav-spine', ok:navInSpine, message:navInSpine ? 'Visible Contents is in the EPUB spine.' : 'Visible Contents is missing from the EPUB spine.' },
@@ -58,6 +69,9 @@ export function auditEpubPackage({ project } = {}) {
     chapterFiles: chapterFiles.length,
     chapterNavLinks,
     coverItems,
+    storyLockMetaOk,
+    navTargetsOk,
+    spineTargetsOk,
     previewLeak,
     files: files.size,
   };
