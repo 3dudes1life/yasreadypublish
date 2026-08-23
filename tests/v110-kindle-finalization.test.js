@@ -108,7 +108,7 @@ test('1.0.10 migration reaches current schema while preserving manuscript blocks
   const before = JSON.stringify(raw.manuscript.blocks);
   migrateProject(raw);
   assert.equal(raw.version,25);
-  assert.equal(raw.appVersion,'1.0.20');
+  assert.equal(raw.appVersion,'1.0.21');
   assert.equal(JSON.stringify(raw.manuscript.blocks),before);
 });
 

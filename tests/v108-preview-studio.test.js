@@ -63,7 +63,7 @@ test('1.0.8 migration initializes presentation override buckets without changing
   const p=project();
   const before=JSON.stringify(p.manuscript.blocks);
   assert.equal(p.version,25);
-  assert.equal(p.appVersion,'1.0.20');
+  assert.equal(p.appVersion,'1.0.21');
   assert.deepEqual(p.presentationOverrides,{ebook:{},paperback:{},hardcover:{}});
   assert.equal(JSON.stringify(p.manuscript.blocks),before);
 });

@@ -1,10 +1,10 @@
 # YasReady Publish
 
-**Current release: v1.0.20 — Tres Amigos Divider Hotfix + Bug Log**
+**Current release: v1.0.21 — Simple Metadata Restore**
 
 Private publishing studio for Story-Locked manuscripts.
 
-Version 1.0.20 is the **Tres Amigos Divider Hotfix + Bug Log** pass. It removes a stale legacy chapter-heading flourish from the private Tres Amigos house style without changing manuscript text, and adds a tiny browser-local Bug Log under Advanced Tools. Version 1.0.19 was the **Tres Amigos Kindle Match** pass. It keeps the 1.0.18 split chapter-number/title renderer and tunes the private Tres Amigos chapter-opening geometry against the real Book 1 Kindle reference: 8.0em top breathing room and 5.5em after the italic chapter title. Existing custom spacing is preserved.
+Version 1.0.21 is the **Simple Metadata Restore** pass. Required Kindle metadata is visible again in Step 1: title, author, language, and publisher/imprint. The Kindle “Finish Metadata” action jumps directly to those fields. Version 1.0.20 was the **Tres Amigos Divider Hotfix + Bug Log** pass. It removes a stale legacy chapter-heading flourish from the private Tres Amigos house style without changing manuscript text, and adds a tiny browser-local Bug Log under Advanced Tools. Version 1.0.19 was the **Tres Amigos Kindle Match** pass. It keeps the 1.0.18 split chapter-number/title renderer and tunes the private Tres Amigos chapter-opening geometry against the real Book 1 Kindle reference: 8.0em top breathing room and 5.5em after the italic chapter title. Existing custom spacing is preserved.
 
 Version 1.0.17 is the **simplification pass**. It keeps the full publishing engine from 1.0.12–1.0.16—Theme Studio, Kindle Intelligence, accessibility audits, production proofing, Release Gate, Story Lock, print controls, and EPUB validation—but stops putting all of that machinery in the author's face.
 

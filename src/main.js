@@ -61,7 +61,7 @@ import {
   kindleReleaseReport, markAllCurrentReviewsIntentional, markKindleVisualProofComplete,
 } from './lib/kindle-release-gate.js';
 
-const VERSION = '1.0.20';
+const VERSION = '1.0.21';
 // Legacy capability labels retained for regression discovery only (not default UI): Amazon KDP · Reflowable EPUB 3 · Kindle Preview Studio · Semantic Style Palette · Kindle Release Gate · v1.0.16
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
@@ -345,7 +345,18 @@ function renderProject() {
         <div><span class="simple-kicker">Step 1 · Book</span><h2>${escapeHtml(p.title)}</h2><p>${formatNumber(stats.words)} words · ${formatNumber(stats.chapters)} chapters · ${escapeHtml(p.source.fileName)}</p></div>
         <span class="simple-lock-chip">🔒 Story protected</span>
       </div>
+      ${state.error ? `<div class="notice error">${escapeHtml(state.error)}</div>` : ''}
       ${stats.chapters === 0 ? `<div class="notice error"><strong>We couldn't confidently detect chapter starts.</strong> Your text is untouched. Open Advanced Tools → Structure Repair to review the source structure.</div>` : ''}
+      <section class="simple-book-details" id="simpleBookDetails">
+        <div class="simple-section-head"><div><h3>Book details</h3><p>These details travel with your Kindle file and are required before export.</p></div><span class="simple-required-chip">Required for Kindle</span></div>
+        <div class="simple-metadata-grid">
+          <label><span>Book title</span><input id="projectTitle" value="${escapeHtml(p.title)}" aria-label="Book title"></label>
+          <label><span>Author</span><input id="projectAuthor" value="${escapeHtml(p.author || '')}" placeholder="Author name" aria-label="Author"></label>
+          <label><span>Language</span><input id="projectLanguage" value="${escapeHtml(currentEbookDesign().language || 'en')}" placeholder="en" aria-label="Language"></label>
+          <label><span>Publisher / imprint</span><input id="projectPublisher" value="${escapeHtml(currentEbookDesign().publisher || '')}" placeholder="Optional" aria-label="Publisher or imprint"></label>
+        </div>
+        <div class="simple-metadata-actions"><button class="btn primary" id="saveMetadata" type="button">Save book details</button><span>Title + author + language unlock the Kindle production check.</span></div>
+      </section>
       <section class="simple-edition-choice">
         <div class="simple-section-head"><div><h3>What are you publishing?</h3><p>Turn on the editions you need. You can change this later.</p></div><button class="btn secondary" data-go-view="editions" type="button">Change editions</button></div>
         <div class="simple-edition-grid">${enabled.map(([id,label,on]) => `<div class="simple-edition-card ${on ? 'on' : ''}"><span>${on ? '✓' : '○'}</span><div><strong>${label}</strong><small>${on ? 'Included' : 'Not selected'}</small></div></div>`).join('')}</div>
@@ -358,12 +369,7 @@ function renderProject() {
       <details class="simple-advanced-panel">
         <summary>Book details & recovery <span>⌄</span></summary>
         <div class="simple-advanced-panel-body">
-          <div class="project-meta-grid">
-            <label><span>Book title metadata</span><input id="projectTitle" value="${escapeHtml(p.title)}" aria-label="Book title"></label>
-            <label><span>Author metadata</span><input id="projectAuthor" value="${escapeHtml(p.author || '')}" placeholder="Author / imprint name" aria-label="Author"></label>
-            <div class="project-meta-actions"><button class="btn secondary" id="saveMetadata" type="button">Save metadata</button><button class="btn secondary" id="verifyLock" type="button">Verify Story Lock</button></div>
-          </div>
-          <div class="simple-advanced-actions"><button class="btn secondary" id="runFinalCheck" type="button">Run full technical check</button><button class="btn secondary" id="backupProject" type="button">Download Project Backup</button><button class="btn secondary" id="restoreBackupButton" type="button">Restore Project Backup</button><button class="btn ghost" id="newImport" type="button">Import another DOCX</button><input id="restoreBackupInput" type="file" accept=".json,.yasready-project.json,application/json" hidden></div>
+          <div class="simple-advanced-actions"><button class="btn secondary" id="verifyLock" type="button">Verify Story Lock</button><button class="btn secondary" id="runFinalCheck" type="button">Run full technical check</button><button class="btn secondary" id="backupProject" type="button">Download Project Backup</button><button class="btn secondary" id="restoreBackupButton" type="button">Restore Project Backup</button><button class="btn ghost" id="newImport" type="button">Import another DOCX</button><input id="restoreBackupInput" type="file" accept=".json,.yasready-project.json,application/json" hidden></div>
           ${state.backupMessage ? `<div class="notice success">${escapeHtml(state.backupMessage)}</div>` : ''}
           <div class="simple-hash-note">Story Lock fingerprint · ${escapeHtml(shortHash(p.source.manuscriptHash, 18))}</div>
         </div>
@@ -1692,6 +1698,12 @@ async function performKindleNextBestAction() {
   if (action.type === 'metadata') {
     state.activeView = 'import';
     updateMain();
+    requestAnimationFrame(() => {
+      const card = document.querySelector('#simpleBookDetails');
+      card?.scrollIntoView({ behavior:'smooth', block:'center' });
+      const missing = !state.project?.title?.trim() ? '#projectTitle' : !state.project?.author?.trim() ? '#projectAuthor' : '#projectLanguage';
+      document.querySelector(missing)?.focus();
+    });
     return;
   }
   if (action.type === 'cover') {
@@ -2668,13 +2680,31 @@ async function saveProjectMetadata() {
   if (!state.project) return;
   const title = document.querySelector('#projectTitle')?.value.trim();
   const author = document.querySelector('#projectAuthor')?.value.trim() || '';
-  if (!title) return;
+  const language = document.querySelector('#projectLanguage')?.value.trim() || currentEbookDesign().language || 'en';
+  const publisher = document.querySelector('#projectPublisher')?.value.trim() || '';
+  if (!title) {
+    state.error = 'Add the book title before saving.';
+    updateMain();
+    requestAnimationFrame(() => document.querySelector('#simpleBookDetails')?.scrollIntoView({ behavior:'smooth', block:'center' }));
+    return;
+  }
+  if (!author) {
+    state.error = 'Add the author name before saving.';
+    updateMain();
+    requestAnimationFrame(() => document.querySelector('#simpleBookDetails')?.scrollIntoView({ behavior:'smooth', block:'center' }));
+    return;
+  }
+  state.error = '';
   state.project.title = title;
   state.project.author = author;
+  if (state.project.editions?.ebook) {
+    setEbookEditionDesign(state.project, { ...currentEbookDesign(), language, publisher });
+  }
   state.project.updatedAt = new Date().toISOString();
   invalidateAllEditionProofs(state.project, { clearPageCounts: false });
   state.preview = null;
   state.finalCheck = null;
+  state.ebookMessage = 'Book details saved. Kindle metadata check updated.';
   await saveProject(state.project);
   state.projects = await listProjects();
   updateMain();

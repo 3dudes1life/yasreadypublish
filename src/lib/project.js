@@ -18,7 +18,7 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
   const project = {
     id: crypto.randomUUID(),
     version: 25,
-    appVersion: '1.0.20',
+    appVersion: '1.0.21',
     title: baseName,
     author: '',
     createdAt: now,
@@ -309,10 +309,10 @@ export function migrateProject(project) {
   }
 
 
-  // 1.0.20 removes the stale legacy chapter flourish from the private Tres Amigos
+  // 1.0.21 removes the stale legacy chapter flourish from the private Tres Amigos
   // house style. Other themes keep their ornaments. This changes presentation
   // metadata only; Story Lock manuscript text and hashes are untouched.
-  if (priorAppVersion !== '1.0.20') {
+  if (priorAppVersion !== '1.0.21') {
     ensureEditions(project);
     const ebook = project.editions?.ebook?.design;
     if (ebook) {
@@ -329,7 +329,7 @@ export function migrateProject(project) {
   // The renderer may visually separate "Chapter 10:" from its title, but the
   // stored source block, canonical text, ordering, and Story Lock hash remain exact.
   project.version = Math.max(oldVersion, 25);
-  project.appVersion = '1.0.20';
+  project.appVersion = '1.0.21';
   return project;
 }
 

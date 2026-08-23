@@ -829,3 +829,13 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 
 /* v1.0.20 Bug Log — intentionally compact and Advanced Tools only */
 .bug-log-panel{max-width:1100px}.bug-add-grid{display:grid;grid-template-columns:1.2fr 1.8fr auto;gap:12px;align-items:end;margin:18px 0 24px}.bug-section{margin-top:22px}.bug-section h3{margin:0 0 10px}.bug-row{display:flex;justify-content:space-between;gap:18px;padding:14px 0;border-top:1px solid var(--line,#e6e6e6)}.bug-row>div:first-child{display:grid;gap:4px}.bug-row strong{font-size:15px}.bug-row small,.bug-row p{margin:0;color:var(--muted,#6d6d73)}.bug-status{font-size:10px;font-weight:800;letter-spacing:.08em;color:#a35b00}.bug-row.fixed .bug-status{color:#17834a}.bug-actions{display:flex;gap:8px;align-items:center;flex-shrink:0}@media(max-width:820px){.bug-add-grid{grid-template-columns:1fr}.bug-row{display:grid}.bug-actions{justify-content:flex-start}}
+
+/* v1.0.21 — required book metadata belongs in Simple Mode, not behind Advanced Tools. */
+.simple-book-details{margin-bottom:14px;padding:18px;border:1px solid #ded8ff;border-radius:18px;background:linear-gradient(135deg,#faf9ff,#fff)}
+.simple-required-chip{display:inline-flex;align-items:center;white-space:nowrap;border-radius:999px;padding:7px 9px;background:#f1edff;color:#6350df;font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:.05em}
+.simple-metadata-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(110px,.45fr) minmax(0,1fr);gap:10px;margin-top:15px}
+.simple-metadata-grid label{display:grid;gap:6px}.simple-metadata-grid label span{color:#69696f;font-size:9px;font-weight:850;text-transform:uppercase;letter-spacing:.045em}
+.simple-metadata-grid input{min-width:0;min-height:44px;border:1px solid var(--line-strong);background:#fff;border-radius:12px;padding:10px 12px;font-weight:750}
+.simple-metadata-actions{display:flex;align-items:center;gap:12px;margin-top:12px}.simple-metadata-actions span{color:var(--muted);font-size:9px;line-height:1.4}
+@media(max-width:900px){.simple-metadata-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:620px){.simple-metadata-grid{grid-template-columns:1fr}.simple-metadata-actions{align-items:stretch;flex-direction:column}}

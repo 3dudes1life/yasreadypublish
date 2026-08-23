@@ -1,3 +1,10 @@
+# v1.0.21 — Simple Metadata Restore
+
+- Restores required Book Details to Step 1 of Simple Mode: title, author, language, and publisher/imprint.
+- `Finish Metadata` now jumps directly to the visible Book Details card and focuses the missing field.
+- Saving Book Details updates ebook metadata without touching Story-Locked manuscript text.
+- Keeps the four-step Simple Mode workflow and leaves expert controls under Advanced Tools.
+
 # v1.0.20 — Tres Amigos Divider Hotfix + Bug Log
 
 - Removes stale legacy `✦` chapter divider metadata from the private Tres Amigos theme only.
