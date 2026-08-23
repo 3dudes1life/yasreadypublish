@@ -18,7 +18,7 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
   const project = {
     id: crypto.randomUUID(),
     version: 25,
-    appVersion: '1.0.17',
+    appVersion: '1.0.18',
     title: baseName,
     author: '',
     createdAt: now,
@@ -62,8 +62,14 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 export function migrateProject(project) {
   if (!project) return project;
   const oldVersion = Number(project.version) || 1;
+  const priorAppVersion = String(project.appVersion || '');
   const preNormalizePrintCollapse = project.design?.print?.collapseBodyBlankParagraphs;
   const preNormalizeEbookCollapse = project.design?.ebook?.collapseBodyBlankParagraphs;
+  const pre118EbookDesign = project.editions?.ebook?.design || project.design?.ebook || {};
+  const pre118ThemeStudio = pre118EbookDesign?.themeStudio || {};
+  const pre118HadChapterLayout = Object.prototype.hasOwnProperty.call(pre118ThemeStudio, 'chapterHeadingLayout');
+  const pre118ChapterTop = Number(pre118EbookDesign?.chapterTopEm);
+  const pre118ChapterAfter = Number(pre118EbookDesign?.chapterAfterEm);
   ensurePrintDesign(project);
   ensureEbookDesign(project);
   ensureStructureOverrides(project);
@@ -260,8 +266,28 @@ export function migrateProject(project) {
 
   // 1.0.17 is a simplification-only UX release. It deliberately adds no new
   // project schema and does not alter manuscript or edition metadata.
+  // 1.0.18 adds source-safe chapter-heading interpretation in Theme Studio.
+  // Upgrade only untouched legacy Tres Amigos spacing. If an author had already
+  // customized chapter spacing, keep it exactly as-is. Manuscript blocks are never touched.
+  if (priorAppVersion !== '1.0.18' && !pre118HadChapterLayout) {
+    ensureEditions(project);
+    const ebook = project.editions?.ebook?.design;
+    if (ebook) {
+      const studio = ebook.themeStudio || {};
+      if (studio.themeId === 'tres-amigos-private') {
+        studio.chapterHeadingLayout = 'number-title';
+        if (!Number.isFinite(pre118ChapterTop) || Math.abs(pre118ChapterTop - 4.2) < 0.001) ebook.chapterTopEm = 6.2;
+        if (!Number.isFinite(pre118ChapterAfter) || Math.abs(pre118ChapterAfter - 2.4) < 0.001) ebook.chapterAfterEm = 5.4;
+        ebook.themeStudio = studio;
+        project.design.ebook = { ...ebook };
+        project.editions.ebook.lastPreflight = null;
+      }
+    }
+  }
+  // The renderer may visually separate "Chapter 10:" from its title, but the
+  // stored source block, canonical text, ordering, and Story Lock hash remain exact.
   project.version = Math.max(oldVersion, 25);
-  project.appVersion = '1.0.17';
+  project.appVersion = '1.0.18';
   return project;
 }
 

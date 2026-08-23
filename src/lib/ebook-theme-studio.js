@@ -1,6 +1,6 @@
 import { semanticRoleForBlock } from './semantic-styles.js';
 
-export const EBOOK_THEME_STUDIO_VERSION = 1;
+export const EBOOK_THEME_STUDIO_VERSION = 2;
 export const EBOOK_THEME_STUDIO_ROLES = Object.freeze([
   'chapter-heading',
   'first-paragraph',
@@ -39,49 +39,49 @@ export const EBOOK_THEME_FAMILIES = Object.freeze([
     chapterTitleAlignment:'center', chapterTopEm:4.4, chapterAfterEm:2.5,
     subheadAlignment:'left', subheadSizeEm:1.1, blockQuoteStyle:'italic', writtenNoteStyle:'plain',
     textMessageStyle:'transcript', sceneBreakTreatment:'flourish',
-  }, { firstParagraphTreatment:'drop-cap', chapterTitleSizeEm:1.62, chapterTitleWeight:700, chapterTitleLetterSpacingEm:0.01, chapterTitleTransform:'none', chapterDivider:'none', contentsStyle:'classic', contentsAlignment:'left' }),
+  }, { chapterHeadingLayout:'combined', chapterLabelSizeEm:1.35, chapterNameSizeEm:1.05, chapterNameGapEm:1.0, chapterNameItalic:false, firstParagraphTreatment:'drop-cap', chapterTitleSizeEm:1.62, chapterTitleWeight:700, chapterTitleLetterSpacingEm:0.01, chapterTitleTransform:'none', chapterDivider:'none', contentsStyle:'classic', contentsAlignment:'left' }),
   makeTheme('contemporary-romance', 'Contemporary Romance', 'Warm modern hierarchy with soft openings and clean text conversations.', {
     fontFamily:'serif', lineHeight:1.48, firstLineIndentEm:1.2, paragraphGapEm:0.62,
     chapterTitleAlignment:'center', chapterTopEm:4.0, chapterAfterEm:2.35,
     subheadAlignment:'center', subheadSizeEm:1.08, blockQuoteStyle:'plain', writtenNoteStyle:'inset',
     textMessageStyle:'bubbles', sceneBreakTreatment:'flourish',
-  }, { firstParagraphTreatment:'small-caps', chapterTitleSizeEm:1.65, chapterTitleWeight:700, chapterTitleLetterSpacingEm:0.055, chapterTitleTransform:'uppercase', chapterDivider:'flourish', contentsStyle:'clean', contentsAlignment:'left' }),
+  }, { chapterHeadingLayout:'number-title', chapterLabelSizeEm:1.38, chapterNameSizeEm:.98, chapterNameGapEm:1.1, chapterNameItalic:true, firstParagraphTreatment:'small-caps', chapterTitleSizeEm:1.65, chapterTitleWeight:700, chapterTitleLetterSpacingEm:0.055, chapterTitleTransform:'uppercase', chapterDivider:'flourish', contentsStyle:'clean', contentsAlignment:'left' }),
   makeTheme('minimal-modern', 'Minimal Modern', 'Low-decoration, high-clarity layout for fast contemporary reading.', {
     fontFamily:'sans', lineHeight:1.5, firstLineIndentEm:1.0, paragraphGapEm:0.62,
     chapterTitleAlignment:'left', chapterTopEm:3.5, chapterAfterEm:2.0,
     subheadAlignment:'left', subheadSizeEm:1.05, blockQuoteStyle:'plain', writtenNoteStyle:'plain',
     textMessageStyle:'compact', sceneBreakTreatment:'whitespace',
-  }, { firstParagraphTreatment:'flush', chapterTitleSizeEm:1.5, chapterTitleWeight:650, chapterTitleLetterSpacingEm:0, chapterTitleTransform:'none', chapterDivider:'none', contentsStyle:'clean', contentsAlignment:'left' }),
+  }, { chapterHeadingLayout:'combined', chapterLabelSizeEm:1.25, chapterNameSizeEm:1.0, chapterNameGapEm:.9, chapterNameItalic:false, firstParagraphTreatment:'flush', chapterTitleSizeEm:1.5, chapterTitleWeight:650, chapterTitleLetterSpacingEm:0, chapterTitleTransform:'none', chapterDivider:'none', contentsStyle:'clean', contentsAlignment:'left' }),
   makeTheme('dramatic', 'Dramatic', 'Large chapter moments, stronger contrast, and bold ornamental punctuation.', {
     fontFamily:'serif', lineHeight:1.45, firstLineIndentEm:1.3, paragraphGapEm:0.58,
     chapterTitleAlignment:'center', chapterTopEm:4.8, chapterAfterEm:2.6,
     subheadAlignment:'left', subheadSizeEm:1.16, blockQuoteStyle:'italic', writtenNoteStyle:'inset',
     textMessageStyle:'left-right', sceneBreakTreatment:'diamond',
-  }, { firstParagraphTreatment:'drop-cap', chapterTitleSizeEm:1.82, chapterTitleWeight:800, chapterTitleLetterSpacingEm:0.065, chapterTitleTransform:'uppercase', chapterDivider:'diamond', contentsStyle:'dramatic', contentsAlignment:'center' }),
+  }, { chapterHeadingLayout:'number-title', chapterLabelSizeEm:1.55, chapterNameSizeEm:1.02, chapterNameGapEm:1.15, chapterNameItalic:true, firstParagraphTreatment:'drop-cap', chapterTitleSizeEm:1.82, chapterTitleWeight:800, chapterTitleLetterSpacingEm:0.065, chapterTitleTransform:'uppercase', chapterDivider:'diamond', contentsStyle:'dramatic', contentsAlignment:'center' }),
   makeTheme('soft-romance', 'Soft Romance', 'Airy chapter openings, gentle flourishes, intimate reading rhythm.', {
     fontFamily:'serif', lineHeight:1.53, firstLineIndentEm:1.15, paragraphGapEm:0.68,
     chapterTitleAlignment:'center', chapterTopEm:4.3, chapterAfterEm:2.5,
     subheadAlignment:'center', subheadSizeEm:1.07, blockQuoteStyle:'italic', writtenNoteStyle:'inset',
     textMessageStyle:'bubbles', sceneBreakTreatment:'flourish',
-  }, { firstParagraphTreatment:'small-caps', chapterTitleSizeEm:1.58, chapterTitleWeight:600, chapterTitleLetterSpacingEm:0.025, chapterTitleTransform:'none', chapterDivider:'flourish', contentsStyle:'classic', contentsAlignment:'center' }),
+  }, { chapterHeadingLayout:'number-title', chapterLabelSizeEm:1.32, chapterNameSizeEm:.96, chapterNameGapEm:1.2, chapterNameItalic:true, firstParagraphTreatment:'small-caps', chapterTitleSizeEm:1.58, chapterTitleWeight:600, chapterTitleLetterSpacingEm:0.025, chapterTitleTransform:'none', chapterDivider:'flourish', contentsStyle:'classic', contentsAlignment:'center' }),
   makeTheme('dark-romance', 'Dark Romance', 'Sharper chapter hierarchy and restrained dark-romance drama without hurting readability.', {
     fontFamily:'serif', lineHeight:1.45, firstLineIndentEm:1.25, paragraphGapEm:0.58,
     chapterTitleAlignment:'center', chapterTopEm:4.4, chapterAfterEm:2.3,
     subheadAlignment:'center', subheadSizeEm:1.12, blockQuoteStyle:'italic', writtenNoteStyle:'inset',
     textMessageStyle:'left-right', sceneBreakTreatment:'diamond',
-  }, { firstParagraphTreatment:'drop-cap', chapterTitleSizeEm:1.75, chapterTitleWeight:800, chapterTitleLetterSpacingEm:0.05, chapterTitleTransform:'uppercase', chapterDivider:'diamond', contentsStyle:'dramatic', contentsAlignment:'center' }),
+  }, { chapterHeadingLayout:'number-title', chapterLabelSizeEm:1.48, chapterNameSizeEm:.98, chapterNameGapEm:1.1, chapterNameItalic:true, firstParagraphTreatment:'drop-cap', chapterTitleSizeEm:1.75, chapterTitleWeight:800, chapterTitleLetterSpacingEm:0.05, chapterTitleTransform:'uppercase', chapterDivider:'diamond', contentsStyle:'dramatic', contentsAlignment:'center' }),
   makeTheme('clean-commercial', 'Clean Commercial', 'Genre-fiction clarity with sturdy Kindle behavior and almost invisible ornament.', {
     fontFamily:'reader', lineHeight:1.42, firstLineIndentEm:1.2, paragraphGapEm:0.6,
     chapterTitleAlignment:'left', chapterTopEm:3.6, chapterAfterEm:2.0,
     subheadAlignment:'left', subheadSizeEm:1.08, blockQuoteStyle:'plain', writtenNoteStyle:'plain',
     textMessageStyle:'transcript', sceneBreakTreatment:'asterisks',
-  }, { firstParagraphTreatment:'flush', chapterTitleSizeEm:1.52, chapterTitleWeight:700, chapterTitleLetterSpacingEm:0.035, chapterTitleTransform:'uppercase', chapterDivider:'none', contentsStyle:'clean', contentsAlignment:'left' }),
+  }, { chapterHeadingLayout:'combined', chapterLabelSizeEm:1.3, chapterNameSizeEm:1.0, chapterNameGapEm:.9, chapterNameItalic:false, firstParagraphTreatment:'flush', chapterTitleSizeEm:1.52, chapterTitleWeight:700, chapterTitleLetterSpacingEm:0.035, chapterTitleTransform:'uppercase', chapterDivider:'none', contentsStyle:'clean', contentsAlignment:'left' }),
   makeTheme('tres-amigos-private', 'Tres Amigos — Private', 'The house style: warm contemporary fiction, restrained chapter drama, clean message hierarchy.', {
     fontFamily:'reader', lineHeight:1.42, firstLineIndentEm:1.35, paragraphGapEm:0.7,
-    chapterTitleAlignment:'center', chapterTopEm:4.2, chapterAfterEm:2.4,
+    chapterTitleAlignment:'center', chapterTopEm:6.2, chapterAfterEm:5.4,
     subheadAlignment:'left', subheadSizeEm:1.12, blockQuoteStyle:'plain', writtenNoteStyle:'inset',
     textMessageStyle:'transcript', sceneBreakTreatment:'flourish',
-  }, { firstParagraphTreatment:'flush', chapterTitleSizeEm:1.58, chapterTitleWeight:700, chapterTitleLetterSpacingEm:0.018, chapterTitleTransform:'none', chapterDivider:'none', contentsStyle:'clean', contentsAlignment:'left' }, true),
+  }, { chapterHeadingLayout:'number-title', chapterLabelSizeEm:1.42, chapterNameSizeEm:.94, chapterNameGapEm:1.3, chapterNameItalic:true, firstParagraphTreatment:'flush', chapterTitleSizeEm:1.58, chapterTitleWeight:700, chapterTitleLetterSpacingEm:0.018, chapterTitleTransform:'none', chapterDivider:'none', contentsStyle:'clean', contentsAlignment:'left' }, true),
 ]);
 
 export const DEFAULT_EBOOK_THEME_ID = 'tres-amigos-private';
@@ -101,6 +101,11 @@ export function defaultEbookThemeStudio() {
     version:EBOOK_THEME_STUDIO_VERSION,
     themeId:theme.id,
     themeName:theme.name,
+    chapterHeadingLayout:theme.studio.chapterHeadingLayout || 'number-title',
+    chapterLabelSizeEm:theme.studio.chapterLabelSizeEm || 1.42,
+    chapterNameSizeEm:theme.studio.chapterNameSizeEm || 0.94,
+    chapterNameGapEm:theme.studio.chapterNameGapEm || 1.3,
+    chapterNameItalic:theme.studio.chapterNameItalic !== false,
     firstParagraphTreatment:theme.studio.firstParagraphTreatment,
     chapterTitleSizeEm:theme.studio.chapterTitleSizeEm,
     chapterTitleWeight:theme.studio.chapterTitleWeight,
@@ -126,6 +131,12 @@ export function normalizeEbookThemeStudio(input = {}) {
   studio.version = EBOOK_THEME_STUDIO_VERSION;
   studio.themeId = family.id;
   studio.themeName = String(studio.themeName || family.name).trim().slice(0, 80) || family.name;
+  const familyStudio = family.studio || {};
+  studio.chapterHeadingLayout = ['number-title','combined','number-only','title-only'].includes(studio.chapterHeadingLayout) ? studio.chapterHeadingLayout : (familyStudio.chapterHeadingLayout || base.chapterHeadingLayout);
+  studio.chapterLabelSizeEm = clamp(studio.chapterLabelSizeEm, familyStudio.chapterLabelSizeEm || base.chapterLabelSizeEm, 0.8, 2.4);
+  studio.chapterNameSizeEm = clamp(studio.chapterNameSizeEm, familyStudio.chapterNameSizeEm || base.chapterNameSizeEm, 0.7, 2.2);
+  studio.chapterNameGapEm = clamp(studio.chapterNameGapEm, familyStudio.chapterNameGapEm || base.chapterNameGapEm, 0, 4);
+  studio.chapterNameItalic = studio.chapterNameItalic !== false;
   studio.firstParagraphTreatment = ['flush','small-caps','drop-cap'].includes(studio.firstParagraphTreatment) ? studio.firstParagraphTreatment : base.firstParagraphTreatment;
   studio.chapterTitleSizeEm = clamp(studio.chapterTitleSizeEm, base.chapterTitleSizeEm, 1.1, 2.8);
   studio.chapterTitleWeight = clamp(studio.chapterTitleWeight, base.chapterTitleWeight, 400, 900);
@@ -176,6 +187,15 @@ export function applyEbookThemeFamily(designInput = {}, themeId = DEFAULT_EBOOK_
     chapterOverrides:currentStudio.chapterOverrides,
   });
   return { ...designInput, ...theme.design, themeId:theme.id, name:theme.name, themeStudio:nextStudio };
+}
+
+export function splitChapterHeading(sourceText = '') {
+  const source = String(sourceText ?? '');
+  // Presentation-only interpretation. The two returned strings concatenate to
+  // the exact original source text, so Story Lock wording is never rewritten.
+  const match = source.match(/^(\s*(?:chapter|part|book)\s+(?:\d+|[ivxlcdm]+|[a-z]+)\s*(?::|[.\-–—])?\s+)(\S[\s\S]*?)$/i);
+  if (!match) return { source, label:'', title:source, split:false };
+  return { source, label:match[1], title:match[2], split:true };
 }
 
 export function inferSourceStyleRole(styleName = '', sampleText = '') {

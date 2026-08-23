@@ -53,14 +53,14 @@ import {
 import {
   EBOOK_THEME_FAMILIES, EBOOK_THEME_STUDIO_LABELS, EBOOK_THEME_STUDIO_ROLES,
   applyEbookThemeFamily, calculateBookDNA, ebookStyleUsage, inferSourceStyleRole,
-  normalizeEbookThemeStudio, setChapterHeadingOverride, sourceStyleRecords,
+  normalizeEbookThemeStudio, setChapterHeadingOverride, sourceStyleRecords, splitChapterHeading,
 } from './lib/ebook-theme-studio.js';
 import {
   applySafeFixBatch, auditKindleAccessibility, buildKindleReleaseGate, freezeKindleRelease,
   kindleReleaseReport, markAllCurrentReviewsIntentional, markKindleVisualProofComplete,
 } from './lib/kindle-release-gate.js';
 
-const VERSION = '1.0.17';
+const VERSION = '1.0.18';
 // Legacy capability labels retained for regression discovery only (not default UI): Amazon KDP · Reflowable EPUB 3 · Kindle Preview Studio · Semantic Style Palette · Kindle Release Gate · v1.0.16
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
@@ -1748,7 +1748,7 @@ function renderThemeStudioSample(design, studio) {
   const firstClass = `theme-sample-first ${studio.firstParagraphTreatment}`;
   const messageClass = `theme-sample-message ${design.textMessageStyle}`;
   return `<div class="theme-sample-book" id="themeStudioLiveSample" data-message-style="${escapeHtml(design.textMessageStyle)}">
-    <div class="theme-sample-chapter" id="themeSampleChapter" style="text-align:${escapeHtml(design.chapterTitleAlignment)};padding-top:${design.chapterTopEm}em;margin-bottom:${design.chapterAfterEm}em;font-size:${studio.chapterTitleSizeEm}em;font-weight:${studio.chapterTitleWeight};letter-spacing:${studio.chapterTitleLetterSpacingEm}em;text-transform:${escapeHtml(transform)}">Chapter 12: The Shape of Home</div>
+    <div class="theme-sample-chapter chapter-layout-${escapeHtml(studio.chapterHeadingLayout)}" id="themeSampleChapter" style="text-align:${escapeHtml(design.chapterTitleAlignment)};padding-top:${design.chapterTopEm}em;margin-bottom:${design.chapterAfterEm}em">${studio.chapterHeadingLayout === 'combined' ? `<span class="theme-sample-combined" style="font-size:${studio.chapterTitleSizeEm}em;font-weight:${studio.chapterTitleWeight};letter-spacing:${studio.chapterTitleLetterSpacingEm}em;text-transform:${escapeHtml(transform)}">Chapter 12: The Shape of Home</span>` : `${studio.chapterHeadingLayout !== 'title-only' ? `<span class="theme-sample-label" style="font-size:${studio.chapterLabelSizeEm}em">CHAPTER 12:</span>` : ''}${studio.chapterHeadingLayout !== 'number-only' ? `<span class="theme-sample-name" style="font-size:${studio.chapterNameSizeEm}em;margin-top:${studio.chapterNameGapEm}em;font-style:${studio.chapterNameItalic ? 'italic' : 'normal'}">The Shape of Home</span>` : ''}`}</div>
     ${divider}
     <p class="${firstClass}" id="themeSampleFirst" style="line-height:${design.lineHeight};margin-bottom:${design.paragraphGapEm}em">Morning found the house before any of them were ready for it, pouring warm light across the floorboards and the two beagles asleep in the safest patch of sun.</p>
     <p class="theme-sample-body" id="themeSampleBody" style="line-height:${design.lineHeight};text-indent:${design.firstLineIndentEm}em;margin-bottom:${design.paragraphGapEm}em">Juan crossed the kitchen barefoot, coffee in one hand, his phone in the other, and smiled before he even read the whole message.</p>
@@ -1822,10 +1822,14 @@ function renderThemeStudio(project, design, preview, intelligence) {
         <section class="theme-builder-controls">
           <div class="theme-section-head"><div><span class="eyebrow">Book Theme Builder</span><h4>Global visual language</h4></div><span class="mini-status good">Live sample</span></div>
           <div class="theme-control-group"><h5>Chapter Heading</h5><div class="semantic-style-controls">
+            ${themeStudioSelect('themeChapterLayout','Opening style',studio.chapterHeadingLayout,[{value:'number-title',label:'Number + title'},{value:'combined',label:'One combined heading'},{value:'number-only',label:'Chapter number only'},{value:'title-only',label:'Title only'}])}
             ${themeStudioSelect('themeChapterAlignment','Alignment',design.chapterTitleAlignment,['left','center','right'])}
             ${themeStudioNumber('themeChapterTop','Space before',design.chapterTopEm,{min:0,max:8,step:.1})}
             ${themeStudioNumber('themeChapterAfter','Space after',design.chapterAfterEm,{min:0,max:6,step:.1})}
             ${themeStudioNumber('themeChapterSize','Heading size',studio.chapterTitleSizeEm,{min:1.1,max:2.8,step:.05})}
+            ${themeStudioNumber('themeChapterLabelSize','Chapter number size',studio.chapterLabelSizeEm,{min:.8,max:2.4,step:.05})}
+            ${themeStudioNumber('themeChapterNameSize','Chapter title size',studio.chapterNameSizeEm,{min:.7,max:2.2,step:.05})}
+            ${themeStudioNumber('themeChapterNameGap','Number → title gap',studio.chapterNameGapEm,{min:0,max:4,step:.1})}
             ${themeStudioNumber('themeChapterWeight','Weight',studio.chapterTitleWeight,{min:400,max:900,step:50,unit:''})}
             ${themeStudioNumber('themeChapterTracking','Letter spacing',studio.chapterTitleLetterSpacingEm,{min:0,max:.16,step:.005})}
             ${themeStudioSelect('themeChapterTransform','Capitalization',studio.chapterTitleTransform,[{value:'none',label:'As written'},{value:'uppercase',label:'UPPERCASE'},{value:'lowercase',label:'lowercase'}])}
@@ -1916,6 +1920,13 @@ function renderSimpleEbookThemeChooser(design) {
     <div class="simple-section-head"><div><span class="simple-kicker">Book style</span><h3>Pick a look. You can fine-tune it later.</h3><p>These change presentation only—never the words.</p></div><span class="simple-lock-chip">${escapeHtml(studio.themeName)}</span></div>
     <div class="simple-theme-grid">${main.map(card).join('')}</div>
     <details class="simple-more-styles"><summary>More styles <span>⌄</span></summary><div class="simple-theme-grid">${more.map(card).join('')}</div></details>
+    <div class="simple-chapter-opening">
+      <div><span class="simple-kicker">Chapter opening</span><strong>How should chapter headings look?</strong><small>Tres Amigos uses the Kindle-style number + title treatment.</small></div>
+      <div class="simple-chapter-options">
+        <button type="button" class="simple-chapter-option ${studio.chapterHeadingLayout === 'number-title' ? 'selected' : ''}" data-chapter-heading-layout="number-title"><span>CHAPTER 10:</span><em>Ocean Air and Questions</em></button>
+        <button type="button" class="simple-chapter-option ${studio.chapterHeadingLayout === 'combined' ? 'selected' : ''}" data-chapter-heading-layout="combined"><b>Chapter 10: Ocean Air and Questions</b></button>
+      </div>
+    </div>
   </section>`;
 }
 
@@ -2230,6 +2241,7 @@ function bindDynamicEvents() {
   document.querySelector('#saveEbookSemanticStyles')?.addEventListener('click', saveEbookSettings);
   document.querySelector('#saveThemeStudio')?.addEventListener('click', saveThemeStudio);
   document.querySelectorAll('[data-apply-ebook-theme]').forEach((button) => button.addEventListener('click', () => applyEbookTheme(button.dataset.applyEbookTheme)));
+  document.querySelectorAll('[data-chapter-heading-layout]').forEach((button) => button.addEventListener('click', () => applySimpleChapterHeadingLayout(button.dataset.chapterHeadingLayout)));
   document.querySelector('#saveThemeWordMap')?.addEventListener('click', saveThemeWordMap);
   document.querySelector('#saveThemeChapterOverride')?.addEventListener('click', saveThemeChapterOverride);
   document.querySelector('#resetThemeChapterOverride')?.addEventListener('click', resetThemeChapterOverride);
@@ -2792,6 +2804,10 @@ function readThemeStudioForm() {
   const studio = normalizeEbookThemeStudio(base.themeStudio || {});
   const nextStudio = normalizeEbookThemeStudio({
     ...studio,
+    chapterHeadingLayout:value('themeChapterLayout') ?? studio.chapterHeadingLayout,
+    chapterLabelSizeEm:value('themeChapterLabelSize') ?? studio.chapterLabelSizeEm,
+    chapterNameSizeEm:value('themeChapterNameSize') ?? studio.chapterNameSizeEm,
+    chapterNameGapEm:value('themeChapterNameGap') ?? studio.chapterNameGapEm,
     firstParagraphTreatment:value('themeFirstParagraph') ?? studio.firstParagraphTreatment,
     chapterTitleSizeEm:value('themeChapterSize') ?? studio.chapterTitleSizeEm,
     chapterTitleWeight:value('themeChapterWeight') ?? studio.chapterTitleWeight,
@@ -2863,6 +2879,32 @@ async function applyEbookTheme(themeId) {
   state.project.updatedAt = new Date().toISOString();
   state.finalCheck = null;
   state.themeStudioMessage = `${next.themeStudio.themeName} applied across the Kindle edition. Existing artwork, Word mappings, and intentional chapter overrides were preserved.`;
+  await saveProject(state.project);
+  state.projects = await listProjects();
+  disarmEbookHistory();
+  updateMain();
+}
+
+async function applySimpleChapterHeadingLayout(layout) {
+  if (!state.project || !['number-title','combined'].includes(layout)) return;
+  armEbookHistory();
+  const before = JSON.stringify(state.project.manuscript?.blocks || []);
+  const design = currentEbookDesign();
+  const studio = normalizeEbookThemeStudio({ ...design.themeStudio, chapterHeadingLayout:layout });
+  // Kindle-style split gets the breathing room seen in the real reader. The
+  // combined style keeps a tighter conventional chapter opening.
+  const next = normalizeEbookDesign({
+    ...design,
+    chapterTopEm: layout === 'number-title' ? Math.max(Number(design.chapterTopEm) || 0, 6.2) : Math.min(Number(design.chapterTopEm) || 4.2, 4.2),
+    chapterAfterEm: layout === 'number-title' ? Math.max(Number(design.chapterAfterEm) || 0, 5.4) : Math.min(Number(design.chapterAfterEm) || 2.4, 2.4),
+    themeStudio:studio,
+  });
+  setEbookEditionDesign(state.project, next);
+  if (before !== JSON.stringify(state.project.manuscript?.blocks || [])) throw new Error('Story Lock blocked chapter styling because manuscript blocks changed.');
+  invalidateEditionProof(state.project, 'ebook', { clearPageCount:false });
+  state.project.updatedAt = new Date().toISOString();
+  state.finalCheck = null;
+  state.themeStudioMessage = layout === 'number-title' ? 'Kindle-style chapter opening applied.' : 'Combined chapter heading applied.';
   await saveProject(state.project);
   state.projects = await listProjects();
   disarmEbookHistory();

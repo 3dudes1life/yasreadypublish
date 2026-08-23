@@ -1,3 +1,10 @@
+# v1.0.18 — Kindle Chapter Styling
+
+- Adds source-safe split chapter headings so `Chapter 10: Ocean Air and Questions` can render as a separate `CHAPTER 10:` label and italic title without changing Story Lock source text.
+- Tres Amigos Kindle style now uses larger top breathing room, a separate chapter title, and a larger gap before the flush opening paragraph.
+- Adds a simple Chapter Opening choice in Style plus deeper Theme Studio controls.
+- Preview and exported EPUB share the same renderer.
+
 # YasReady Publish Changelog
 
 ## 1.0.17 — Simple Mode

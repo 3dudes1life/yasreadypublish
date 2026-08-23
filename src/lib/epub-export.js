@@ -2,7 +2,7 @@ import { buildEbookSections, ebookFontStack, ebookTocEntries, matterSectionHeadi
 import { blankRenderMode } from './spacing-policy.js';
 import { getBlockPresentationOverride } from './presentation-overrides.js';
 import { semanticRoleForBlock } from './semantic-styles.js';
-import { chapterHeadingOverride, normalizeEbookThemeStudio, themeArtworkAssets } from './ebook-theme-studio.js';
+import { chapterHeadingOverride, normalizeEbookThemeStudio, splitChapterHeading, themeArtworkAssets } from './ebook-theme-studio.js';
 
 function escapeXml(value = '') {
   return String(value)
@@ -221,7 +221,18 @@ function renderBlock(block, { blankMode = 'preserve', sectionType = 'chapter', d
     const artwork = artworkHtml(design, 'chapter', previewMode, 'chapter-heading-artwork');
     const before = artwork && studio.chapterArtworkPosition === 'above' ? artwork : '';
     const after = artwork && studio.chapterArtworkPosition === 'below' ? artwork : '';
-    return `<div class="chapter-heading-wrap">${before}<h1 id="${id}" class="chapter-title${inspectClass}"${attrs}${style ? ` style="${style}"` : ''}>${content}</h1>${chapterDividerHtml(design)}${after}</div>`;
+    const split = splitChapterHeading(block.text || '');
+    const layout = split.split ? studio.chapterHeadingLayout : 'combined';
+    let headingContent = content;
+    if (layout !== 'combined' && split.split) {
+      const label = escapeXml(split.label);
+      const title = escapeXml(split.title);
+      if (layout === 'number-only') headingContent = `<span class="chapter-label">${label}</span><span class="chapter-name chapter-source-hidden">${title}</span>`;
+      else if (layout === 'title-only') headingContent = `<span class="chapter-label chapter-source-hidden">${label}</span><span class="chapter-name">${title}</span>`;
+      else headingContent = `<span class="chapter-label">${label}</span><span class="chapter-name">${title}</span>`;
+    }
+    const layoutClass = ` chapter-layout-${layout}`;
+    return `<div class="chapter-heading-wrap${layoutClass}">${before}<h1 id="${id}" class="chapter-title${inspectClass}"${attrs}${style ? ` style="${style}"` : ''}>${headingContent}</h1>${chapterDividerHtml(design)}${after}</div>`;
   }
   if (sectionType !== 'chapter' && (block.kind === 'front-back-heading' || matterSectionHeading(block, sectionType))) {
     const baseStyle = matterParagraphStyle(block, design);
@@ -418,8 +429,12 @@ p { margin:0; }
 p.body { margin:0 0 ${design.paragraphGapEm}em 0; text-indent: ${design.firstLineIndentEm}em; }
 p.chapter-opening, p.paragraph-after-break { text-indent: 0; }
 ${firstParagraphCss}
-.chapter-heading-wrap { page-break-before:always; break-before:page; text-align:${design.chapterTitleAlignment}; }
-h1.chapter-title { margin:${design.chapterTopEm}em 0 ${design.chapterAfterEm}em; text-align:${design.chapterTitleAlignment}; font-size:${studio.chapterTitleSizeEm}em; line-height:1.2; font-weight:${studio.chapterTitleWeight}; letter-spacing:${studio.chapterTitleLetterSpacingEm}em; text-transform:${studio.chapterTitleTransform}; page-break-before:auto; break-before:auto; }
+.chapter-heading-wrap { page-break-before:always; break-before:page; text-align:${design.chapterTitleAlignment}; padding-top:${design.chapterTopEm}em; margin-bottom:${design.chapterAfterEm}em; }
+h1.chapter-title { margin:0; text-align:${design.chapterTitleAlignment}; font-size:1em; line-height:1.2; font-weight:400; page-break-before:auto; break-before:auto; }
+.chapter-layout-combined h1.chapter-title { font-size:${studio.chapterTitleSizeEm}em; font-weight:${studio.chapterTitleWeight}; letter-spacing:${studio.chapterTitleLetterSpacingEm}em; text-transform:${studio.chapterTitleTransform}; }
+.chapter-label { display:block; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif; font-size:${studio.chapterLabelSizeEm}em; line-height:1.1; font-weight:400; letter-spacing:.025em; text-transform:uppercase; }
+.chapter-name { display:block; margin-top:${studio.chapterNameGapEm}em; font-size:${studio.chapterNameSizeEm}em; line-height:1.25; font-weight:400; font-style:${studio.chapterNameItalic ? 'italic' : 'normal'}; text-transform:none; letter-spacing:0; }
+.chapter-source-hidden { display:none; }
 .chapter-divider { display:block; width:100%; margin:.35em auto 1.6em; text-align:center; letter-spacing:.12em; }
 .chapter-divider-line { width:28%; max-width:7em; height:.08em; background:currentColor; opacity:.55; }
 .chapter-heading-artwork { display:block; max-width:8em; max-height:4.5em; width:auto; height:auto; margin:1em auto; }

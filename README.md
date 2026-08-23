@@ -1,6 +1,6 @@
 # YasReady Publish
 
-**Current release: v1.0.17 — Simple Mode**
+**Current release: v1.0.18 — Simple Mode**
 
 Private publishing studio for Story-Locked manuscripts.
 
