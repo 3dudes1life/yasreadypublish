@@ -17,8 +17,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   const project = {
     id: crypto.randomUUID(),
-    version: 24,
-    appVersion: '1.0.15',
+    version: 25,
+    appVersion: '1.0.16',
     title: baseName,
     author: '',
     createdAt: now,
@@ -244,8 +244,22 @@ export function migrateProject(project) {
     if (project.editions?.ebook) project.editions.ebook.lastPreflight = null;
   }
 
-  project.version = Math.max(oldVersion, 24);
-  project.appVersion = '1.0.15';
+  // 1.0.16 adds the Kindle Release Gate: batch-safe presentation cleanup,
+  // accessibility audit, manual visual-proof stamps, release reports, and an
+  // invalidating Kindle freeze token. All state remains edition metadata; the
+  // Story-Locked manuscript and canonical source hashes are never rewritten.
+  if (oldVersion < 25) {
+    ensureEditions(project);
+    if (project.editions?.ebook) {
+      if (!project.editions.ebook.releaseGate || typeof project.editions.ebook.releaseGate !== 'object') {
+        project.editions.ebook.releaseGate = { version: 1, visualProof: null, freeze: null, safeFixRuns: [], reviewRuns: [] };
+      }
+      project.editions.ebook.lastPreflight = null;
+    }
+  }
+
+  project.version = Math.max(oldVersion, 25);
+  project.appVersion = '1.0.16';
   return project;
 }
 

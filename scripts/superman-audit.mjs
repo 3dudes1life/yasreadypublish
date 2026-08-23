@@ -3,7 +3,7 @@ import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const VERSION = '1.0.15';
+const VERSION = '1.0.16';
 
 function walk(dir) {
   const out = [];
@@ -33,7 +33,7 @@ const project = readFileSync(join(ROOT, 'src/lib/project.js'), 'utf8');
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 if (pkg.version !== VERSION) throw new Error(`package.json version is ${pkg.version}, expected ${VERSION}`);
 if (!main.includes(`const VERSION = '${VERSION}'`)) throw new Error('main.js version mismatch');
-if (!project.includes(`appVersion: '${VERSION}'`) || !project.includes(`project.appVersion = '${VERSION}'`) || !project.includes('version: 24')) throw new Error('project schema appVersion/schema mismatch');
+if (!project.includes(`appVersion: '${VERSION}'`) || !project.includes(`project.appVersion = '${VERSION}'`) || !project.includes('version: 25')) throw new Error('project schema appVersion/schema mismatch');
 
 const buttonIds = [...main.matchAll(/<button\b[^>]*\s+id="([^"]+)"/g)].map((m) => m[1]);
 const boundIds = new Set([...main.matchAll(/querySelector\(['"]#([^'"]+)['"]\)/g)].map((m) => m[1]));
@@ -85,7 +85,7 @@ const ebookModel = readFileSync(join(ROOT, 'src/lib/ebook-model.js'), 'utf8');
 if (!ebookModel.includes('matterSectionHeading') || !ebookModel.includes('detectEbookPlaceholders')) throw new Error('Kindle front-matter/placeholder hardening is missing.');
 const kindleQuality = readFileSync(join(ROOT, 'src/lib/kindle-quality.js'), 'utf8');
 for (const marker of ['scanKindleQuality','enhancedTypesettingAudit','kindleTorturePresets','semanticRoleCounts']) if (!kindleQuality.includes(marker)) throw new Error(`Missing Kindle Pro quality marker: ${marker}`);
-for (const marker of ['Kindle Pro consistency scan','3-View Torture Test','referencePt','toggleKindleQaMatrix','Semantic Style Palette','Content style','Kindle Intelligence','Compare Chapters','Kindle Production Console · v1.0.14','Theme Studio · v1.0.15','Style Gallery','Book DNA','Smart Word Style Mapper','Show me every place using this style','Polish Queue','NEXT BEST ACTION','Focus Preview']) if (!main.includes(marker)) throw new Error(`Missing Kindle Pro UI marker: ${marker}`);
+for (const marker of ['Kindle Pro consistency scan','3-View Torture Test','referencePt','toggleKindleQaMatrix','Semantic Style Palette','Content style','Kindle Intelligence','Compare Chapters','Kindle Production Console · v1.0.14','Theme Studio · v1.0.15','Style Gallery','Book DNA','Smart Word Style Mapper','Show me every place using this style','Polish Queue','NEXT BEST ACTION','Focus Preview','Kindle Release Gate · v1.0.16','Apply all safe fixes','Freeze Kindle release','FINAL NEXT ACTION']) if (!main.includes(marker)) throw new Error(`Missing Kindle Pro UI marker: ${marker}`);
 const themeStudio = readFileSync(join(ROOT, 'src/lib/ebook-theme-studio.js'), 'utf8');
 for (const marker of ['EBOOK_THEME_FAMILIES','normalizeEbookThemeStudio','applyEbookThemeFamily','calculateBookDNA','ebookStyleUsage','sourceStyleRecords']) if (!themeStudio.includes(marker)) throw new Error(`Missing Theme Studio marker: ${marker}`);
 for (const marker of ['theme-artwork','paragraph-after-break','scene-source-hidden',"design.textMessageStyle === 'left-right'"]) if (!epub.includes(marker)) throw new Error(`Missing Theme Studio EPUB marker: ${marker}`);
@@ -95,6 +95,8 @@ const production = readFileSync(join(ROOT, 'src/lib/kindle-production-flow.js'),
 for (const marker of ['buildKindleProductionFlow','buildKindlePolishQueue','markKindleReviewIntentional','kindleReviewDecision']) if (!production.includes(marker)) throw new Error(`Missing Kindle Production Flow marker: ${marker}`);
 const editions = readFileSync(join(ROOT, 'src/lib/editions.js'), 'utf8');
 if (!editions.includes('reviewDecisions:')) throw new Error('Edition normalization can drop review decisions.');
+const releaseGate = readFileSync(join(ROOT, 'src/lib/kindle-release-gate.js'), 'utf8');
+for (const marker of ['buildKindleReleaseGate','auditKindleAccessibility','applySafeFixBatch','markAllCurrentReviewsIntentional','markKindleVisualProofComplete','freezeKindleRelease','kindleReleaseReport']) if (!releaseGate.includes(marker)) throw new Error(`Missing Kindle Release Gate marker: ${marker}`);
 const semanticStyles = readFileSync(join(ROOT, 'src/lib/semantic-styles.js'), 'utf8');
 for (const marker of ['EBOOK_SEMANTIC_ROLES','semanticRoleForBlock','semanticRoleCounts']) if (!semanticStyles.includes(marker)) throw new Error(`Missing semantic style marker: ${marker}`);
 const docxParser = readFileSync(join(ROOT, 'src/lib/docx-parser.js'), 'utf8');
@@ -106,4 +108,4 @@ console.log(`- ${srcJs.length} application JS files syntax/import checked`);
 console.log(`- ${new Set(buttonIds).size} literal button IDs audited`);
 console.log(`- ${dynamic.length} dynamic control families audited`);
 console.log('- no fetch/XHR/WebSocket/sendBeacon manuscript egress paths found');
-console.log('- proof ownership, edition invalidation, semantic Kindle styles, Theme Studio families/mapping/artwork, exact-token review decisions, keyboard/search/focus workflow, safe note/media import, finished EPUB audit, calibrated preview, chapter anomaly mapping, safe presentation fixes, Final Check intelligence, and whole-book QA guards present');
+console.log('- proof ownership, edition invalidation, semantic Kindle styles, Theme Studio families/mapping/artwork, exact-token review decisions, keyboard/search/focus workflow, safe note/media import, finished EPUB audit, calibrated preview, chapter anomaly mapping, safe presentation fixes, accessibility audit, batch review/fix workflow, invalidating visual-proof/release freeze tokens, Final Check intelligence, and whole-book QA guards present');

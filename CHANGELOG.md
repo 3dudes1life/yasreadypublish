@@ -1,3 +1,16 @@
+# YasReady Publish Changelog
+
+## 1.0.16 — Kindle Release Gate
+
+- Added a final Kindle Release Gate that combines technical preflight, whole-book quality/intelligence, accessibility, visual proof, and release freeze state.
+- Added Batch Safe Fix for presentation-only Kindle Intelligence fixes with a Story Lock manuscript mutation guard.
+- Added batch intentional-review handling using the existing exact-finding token model so changed findings automatically return.
+- Added a finished-EPUB accessibility audit covering language, semantic TOC/landmarks, chapter heading hierarchy, image alt/presentation semantics, note navigation, and OPF accessibility metadata.
+- Added a manual visual-proof stamp tied to the exact manuscript/design/cover/override/review release token. Any later change invalidates the stamp.
+- Added Kindle Freeze: a release token can only be frozen after every production gate passes, and any later source/design/cover/review change invalidates the freeze automatically.
+- Added downloadable Kindle release report JSON for an auditable final production snapshot.
+- Story Lock remains authoritative; 1.0.16 adds no manuscript rewriting path.
+
 # Changelog
 
 ## v1.0.15 — Theme Studio

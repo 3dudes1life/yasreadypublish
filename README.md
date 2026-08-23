@@ -1,4 +1,6 @@
-# YasReady Publish v1.0.15
+# YasReady Publish
+
+**Current release: v1.0.16 — Kindle Release Gate** v1.0.15
 
 Private publishing studio for Story-Locked manuscripts.
 
@@ -113,3 +115,8 @@ npm run dev
 Then open `http://localhost:4173`.
 
 `npm run verify` runs automated tests, static verification, and the Superman audit.
+
+
+## v1.0.16 final Kindle production pass
+
+The Kindle workspace now includes batch-safe presentation cleanup, exact-token batch review, finished-EPUB accessibility checks, a current visual-proof stamp, an invalidating Kindle Freeze token, and a downloadable release report. These features sit on top of the v1.0.15 Theme Studio and preserve Story Lock.

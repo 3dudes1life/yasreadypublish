@@ -55,8 +55,12 @@ import {
   applyEbookThemeFamily, calculateBookDNA, ebookStyleUsage, inferSourceStyleRole,
   normalizeEbookThemeStudio, setChapterHeadingOverride, sourceStyleRecords,
 } from './lib/ebook-theme-studio.js';
+import {
+  applySafeFixBatch, auditKindleAccessibility, buildKindleReleaseGate, freezeKindleRelease,
+  kindleReleaseReport, markAllCurrentReviewsIntentional, markKindleVisualProofComplete,
+} from './lib/kindle-release-gate.js';
 
-const VERSION = '1.0.15';
+const VERSION = '1.0.16';
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
 
@@ -104,6 +108,7 @@ const state = {
   themeUsageRole: 'text-message',
   themeSelectedChapterBlockId: '',
   themeStudioMessage: '',
+  releaseGateMessage: '',
 };
 
 const app = document.querySelector('#app');
@@ -1487,6 +1492,121 @@ function renderKindleProductionConsole(flow, preview, kindleReady) {
   </section>`;
 }
 
+
+function currentKindleReleaseGate(project = state.project) {
+  if (!project) return null;
+  const report = runEpubPreflight({ project, storyLockOk: project.storyLock?.status === 'verified' });
+  const quality = currentKindleQuality(project);
+  const intelligence = currentKindleIntelligence(project);
+  const flow = buildKindleProductionFlow({ project, report, quality, intelligence });
+  return buildKindleReleaseGate({ project, report, quality, intelligence, flow });
+}
+
+function renderKindleReleaseGate(gate, flow) {
+  const a11y = gate.accessibility;
+  const proof = gate.visualProof;
+  const status = gate.frozen ? 'frozen' : gate.freezeReady ? 'ready' : gate.blockersClear ? 'review' : 'blocked';
+  const checks = [
+    ['Technical package', gate.technicalReady],
+    ['Polish queue', gate.reviewsClear && gate.blockersClear],
+    ['Accessibility', a11y.ready],
+    ['Visual proof', proof.current],
+    ['Release freeze', gate.frozen],
+  ].map(([label, ok]) => `<div class="release-gate-step ${ok ? 'done' : ''}"><span>${ok ? '✓' : '•'}</span><strong>${escapeHtml(label)}</strong></div>`).join('');
+  const a11yRows = a11y.checks.map((item) => `<div class="release-a11y-row ${item.status}"><span>${item.status === 'pass' ? '✓' : item.status === 'warning' ? '!' : '×'}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.message)}</small></div></div>`).join('');
+  return `<section class="kindle-release-gate ${status}" id="kindleReleaseGate">
+    <div class="kindle-release-head">
+      <div><div class="eyebrow">Kindle Release Gate · v1.0.16</div><h3>${gate.frozen ? 'Kindle release is frozen' : gate.freezeReady ? 'Every release gate is complete' : 'Finish the last production proof'}</h3><p>Batch review, safe presentation cleanup, accessibility, final visual proof, and an invalidating release token in one place.</p></div>
+      <div class="kindle-release-score"><strong>${a11y.score}</strong><span>accessibility</span></div>
+    </div>
+    ${state.releaseGateMessage ? `<div class="notice info">${escapeHtml(state.releaseGateMessage)}</div>` : ''}
+    <div class="release-gate-steps">${checks}</div>
+    <div class="release-gate-summary">
+      <div><strong>${gate.safeFixes.length}</strong><span>safe fixes available</span></div>
+      <div><strong>${flow.reviews.length}</strong><span>active review</span></div>
+      <div><strong>${a11y.warnings}</strong><span>a11y review</span></div>
+      <div><strong>${proof.current ? 'Current' : 'Needed'}</strong><span>visual proof</span></div>
+    </div>
+    <div class="release-gate-actions">
+      <button class="btn secondary" id="applyKindleSafeFixBatch" type="button" ${gate.safeFixes.length ? '' : 'disabled'}>Apply all safe fixes</button>
+      <button class="btn secondary" id="markKindleBatchIntentional" type="button" ${flow.reviews.length ? '' : 'disabled'}>Mark current reviews intentional</button>
+      <button class="btn secondary" id="markKindleVisualProof" type="button">${proof.current ? 'Visual proof complete ✓' : 'Mark visual proof complete'}</button>
+      <button class="btn ${gate.freezeReady && !gate.frozen ? 'primary' : 'secondary'}" id="freezeKindleRelease" type="button" ${gate.freezeReady && !gate.frozen ? '' : 'disabled'}>${gate.frozen ? 'Kindle frozen ✓' : 'Freeze Kindle release'}</button>
+      <button class="btn secondary" id="downloadKindleReleaseReport" type="button">Download release report</button>
+    </div>
+    <div class="release-next-action"><small>FINAL NEXT ACTION</small><strong>${escapeHtml(gate.nextAction.label)}</strong><span>${escapeHtml(gate.nextAction.detail)}</span><code>${escapeHtml(gate.releaseToken)}</code></div>
+    <details class="release-accessibility"><summary><span><strong>Accessibility & EPUB semantics</strong><small>${a11y.passes} pass · ${a11y.warnings} review · ${a11y.errors} error</small></span><b>⌄</b></summary><div>${a11yRows}</div></details>
+  </section>`;
+}
+
+async function applyKindleSafeFixesBatch() {
+  if (!state.project) return;
+  armEbookHistory();
+  const intelligence = scanKindleIntelligence(state.project);
+  const result = applySafeFixBatch(state.project, intelligence);
+  disarmEbookHistory();
+  invalidateEditionProof(state.project, 'ebook', { clearPageCount: false });
+  state.project.updatedAt = new Date().toISOString();
+  state.finalCheck = null;
+  state.kindleQualityCache = null;
+  state.kindleQualityKey = '';
+  state.kindleIntelligenceCache = null;
+  state.kindleIntelligenceKey = '';
+  state.releaseGateMessage = result.applied.length
+    ? `${result.applied.length} safe presentation fix${result.applied.length === 1 ? '' : 'es'} applied in one batch. Story Lock manuscript text was unchanged.`
+    : 'No safe presentation fixes were available.';
+  await saveProject(state.project);
+  state.projects = await listProjects();
+  updateMain();
+}
+
+async function markKindleReviewsIntentionalBatch() {
+  if (!state.project) return;
+  const quality = scanKindleQuality(state.project);
+  const intelligence = scanKindleIntelligence(state.project);
+  const records = markAllCurrentReviewsIntentional(state.project, quality, intelligence);
+  state.project.updatedAt = new Date().toISOString();
+  state.finalCheck = null;
+  state.releaseGateMessage = records.length
+    ? `${records.length} current exact review finding${records.length === 1 ? '' : 's'} marked intentional. Any changed fingerprint will reappear automatically.`
+    : 'There were no current review findings to mark intentional.';
+  await saveProject(state.project);
+  state.projects = await listProjects();
+  updateMain();
+}
+
+async function completeKindleVisualProof() {
+  if (!state.project) return;
+  markKindleVisualProofComplete(state.project);
+  state.project.updatedAt = new Date().toISOString();
+  state.releaseGateMessage = 'Final visual proof stamped for this exact source, design, cover, and review state. Any later change invalidates the stamp.';
+  await saveProject(state.project);
+  state.projects = await listProjects();
+  updateMain();
+}
+
+async function freezeCurrentKindleRelease() {
+  if (!state.project) return;
+  const gate = currentKindleReleaseGate();
+  freezeKindleRelease(state.project, gate);
+  state.project.updatedAt = new Date().toISOString();
+  state.releaseGateMessage = `Kindle release frozen at ${gate.releaseToken}. Any source, design, cover, local override, or review change automatically invalidates this freeze.`;
+  await saveProject(state.project);
+  state.projects = await listProjects();
+  updateMain();
+}
+
+function downloadKindleReleaseReport() {
+  if (!state.project) return;
+  const report = runEpubPreflight({ project: state.project, storyLockOk: state.project.storyLock?.status === 'verified' });
+  const quality = currentKindleQuality(state.project);
+  const intelligence = currentKindleIntelligence(state.project);
+  const flow = buildKindleProductionFlow({ project: state.project, report, quality, intelligence });
+  const gate = buildKindleReleaseGate({ project: state.project, report, quality, intelligence, flow });
+  const payload = kindleReleaseReport({ project: state.project, report, quality, intelligence, flow, gate });
+  downloadTextFile(`${safeExportBaseName()}-kindle-release-report.json`, JSON.stringify(payload, null, 2));
+}
+
 async function toggleKindleReviewDecision(source, issueId) {
   if (!state.project || !issueId) return;
   const quality = scanKindleQuality(state.project);
@@ -1751,6 +1871,7 @@ function renderEbook() {
   const intelligence = currentKindleIntelligence(project);
   const kindleReady = report.ready && quality.ready && intelligence.ready;
   const flow = buildKindleProductionFlow({ project, report, quality, intelligence });
+  const releaseGate = buildKindleReleaseGate({ project, report, quality, intelligence, flow });
   const preview = buildEbookPreviewHtml({ project, sectionIndex: state.ebookSectionIndex, inspectMode: state.kindlePreview.mode === 'adjust' });
   state.ebookSectionIndex = preview.index;
   const cover = getEbookCover(project);
@@ -1799,6 +1920,8 @@ function renderEbook() {
       ${report.placeholders?.length ? `<div class="notice error ebook-message"><strong>Source cleanup needed before final EPUB:</strong> ${escapeHtml(report.placeholders.map((item) => item.text).join(', '))}. YasReady will preview these words but will not silently remove them from the Story-Locked manuscript.</div>` : ''}
 
       ${renderKindleProductionConsole(flow, preview, kindleReady)}
+
+      ${renderKindleReleaseGate(releaseGate, flow)}
 
       ${renderThemeStudio(project, design, preview, intelligence)}
 
@@ -2118,6 +2241,11 @@ function bindDynamicEvents() {
   document.querySelector('#themeStudio')?.addEventListener('change', (event) => { if (!event.target.matches('#themeUsageRole,#themeChapterOverrideSelect,[data-theme-word-style]')) refreshThemeStudioLiveSample(); });
   document.querySelector('#jumpEbookPreviewStudio')?.addEventListener('click', () => document.querySelector('#ebookPreviewStudio')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   document.querySelector('#kindleNextBestAction')?.addEventListener('click', performKindleNextBestAction);
+  document.querySelector('#applyKindleSafeFixBatch')?.addEventListener('click', applyKindleSafeFixesBatch);
+  document.querySelector('#markKindleBatchIntentional')?.addEventListener('click', markKindleReviewsIntentionalBatch);
+  document.querySelector('#markKindleVisualProof')?.addEventListener('click', completeKindleVisualProof);
+  document.querySelector('#freezeKindleRelease')?.addEventListener('click', freezeCurrentKindleRelease);
+  document.querySelector('#downloadKindleReleaseReport')?.addEventListener('click', downloadKindleReleaseReport);
   document.querySelector('#toggleKindleFocusPreview')?.addEventListener('click', toggleKindleFocusPreview);
   document.querySelector('#focusEbookOnly')?.addEventListener('click', focusEbookOnly);
   document.querySelector('#chooseEbookCover')?.addEventListener('click', () => document.querySelector('#ebookCoverInput')?.click());
