@@ -39,6 +39,7 @@ export const DEFAULT_KINDLE_PREVIEW = Object.freeze({
   fontScale: 'm',
   appearance: 'white',
   mode: 'read',
+  simulateEink: false,
 });
 
 export function normalizeKindlePreview(input = {}) {
@@ -49,6 +50,7 @@ export function normalizeKindlePreview(input = {}) {
   if (!KINDLE_FONT_SCALES[next.fontScale]) next.fontScale = DEFAULT_KINDLE_PREVIEW.fontScale;
   if (!KINDLE_APPEARANCES[next.appearance]) next.appearance = DEFAULT_KINDLE_PREVIEW.appearance;
   if (!['read', 'adjust'].includes(next.mode)) next.mode = DEFAULT_KINDLE_PREVIEW.mode;
+  next.simulateEink = Boolean(next.simulateEink);
   return next;
 }
 
@@ -77,6 +79,6 @@ export function kindlePreviewTokens(input = {}) {
     font,
     fontFace,
     viewport,
-    grayscale: prefs.device === 'ereader',
+    grayscale: prefs.device === 'ereader' && prefs.simulateEink,
   };
 }

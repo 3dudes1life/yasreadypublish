@@ -32,8 +32,8 @@ test('1.0.7 migration makes Kindle reader defaults authoritative without changin
   const p = sample();
   const before = JSON.stringify(p.manuscript.blocks);
   migrateProject(p);
-  assert.equal(p.version,19);
-  assert.equal(p.appVersion,'1.0.9');
+  assert.equal(p.version,20);
+  assert.equal(p.appVersion,'1.0.10');
   assert.equal(p.editions.ebook.design.fontFamily,'reader');
   assert.equal(p.editions.ebook.design.bodyAlignment,'reader');
   assert.equal(p.editions.ebook.design.visibleToc,true);

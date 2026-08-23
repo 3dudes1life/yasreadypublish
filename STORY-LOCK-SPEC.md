@@ -148,3 +148,8 @@ Preview Studio may attach **presentation metadata** to a source block, scoped in
 The preview may expose a read-only snippet so an author knows which block is selected, but it must not expose `contenteditable`, a story textarea, or any control that writes to `block.text` or run text. Resetting an override removes presentation metadata only. Promoting a safe visual setting to a theme/default changes edition design metadata only.
 
 The self-contained device proof is a rendered derivative and is read-only. Version 1.0.8 does not upload the manuscript or device proof to a remote preview service; Share Sheet/AirDrop or local download is used instead, preserving the static build's zero-network-manuscript-egress requirement.
+
+
+## v1.0.10 Kindle presentation rule
+
+Front-matter reflow and Preview Studio edits remain presentation operations. YasReady may group visual line-wraps, hide the visual height of print-only blank source blocks, or apply edition-scoped spacing/alignment metadata, but every source block and every source character remains in the canonical Story Lock sequence. Likely placeholders are flagged rather than removed. Preview Studio provides no prose-editing field.

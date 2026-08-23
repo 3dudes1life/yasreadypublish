@@ -37,8 +37,8 @@ test('1.0.6 migration enables visible chapters-only TOC and clean front matter w
   const p = sample();
   const before = JSON.stringify(p.manuscript.blocks);
   migrateProject(p);
-  assert.equal(p.version,19);
-  assert.equal(p.appVersion,'1.0.9');
+  assert.equal(p.version,20);
+  assert.equal(p.appVersion,'1.0.10');
   assert.equal(p.editions.ebook.design.visibleToc,true);
   assert.equal(p.editions.ebook.design.tocScope,'chapters');
   assert.equal(p.editions.ebook.design.frontMatterMode,'clean');
@@ -103,8 +103,8 @@ test('clean front matter collapses print-only blank paragraphs while preserving 
   const preview = buildEbookPreviewHtml({project:p,sectionIndex:frontIndex});
   assert.match(preview.html,/Copyright © 2026 3Dudes1Life Creative/);
   assert.match(preview.html,/All rights reserved\./);
-  assert.match(preview.html,/blank collapsed/);
-  assert.doesNotMatch(preview.html,/blank preserved/);
+  assert.match(preview.html,/matter-source-blank/);
+  assert.match(preview.html,/aria-hidden="true"/);
 });
 
 test('chapter rhythm remains publisher-controlled after front-matter cleanup', () => {

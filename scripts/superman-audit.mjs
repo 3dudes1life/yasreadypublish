@@ -3,7 +3,7 @@ import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const VERSION = '1.0.9';
+const VERSION = '1.0.10';
 
 function walk(dir) {
   const out = [];
@@ -41,7 +41,7 @@ const buttonIds = [...main.matchAll(/<button\b[^>]*\bid="([^"]+)"/g)].map((m) =>
 const boundIds = new Set([...main.matchAll(/querySelector\(['"]#([^'"]+)['"]\)/g)].map((m) => m[1]));
 const unbound = [...new Set(buttonIds)].filter((id) => !boundIds.has(id));
 if (unbound.length) throw new Error(`Unbound button IDs: ${unbound.join(', ')}`);
-const dynamic = ['data-go-view','data-open-project','data-delete-project','data-nav-page','data-ebook-section','data-repair-block','data-apply-theme','data-export-theme','data-delete-theme','data-edition-enabled','data-work-edition','data-kindle-mode'];
+const dynamic = ['data-go-view','data-open-project','data-delete-project','data-nav-page','data-ebook-section','data-repair-block','data-apply-theme','data-export-theme','data-delete-theme','data-edition-enabled','data-work-edition','data-kindle-mode','data-kindle-pref-key'];
 for (const attr of dynamic) {
   if (main.includes(attr) && !main.includes(`querySelectorAll('[${attr}]')`) && !main.includes(`querySelectorAll("[${attr}]")`)) {
     throw new Error(`Dynamic control family lacks a binding: ${attr}`);
@@ -67,9 +67,12 @@ for (const marker of [
   'ebookCoverInput',
   'shareDevicePreview',
   'applyEbookBlockOverride',
-  'kindlePreviewDevice',
   'updateKindlePreviewPreference',
+  'bindKindlePreferenceButtons',
   'refreshEbookInspectorOnly',
+  'undoEbookFormatting',
+  'redoEbookFormatting',
+  'commitLiveEbookOverride',
 ]) {
   if (!main.includes(marker)) throw new Error(`Missing release safety marker: ${marker}`);
 }
@@ -88,4 +91,10 @@ const epub = readFileSync(join(ROOT, 'src/lib/epub-export.js'), 'utf8');
 for (const marker of ['epub:type=\"landmarks\"','properties=\"cover-image\"','itemref idref=\"nav\"']) {
   if (!epub.includes(marker)) throw new Error(`Missing Kindle EPUB marker: ${marker}`);
 }
-console.log('- proof ownership, even-page control, edition invalidation, KDP geometry, and Kindle EPUB navigation/cover guards present');
+const epubAudit = readFileSync(join(ROOT, 'src/lib/epub-audit.js'), 'utf8');
+for (const marker of ['auditEpubPackage','audit-preview-leak','audit-cover','detectEbookPlaceholders']) {
+  if (!epubAudit.includes(marker)) throw new Error(`Missing finished EPUB audit marker: ${marker}`);
+}
+const ebookModel = readFileSync(join(ROOT, 'src/lib/ebook-model.js'), 'utf8');
+if (!ebookModel.includes('matterSectionHeading') || !ebookModel.includes('detectEbookPlaceholders')) throw new Error('Kindle front-matter/placeholder hardening is missing.');
+console.log('- proof ownership, edition invalidation, Kindle front matter, finished EPUB audit, and live Preview Studio guards present');

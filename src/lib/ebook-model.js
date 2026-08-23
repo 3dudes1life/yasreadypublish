@@ -67,20 +67,50 @@ function sectionSlug(type, index) {
   return `back-${String(index).padStart(3, '0')}`;
 }
 
-function headingLike(block) {
-  return Boolean(block && block.kind !== 'blank' && (
-    block.kind === 'front-back-heading'
-    || block.kind === 'heading'
-    || /heading|title/i.test(block.style?.name || '')
-  ));
+const FRONT_SECTION_RE = /^(?:copyright(?:\s*(?:©|\(c\))\s*\d{0,4}|\s+\d{4}|\s+(?:page|notice)\b|$)|dedication(?:\s+page)?\b|acknowledg(?:e)?ments\b|foreword\b|preface\b|introduction\b|previously on\b|table of contents\b|contents\b)/i;
+const BACK_SECTION_RE = /^(about the author(?:s)?|acknowledg(?:e)?ments|join the journey|also by|author(?:’|'|)s? note|notes|connect|stay connected|newsletter|resources|book club|discussion questions|reading group|contact)\b/i;
+const PLACEHOLDER_RE = /^(chapters? page|toc page|table of contents page)$/i;
+
+export function matterSectionHeading(block, type = 'front') {
+  if (!block || block.kind === 'blank') return false;
+  const text = String(block.text || '').trim();
+  if (!text) return false;
+  if (type === 'front') return FRONT_SECTION_RE.test(text);
+  if (type === 'back') return BACK_SECTION_RE.test(text);
+  return false;
 }
 
 function sectionTitle(type, blocks, ordinal) {
-  const firstHeading = blocks.find((block) => block.kind === 'chapter-title' || headingLike(block));
+  const firstHeading = blocks.find((block) => block.kind === 'chapter-title' || matterSectionHeading(block, type));
   if (firstHeading?.text?.trim()) return firstHeading.text.trim();
   if (type === 'front') return ordinal === 1 ? 'Front Matter' : `Front Matter ${ordinal}`;
   if (type === 'back') return ordinal === 1 ? 'Back Matter' : `Back Matter ${ordinal}`;
   return `Chapter ${ordinal}`;
+}
+
+export function ebookMatterRole(section = {}) {
+  if (section.type === 'chapter') return 'chapter';
+  const first = (section.blocks || []).find((block) => matterSectionHeading(block, section.type));
+  const text = String(first?.text || '').trim();
+  if (section.type === 'front') {
+    if (/^copyright\b/i.test(text)) return 'copyright';
+    if (/^dedication\b/i.test(text)) return 'dedication';
+    if (/^(table of contents|contents)\b/i.test(text)) return 'source-toc';
+    if (/^acknowledg/i.test(text)) return 'acknowledgments';
+    if (section.ordinal === 1) return 'title';
+    return 'front';
+  }
+  if (section.type === 'back') return 'back';
+  return 'matter';
+}
+
+export function detectEbookPlaceholders(project) {
+  const blocks = effectiveBlocks(project);
+  const structure = analyzeMatter(blocks);
+  return blocks
+    .filter((block) => matterSectionForBlockIndex(block.index, structure) !== 'body')
+    .filter((block) => PLACEHOLDER_RE.test(String(block.text || '').trim()))
+    .map((block) => ({ id:block.id, index:block.index, text:String(block.text || '').trim() }));
 }
 
 export function buildEbookSections(project) {
@@ -111,11 +141,13 @@ export function buildEbookSections(project) {
     const matter = matterSectionForBlockIndex(block.index, structure);
     const type = matter === 'body' ? 'chapter' : matter;
     const startsChapter = block.kind === 'chapter-title';
-    const startsMatterHeading = type !== 'chapter' && headingLike(block) && current?.blocks?.some((candidate) => candidate.kind !== 'blank');
+    const startsMatterHeading = type !== 'chapter'
+      && matterSectionHeading(block, type)
+      && current?.blocks?.some((candidate) => candidate.kind !== 'blank');
 
     if (!current || current.type !== type || startsChapter || startsMatterHeading) startSection(type);
     current.blocks.push(block);
-    if (startsChapter || (type !== 'chapter' && headingLike(block))) current.includeInToc = true;
+    if (startsChapter || (type !== 'chapter' && matterSectionHeading(block, type))) current.includeInToc = true;
   }
 
   for (const section of sections) {
@@ -124,6 +156,7 @@ export function buildEbookSections(project) {
     section.startBlockIndex = section.blocks[0]?.index ?? null;
     section.endBlockIndex = section.blocks.at(-1)?.index ?? null;
     section.wordCount = section.blocks.reduce((sum, block) => sum + (block.wordCount || 0), 0);
+    section.role = ebookMatterRole(section);
   }
 
   return { sections, structure };

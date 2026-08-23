@@ -1,0 +1,64 @@
+import { buildEpubPackageData } from './epub-export.js';
+import { detectEbookPlaceholders } from './ebook-model.js';
+
+function count(text, pattern) {
+  return [...String(text || '').matchAll(pattern)].length;
+}
+
+function unescapeXml(value = '') {
+  return String(value)
+    .replaceAll('&quot;', '"')
+    .replaceAll('&apos;', "'")
+    .replaceAll('&gt;', '>')
+    .replaceAll('&lt;', '<')
+    .replaceAll('&amp;', '&');
+}
+
+export function auditEpubPackage({ project } = {}) {
+  const data = buildEpubPackageData({ project });
+  const files = data.files;
+  const opf = String(files.get('OEBPS/package.opf') || '');
+  const nav = String(files.get('OEBPS/nav.xhtml') || '');
+  const css = String(files.get('OEBPS/styles.css') || '');
+  const chapterFiles = [...files.keys()].filter((path) => /^OEBPS\/text\/chapter-\d+\.xhtml$/.test(path));
+  const allText = [...files.entries()]
+    .filter(([path]) => /\.(?:xhtml|css|opf|ncx)$/.test(path))
+    .map(([, content]) => typeof content === 'string' ? content : '')
+    .join('\n');
+  const titleMatch = opf.match(/<dc:title>([\s\S]*?)<\/dc:title>/i);
+  const creatorMatch = opf.match(/<dc:creator>([\s\S]*?)<\/dc:creator>/i);
+  const coverItems = count(opf, /properties="cover-image"/g);
+  const coverHtml = [...files.keys()].filter((path) => /cover\.xhtml$/i.test(path));
+  const previewLeak = /(?:\.yrp-inspectable|\.yrp-selected|\.yrp-cover-preview|data-yrp-block-id|yrp-live-cover)/.test(allText);
+  const tocNav = nav.match(/<nav[^>]*epub:type="toc"[\s\S]*?<\/nav>/i)?.[0] || '';
+  const chapterNavLinks = count(tocNav, /href="text\/chapter-\d+\.xhtml"/g);
+  const placeholders = detectEbookPlaceholders(project);
+  const expectedChapters = Number(project?.manuscript?.stats?.chapters || project?.manuscript?.chapters?.length || 0);
+  const titleOk = unescapeXml(titleMatch?.[1] || '') === String(project?.title || '');
+  const authorOk = unescapeXml(creatorMatch?.[1] || '') === String(project?.author || '');
+  const coverOk = coverItems === 1 && coverHtml.length === 0 && [...files.keys()].some((path) => /^OEBPS\/images\/cover\.(?:jpg|png)$/i.test(path));
+  const chaptersOk = chapterFiles.length === expectedChapters && chapterNavLinks === expectedChapters;
+  const navInSpine = /<itemref idref="nav"\/>/.test(opf);
+  const beginReading = /epub:type="bodymatter"/.test(nav);
+  const checks = [
+    { id:'audit-title', ok:titleOk, message:titleOk ? 'EPUB title metadata matches the project title.' : 'EPUB title metadata does not match the project title.' },
+    { id:'audit-author', ok:authorOk, message:authorOk ? 'EPUB creator metadata matches the project author.' : 'EPUB creator metadata does not match the project author.' },
+    { id:'audit-cover', ok:coverOk, message:coverOk ? 'Exactly one internal cover image is packaged and no duplicate cover XHTML exists.' : 'Cover packaging is inconsistent or duplicated.' },
+    { id:'audit-chapters', ok:chaptersOk, message:chaptersOk ? `${expectedChapters} chapter XHTML files and ${expectedChapters} chapter navigation links match.` : `Chapter package count/navigation does not match ${expectedChapters} detected chapters.` },
+    { id:'audit-nav-spine', ok:navInSpine, message:navInSpine ? 'Visible Contents is in the EPUB spine.' : 'Visible Contents is missing from the EPUB spine.' },
+    { id:'audit-begin-reading', ok:beginReading, message:beginReading ? 'Begin Reading landmark points to body matter.' : 'Begin Reading landmark is missing.' },
+    { id:'audit-preview-leak', ok:!previewLeak, message:!previewLeak ? 'Production EPUB contains no Preview Studio CSS/classes/hooks.' : 'Preview Studio-only CSS/classes leaked into the production EPUB.' },
+  ];
+  return {
+    ok: checks.every((item) => item.ok),
+    checks,
+    placeholders,
+    title: unescapeXml(titleMatch?.[1] || ''),
+    author: unescapeXml(creatorMatch?.[1] || ''),
+    chapterFiles: chapterFiles.length,
+    chapterNavLinks,
+    coverItems,
+    previewLeak,
+    files: files.size,
+  };
+}

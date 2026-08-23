@@ -1,4 +1,4 @@
-import { buildEbookSections, ebookFontStack, ebookTocEntries, normalizeEbookDesign, verifyEbookSourceCoverage } from './ebook-model.js';
+import { buildEbookSections, ebookFontStack, ebookTocEntries, matterSectionHeading, normalizeEbookDesign, verifyEbookSourceCoverage } from './ebook-model.js';
 import { blankRenderMode } from './spacing-policy.js';
 import { getBlockPresentationOverride } from './presentation-overrides.js';
 
@@ -90,7 +90,7 @@ function renderBlock(block, { blankMode = 'preserve', sectionType = 'chapter', d
   const overrideStyle = presentationStyle(project, block, sectionType);
   if (block.kind === 'blank') return `<p id="${id}" class="blank ${blankMode === 'collapse' ? 'collapsed' : blankMode === 'normalize' ? 'normalized' : 'preserved'}"${attrs}></p>`;
   if (block.kind === 'chapter-title') return `<h1 id="${id}" class="chapter-title${inspectClass}"${attrs}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</h1>`;
-  if (block.kind === 'front-back-heading' || block.kind === 'heading') {
+  if (block.kind === 'front-back-heading' || (block.kind === 'heading' && sectionType === 'chapter') || (sectionType !== 'chapter' && matterSectionHeading(block, sectionType))) {
     const baseStyle = sectionType === 'chapter' ? '' : matterParagraphStyle(block, design);
     const style = mergeInlineStyles(baseStyle, overrideStyle);
     return `<h2 id="${id}" class="matter-heading${inspectClass}"${attrs}${style ? ` style="${style}"` : ''}>${content}</h2>`;
@@ -105,6 +105,110 @@ function renderBlock(block, { blankMode = 'preserve', sectionType = 'chapter', d
   return `<p id="${id}" class="body${inspectClass}"${attrs}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</p>`;
 }
 
+
+function matterMetadataLine(text = '') {
+  const value = String(text || '').trim();
+  return /@/.test(value)
+    || /^ISBN:?$/i.test(value)
+    || /^97[89][-\d]/.test(value)
+    || /^(first|second|third|fourth) edition\b/i.test(value)
+    || /^cover design\b/i.test(value)
+    || /^printed in\b/i.test(value)
+    || /^publisher\b/i.test(value);
+}
+
+function endsSentence(text = '') {
+  return /[.!?…][”’"')\]]?$/.test(String(text || '').trim());
+}
+
+function startsLowercase(text = '') {
+  return /^[“”'‘’(\[]*[a-z]/.test(String(text || '').trim());
+}
+
+function renderMatterInlineBlock(block, { project, sectionType, previewMode }) {
+  const content = inlineRuns(block);
+  const id = escapeXml(block.id || '');
+  const inspectClass = previewMode ? ' yrp-inspectable' : '';
+  const attrs = previewAttrs(block, previewMode);
+  const overrideStyle = presentationStyle(project, block, sectionType);
+  return `<span id="${id}" class="matter-source-line${inspectClass}"${attrs}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</span>`;
+}
+
+function hiddenMatterBlank(block, previewMode = false) {
+  const id = escapeXml(block.id || '');
+  const attrs = previewAttrs(block, previewMode);
+  return `<span id="${id}" class="matter-source-blank"${attrs} aria-hidden="true"></span>`;
+}
+
+function renderCleanMatterSection(section, project, design, previewMode = false) {
+  const blocks = section.blocks || [];
+  if (section.role === 'title') {
+    const visible = blocks.filter((block) => block.kind !== 'blank');
+    const lines = visible.map((block, index) => {
+      const id = escapeXml(block.id || '');
+      const attrs = previewAttrs(block, previewMode);
+      const inspectClass = previewMode ? ' yrp-inspectable' : '';
+      const cls = index === 0 ? 'matter-title-primary' : index === 1 ? 'matter-title-secondary' : index === 2 ? 'matter-title-byline' : 'matter-title-line';
+      const style = presentationStyle(project, block, section.type);
+      return `<p id="${id}" class="${cls}${inspectClass}"${attrs}${style ? ` style="${style}"` : ''}>${inlineRuns(block)}</p>`;
+    });
+    const blanks = blocks.filter((block) => block.kind === 'blank').map((block) => hiddenMatterBlank(block, previewMode));
+    return `<div class="matter-title-page">${lines.join('\n')}${blanks.join('')}</div>`;
+  }
+
+  const out = [];
+  let group = [];
+  let pendingBlanks = [];
+  const flush = () => {
+    if (!group.length) return;
+    const spans = group.map((block) => renderMatterInlineBlock(block, { project, sectionType: section.type, previewMode })).join(' ');
+    out.push(`<p class="matter-flow">${spans}</p>`);
+    group = [];
+  };
+
+  for (const block of blocks) {
+    if (block.kind === 'blank') {
+      pendingBlanks.push(block);
+      continue;
+    }
+    if (matterSectionHeading(block, section.type)) {
+      flush();
+      if (pendingBlanks.length) out.push(pendingBlanks.map((blank) => hiddenMatterBlank(blank, previewMode)).join(''));
+      pendingBlanks = [];
+      out.push(renderBlock(block, { blankMode:'collapse', sectionType:section.type, design, project, previewMode }));
+      continue;
+    }
+
+    const previous = group.at(-1);
+    const hasBlankBoundary = pendingBlanks.length > 0;
+    const metadata = matterMetadataLine(block.text) || (previous && matterMetadataLine(previous.text));
+    const naturalSentenceBoundary = previous && endsSentence(previous.text) && !startsLowercase(block.text);
+    const continueAcrossBlank = previous && hasBlankBoundary && !endsSentence(previous.text) && startsLowercase(block.text);
+    const shouldBreak = group.length && (metadata || (hasBlankBoundary && !continueAcrossBlank) || (!hasBlankBoundary && naturalSentenceBoundary));
+    if (shouldBreak) flush();
+    if (pendingBlanks.length) {
+      out.push(pendingBlanks.map((blank) => hiddenMatterBlank(blank, previewMode)).join(''));
+      pendingBlanks = [];
+    }
+    group.push(block);
+  }
+  flush();
+  if (pendingBlanks.length) out.push(pendingBlanks.map((blank) => hiddenMatterBlank(blank, previewMode)).join(''));
+  return `<div class="matter-clean matter-${escapeXml(section.role || section.type)}">${out.join('\n')}</div>`;
+}
+
+function renderSectionBody(section, project, design, previewMode = false) {
+  if (section.type !== 'chapter' && design.frontMatterMode === 'clean') {
+    return renderCleanMatterSection(section, project, design, previewMode);
+  }
+  return (section.blocks || []).map((block, index) => {
+    const blankMode = section.type === 'chapter'
+      ? blankRenderMode({ blocks:section.blocks, index, sectionType:section.type, policy:design.bodyBlankPolicy })
+      : 'collapse';
+    return renderBlock(block, { blankMode, sectionType:section.type, design, project, previewMode });
+  }).join('\n');
+}
+
 function stylesheet(designInput) {
   const design = normalizeEbookDesign(designInput);
   const bodyAlignment = design.bodyAlignment === 'reader' ? '' : ` text-align:${design.bodyAlignment};`;
@@ -117,6 +221,17 @@ p.chapter-opening { text-indent: 0; }
 h1.chapter-title { margin: ${design.chapterTopEm}em 0 ${design.chapterAfterEm}em; text-align: ${design.chapterTitleAlignment}; font-size: 1.55em; line-height: 1.2; font-weight: 700; page-break-before: always; break-before: page; }
 h2.matter-heading { margin: 1.8em 0 1em; font-size: 1.3em; line-height: 1.2; font-weight:700; }
 p.matter-body { text-indent:0; }
+.matter-clean { max-width:38em; margin:0 auto; }
+.matter-flow { margin:0 0 .78em; text-indent:0; }
+.matter-source-blank { display:none; }
+.matter-title-page { text-align:center; padding-top:4.5em; }
+.matter-title-page p { text-indent:0; }
+.matter-title-primary { margin:0 0 .45em; font-size:1.65em; font-weight:700; }
+.matter-title-secondary { margin:0 0 1.3em; font-size:1.18em; }
+.matter-title-byline { margin:0; font-size:1em; }
+.matter-title-line { margin:.45em 0 0; }
+.matter-dedication { text-align:center; max-width:31em; padding-top:2.2em; }
+.matter-dedication .matter-flow { margin-bottom:1.1em; }
 body.front p.blank, body.back p.blank { display:none; min-height:0; height:0; margin:0; padding:0; }
 p.scene-break { margin: ${design.sceneBreakSpaceEm}em 0; text-indent: 0; text-align: center; }
 p.text-message { margin:0 ${design.textMessageIndentEm}em ${design.paragraphGapEm}em; text-indent: 0; }
@@ -130,10 +245,6 @@ nav[epub\\:type="toc"] h1 { margin:1.2em 0 1.2em; text-align:center; font-size:1
 nav[epub\\:type="toc"] ol { padding-left:1.2em; }
 nav[epub\\:type="toc"] li { margin:.5em 0; }
 nav a { color: inherit; text-decoration: none; }
-.yrp-inspectable { cursor:default; }
-.yrp-selected { outline:2px solid #7565ff; outline-offset:3px; border-radius:2px; }
-.yrp-cover-preview { min-height:72vh; display:grid; place-items:center; padding:1em; }
-.yrp-cover-preview img { display:block; max-width:100%; max-height:78vh; object-fit:contain; box-shadow:0 10px 30px rgba(0,0,0,.18); }
 .hidden-nav { display:none; }
 @media amzn-kf8 { h1.chapter-title { page-break-before: always; } }
 `;
@@ -142,12 +253,7 @@ nav a { color: inherit; text-decoration: none; }
 function sectionXhtml(section, project, design) {
   const title = escapeXml(section.title || project.title || 'Book');
   const sectionType = section.type || 'chapter';
-  const body = section.blocks.map((block, index) => {
-    const blankMode = sectionType === 'chapter'
-      ? blankRenderMode({ blocks: section.blocks, index, sectionType, policy: design.bodyBlankPolicy })
-      : 'collapse';
-    return renderBlock(block, { blankMode, sectionType, design, project, previewMode: false });
-  }).join('\n');
+  const body = renderSectionBody(section, project, design, false);
   const epubType = sectionType === 'chapter' ? 'bodymatter' : sectionType === 'front' ? 'frontmatter' : 'backmatter';
   return `<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
@@ -332,12 +438,7 @@ export function buildEbookPreviewHtml({ project, sectionIndex = 0, inspectMode =
     ? `<div class="yrp-cover-preview yrp-live-cover"><img src="${escapeXml(section.cover.dataUrl)}" alt="${escapeXml(project.title || 'Book cover')}" /></div>`
     : section.synthetic
       ? previewTocHtml(toc)
-      : section.blocks.map((block, blockIndex) => {
-        const blankMode = section.type === 'chapter'
-          ? blankRenderMode({ blocks: section.blocks, index: blockIndex, sectionType: section.type, policy: design.bodyBlankPolicy })
-          : 'collapse';
-        return renderBlock(block, { blankMode, sectionType: section.type, design, project, previewMode: Boolean(inspectMode) });
-      }).join('\n');
+      : renderSectionBody(section, project, design, Boolean(inspectMode));
   return {
     index,
     section,
@@ -361,12 +462,7 @@ export function buildDevicePreviewHtml({ project } = {}) {
     if (design.visibleToc && section.type === 'chapter' && !items.some((item) => item.type === 'toc')) {
       items.push({ id: 'toc', title: 'Table of Contents', type: 'toc', html: previewTocHtml(toc) });
     }
-    const body = section.blocks.map((block, index) => {
-      const blankMode = section.type === 'chapter'
-        ? blankRenderMode({ blocks: section.blocks, index, sectionType: section.type, policy: design.bodyBlankPolicy })
-        : 'collapse';
-      return renderBlock(block, { blankMode, sectionType: section.type, design, project, previewMode: false });
-    }).join('\n');
+    const body = renderSectionBody(section, project, design, false);
     items.push({ id: section.id, title: section.title, type: section.type, href: section.href, html: body });
   }
   if (design.visibleToc && !items.some((item) => item.type === 'toc')) items.push({ id: 'toc', title: 'Table of Contents', type: 'toc', html: previewTocHtml(toc) });
@@ -383,7 +479,7 @@ export function buildDevicePreviewHtml({ project } = {}) {
 <title>${title} · Device Preview</title>
 <style>
 ${baseCss}
-:root{color-scheme:light dark}*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#ececf0;color:#18181a}.bar,.footer,.drawer{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body.sepia{background:#e9dfc8}.shell{min-height:100vh;display:grid;grid-template-rows:auto 1fr}.bar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:8px;padding:10px max(12px,env(safe-area-inset-left));background:rgba(250,250,252,.92);backdrop-filter:blur(18px);border-bottom:1px solid rgba(0,0,0,.08)}.bar strong{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}.bar button,.bar select{border:1px solid #d7d7dc;border-radius:10px;background:#fff;color:#111;padding:8px 10px;font-weight:700}.reader-wrap{display:grid;grid-template-columns:minmax(0,1fr);padding:18px}.reader-card{width:min(100%,760px);margin:0 auto;background:#fffdf9;color:#18181a;border-radius:14px;box-shadow:0 12px 32px rgba(0,0,0,.14);overflow:hidden}.reader-item{display:none;padding:clamp(22px,6vw,52px);min-height:76vh}.reader-item.active{display:block}.reader-item[data-type="cover"]{padding:18px;background:#2d2d31}.reader-item[data-type="cover"] .yrp-cover-preview{min-height:72vh}.footer{position:sticky;bottom:0;display:flex;justify-content:space-between;gap:8px;padding:10px max(12px,env(safe-area-inset-left));background:rgba(250,250,252,.92);backdrop-filter:blur(18px);border-top:1px solid rgba(0,0,0,.08)}.footer button{border:0;border-radius:10px;padding:10px 14px;background:#171719;color:#fff;font-weight:800}.footer button:disabled{opacity:.35}.drawer{position:fixed;inset:auto 0 0 0;z-index:30;display:none;max-height:70vh;background:#fff;border-radius:18px 18px 0 0;box-shadow:0 -12px 40px rgba(0,0,0,.22);padding:12px 12px calc(12px + env(safe-area-inset-bottom));overflow:auto}.drawer.open{display:block}.drawer header{display:flex;justify-content:space-between;align-items:center;gap:12px}.drawer header button{border:0;background:#eeeef2;border-radius:9px;padding:8px 10px;font-weight:800}.drawer nav{display:grid;gap:6px;margin-top:10px}.drawer nav button{border:0;border-radius:10px;background:#f6f6f8;padding:10px;text-align:left}.reader-card.font-l{font-size:112%}.reader-card.font-xl{font-size:126%}body.dark{background:#111113}.dark .bar,.dark .footer{background:rgba(28,28,31,.94);color:#fff;border-color:#38383c}.dark .bar button,.dark .bar select{background:#2b2b2f;color:#fff;border-color:#48484d}.dark .reader-card{background:#151517;color:#f2f2f4}.dark .drawer{background:#202024;color:#fff}.dark .drawer nav button{background:#303036;color:#fff}@media(max-width:600px){.reader-wrap{padding:0}.reader-card{border-radius:0;box-shadow:none;min-height:calc(100vh - 102px)}.reader-item{min-height:calc(100vh - 102px);padding:28px 22px}.bar{padding-top:calc(10px + env(safe-area-inset-top))}}
+.yrp-cover-preview{min-height:72vh;display:grid;place-items:center;padding:1em}.yrp-cover-preview img{display:block;max-width:100%;max-height:78vh;width:auto;height:auto;object-fit:contain}\n:root{color-scheme:light dark}*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#ececf0;color:#18181a}.bar,.footer,.drawer{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body.sepia{background:#e9dfc8}.shell{min-height:100vh;display:grid;grid-template-rows:auto 1fr}.bar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:8px;padding:10px max(12px,env(safe-area-inset-left));background:rgba(250,250,252,.92);backdrop-filter:blur(18px);border-bottom:1px solid rgba(0,0,0,.08)}.bar strong{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}.bar button,.bar select{border:1px solid #d7d7dc;border-radius:10px;background:#fff;color:#111;padding:8px 10px;font-weight:700}.reader-wrap{display:grid;grid-template-columns:minmax(0,1fr);padding:18px}.reader-card{width:min(100%,760px);margin:0 auto;background:#fffdf9;color:#18181a;border-radius:14px;box-shadow:0 12px 32px rgba(0,0,0,.14);overflow:hidden}.reader-item{display:none;padding:clamp(22px,6vw,52px);min-height:76vh}.reader-item.active{display:block}.reader-item[data-type="cover"]{padding:18px;background:#2d2d31}.reader-item[data-type="cover"] .yrp-cover-preview{min-height:72vh}.footer{position:sticky;bottom:0;display:flex;justify-content:space-between;gap:8px;padding:10px max(12px,env(safe-area-inset-left));background:rgba(250,250,252,.92);backdrop-filter:blur(18px);border-top:1px solid rgba(0,0,0,.08)}.footer button{border:0;border-radius:10px;padding:10px 14px;background:#171719;color:#fff;font-weight:800}.footer button:disabled{opacity:.35}.drawer{position:fixed;inset:auto 0 0 0;z-index:30;display:none;max-height:70vh;background:#fff;border-radius:18px 18px 0 0;box-shadow:0 -12px 40px rgba(0,0,0,.22);padding:12px 12px calc(12px + env(safe-area-inset-bottom));overflow:auto}.drawer.open{display:block}.drawer header{display:flex;justify-content:space-between;align-items:center;gap:12px}.drawer header button{border:0;background:#eeeef2;border-radius:9px;padding:8px 10px;font-weight:800}.drawer nav{display:grid;gap:6px;margin-top:10px}.drawer nav button{border:0;border-radius:10px;background:#f6f6f8;padding:10px;text-align:left}.reader-card.font-l{font-size:112%}.reader-card.font-xl{font-size:126%}body.dark{background:#111113}.dark .bar,.dark .footer{background:rgba(28,28,31,.94);color:#fff;border-color:#38383c}.dark .bar button,.dark .bar select{background:#2b2b2f;color:#fff;border-color:#48484d}.dark .reader-card{background:#151517;color:#f2f2f4}.dark .drawer{background:#202024;color:#fff}.dark .drawer nav button{background:#303036;color:#fff}@media(max-width:600px){.reader-wrap{padding:0}.reader-card{border-radius:0;box-shadow:none;min-height:calc(100vh - 102px)}.reader-item{min-height:calc(100vh - 102px);padding:28px 22px}.bar{padding-top:calc(10px + env(safe-area-inset-top))}}
 </style>
 </head>
 <body>

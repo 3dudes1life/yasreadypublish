@@ -44,7 +44,7 @@ import {
   normalizeKindlePreview, kindlePreviewTokens,
 } from './lib/kindle-preview-model.js';
 
-const VERSION = '1.0.9';
+const VERSION = '1.0.10';
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
 
@@ -75,6 +75,9 @@ const state = {
   devicePreviewMessage: '',
   ebookFrameScrollY: 0,
   kindlePreview: normalizeKindlePreview(),
+  ebookUndoStack: [],
+  ebookRedoStack: [],
+  ebookHistoryArmed: false,
 };
 
 const app = document.querySelector('#app');
@@ -127,6 +130,63 @@ function saveCurrentPrintDesign(design) {
 
 function currentEbookDesign() {
   return state.project ? getEbookEditionDesign(state.project) : normalizeEbookDesign({});
+}
+
+function ebookHistorySnapshot() {
+  if (!state.project) return null;
+  ensurePresentationOverrides(state.project);
+  return JSON.stringify({
+    design: getEbookEditionDesign(state.project),
+    overrides: state.project.presentationOverrides?.ebook || {},
+  });
+}
+
+function armEbookHistory() {
+  if (!state.project || state.ebookHistoryArmed) return;
+  const snapshot = ebookHistorySnapshot();
+  if (!snapshot) return;
+  state.ebookUndoStack.push(snapshot);
+  if (state.ebookUndoStack.length > 40) state.ebookUndoStack.shift();
+  state.ebookRedoStack = [];
+  state.ebookHistoryArmed = true;
+}
+
+function disarmEbookHistory() { state.ebookHistoryArmed = false; }
+
+async function restoreEbookHistory(snapshot, targetStack) {
+  if (!state.project || !snapshot) return;
+  const current = ebookHistorySnapshot();
+  if (current) targetStack.push(current);
+  const parsed = JSON.parse(snapshot);
+  setEbookEditionDesign(state.project, parsed.design || {});
+  ensurePresentationOverrides(state.project);
+  state.project.presentationOverrides.ebook = parsed.overrides || {};
+  invalidateEditionProof(state.project, 'ebook', { clearPageCount: false });
+  state.project.updatedAt = new Date().toISOString();
+  state.finalCheck = null;
+  state.inspectorMessage = 'Kindle formatting history restored. Story wording was not changed.';
+  await saveProject(state.project);
+  state.projects = await listProjects();
+  disarmEbookHistory();
+  updateMain();
+}
+
+async function undoEbookFormatting() {
+  const snapshot = state.ebookUndoStack.pop();
+  if (!snapshot) return;
+  await restoreEbookHistory(snapshot, state.ebookRedoStack);
+}
+
+async function redoEbookFormatting() {
+  const snapshot = state.ebookRedoStack.pop();
+  if (!snapshot) return;
+  await restoreEbookHistory(snapshot, state.ebookUndoStack);
+}
+
+function rerenderMainPreservingScroll() {
+  const y = window.scrollY;
+  updateMain();
+  requestAnimationFrame(() => window.scrollTo({ top: y, behavior: 'auto' }));
 }
 
 function renderShell() {
@@ -823,63 +883,69 @@ function ebookInspectorDefaults(block, design, override) {
 function renderEbookInspector(project, design) {
   ensurePresentationOverrides(project);
   const count = countPresentationOverrides(project, 'ebook');
+  const undoDisabled = state.ebookUndoStack.length ? '' : 'disabled';
+  const redoDisabled = state.ebookRedoStack.length ? '' : 'disabled';
+  const history = `<div class="inspector-history"><button class="btn ghost" id="undoEbookFormatting" type="button" ${undoDisabled}>↶ Undo</button><button class="btn ghost" id="redoEbookFormatting" type="button" ${redoDisabled}>↷ Redo</button></div>`;
   if (state.kindlePreview.mode !== 'adjust') {
     return `<aside class="ebook-format-inspector read-mode">
-      <div class="inspector-head"><div><div class="eyebrow">Preview Studio</div><h3>Read Mode</h3></div><span class="mini-status good">Clean preview</span></div>
+      <div class="inspector-head"><div><div class="eyebrow">Format Inspector</div><h3>Read Mode</h3></div><span class="mini-status good">Story Lock safe</span></div>
+      ${history}
       <div class="inspector-empty-icon">Aa</div>
-      <strong>Read it like a customer</strong>
-      <p>Text behaves normally in Read Mode—no hover boxes, no accidental formatting selection. Switch to <strong>Adjust Layout</strong> only when something visually needs a fix.</p>
+      <strong>Read first. Adjust only when needed.</strong>
+      <p>The preview behaves like a normal reader here. Switch to <strong>Adjust Layout</strong> only when you find a spacing or alignment issue.</p>
       <button class="btn primary inspector-mode-button" type="button" data-kindle-mode="adjust">Adjust Layout</button>
       ${count ? `<button class="btn secondary inspector-reset-all" id="resetAllEbookOverrides" type="button">Reset ${count} custom fix${count === 1 ? '' : 'es'}</button>` : ''}
-      <div class="inspector-safety">🔒 Read Mode never writes presentation metadata. Story Lock remains untouched.</div>
+      <div class="inspector-safety">🔒 No text-editing controls exist in Preview Studio.</div>
     </aside>`;
   }
   const block = ebookSelectedBlock(project);
   if (!block) {
     return `<aside class="ebook-format-inspector empty">
-      <div class="inspector-head"><div><div class="eyebrow">Preview Studio</div><h3>Format Inspector</h3></div><span class="mini-status good">Story Lock safe</span></div>
+      <div class="inspector-head"><div><div class="eyebrow">Format Inspector</div><h3>Select a block</h3></div><span class="mini-status good">Story Lock safe</span></div>
+      ${history}
       <div class="inspector-empty-icon">↖</div>
-      <strong>Click anything in the Kindle preview</strong>
-      <p>Select a paragraph, chapter heading, text message, or front-matter line. You can adjust presentation metadata without ever editing the words.</p>
-      <div class="inspector-safety">🔒 ${count} custom Kindle override${count === 1 ? '' : 's'} · manuscript text remains read-only</div>
+      <strong>Click a paragraph or heading</strong>
+      <p>The selected block will highlight in the live preview and its presentation controls will appear here. The words remain read-only.</p>
+      <div class="inspector-safety">🔒 ${count} custom Kindle override${count === 1 ? '' : 's'} · manuscript text remains locked</div>
     </aside>`;
   }
   const override = getBlockPresentationOverride(project, 'ebook', block.id);
   const values = ebookInspectorDefaults(block, design, override);
   const snippet = block.text?.trim() || '[blank source paragraph]';
   const isBodyLike = ['body','chapter-opening','text-message'].includes(block.kind);
-  return `<aside class="ebook-format-inspector">
-    <div class="inspector-head"><div><div class="eyebrow">Preview Studio</div><h3>Format Inspector</h3></div><span class="mini-status ${override ? 'needs' : 'good'}">${override ? 'Custom' : 'Theme'}</span></div>
+  return `<aside class="ebook-format-inspector selected">
+    <div class="inspector-head"><div><div class="eyebrow">Format Inspector</div><h3>${override ? 'Custom formatting' : 'Theme formatting'}</h3></div><span class="mini-status ${override ? 'needs' : 'good'}">${override ? 'Modified' : 'Theme'}</span></div>
+    ${history}
     ${state.inspectorMessage ? `<div class="inspector-message">${escapeHtml(state.inspectorMessage)}</div>` : ''}
     <div class="inspector-selected"><small>${escapeHtml(block.kind)} · ${escapeHtml(block.id)}</small><p>${escapeHtml(snippet.slice(0, 220))}${snippet.length > 220 ? '…' : ''}</p></div>
-    <div class="inspector-grid">
-      <label><span>Space before</span><div><input id="ebookOverrideBefore" type="number" min="0" max="6" step="0.05" value="${values.spaceBefore === '' ? '' : values.spaceBefore}"><em>em</em></div></label>
-      <label><span>Space after</span><div><input id="ebookOverrideAfter" type="number" min="0" max="6" step="0.05" value="${values.spaceAfter === '' ? '' : values.spaceAfter}"><em>em</em></div></label>
-      ${isBodyLike ? `<label><span>First-line indent</span><div><input id="ebookOverrideIndent" type="number" min="0" max="4" step="0.05" value="${values.firstLineIndent}"><em>em</em></div></label>` : ''}
-      <label><span>Alignment</span><select id="ebookOverrideAlignment"><option value="inherit" ${values.alignment === 'inherit' ? 'selected' : ''}>Theme / reader</option><option value="left" ${values.alignment === 'left' ? 'selected' : ''}>Left</option><option value="center" ${values.alignment === 'center' ? 'selected' : ''}>Center</option><option value="right" ${values.alignment === 'right' ? 'selected' : ''}>Right</option><option value="justify" ${values.alignment === 'justify' ? 'selected' : ''}>Justify</option></select></label>
+    <div class="inspector-autosave" id="ebookInspectorSaveState">Changes preview live · saved automatically</div>
+    <div class="inspector-grid inspector-grid-v110">
+      <label><span>Space before</span><div><input class="ebook-live-control" id="ebookOverrideBefore" type="number" min="0" max="6" step="0.05" value="${values.spaceBefore === '' ? '' : values.spaceBefore}"><em>em</em></div></label>
+      <label><span>Space after</span><div><input class="ebook-live-control" id="ebookOverrideAfter" type="number" min="0" max="6" step="0.05" value="${values.spaceAfter === '' ? '' : values.spaceAfter}"><em>em</em></div></label>
+      ${isBodyLike ? `<label><span>First-line indent</span><div><input class="ebook-live-control" id="ebookOverrideIndent" type="number" min="0" max="4" step="0.05" value="${values.firstLineIndent}"><em>em</em></div></label>` : ''}
+      <label><span>Alignment</span><select class="ebook-live-control" id="ebookOverrideAlignment"><option value="inherit" ${values.alignment === 'inherit' ? 'selected' : ''}>Theme / reader</option><option value="left" ${values.alignment === 'left' ? 'selected' : ''}>Left</option><option value="center" ${values.alignment === 'center' ? 'selected' : ''}>Center</option><option value="right" ${values.alignment === 'right' ? 'selected' : ''}>Right</option><option value="justify" ${values.alignment === 'justify' ? 'selected' : ''}>Justify</option></select></label>
     </div>
-    ${isBodyLike ? `<label class="inspector-check"><input id="ebookOverrideSuppressIndent" type="checkbox" ${values.suppressIndent ? 'checked' : ''}><span><strong>Suppress first-line indent</strong><small>Presentation only; words stay locked.</small></span></label>` : ''}
-    <div class="inspector-actions"><button class="btn primary" id="applyEbookBlockOverride" type="button">Apply to this block</button><button class="btn secondary" id="resetEbookBlockOverride" type="button" ${override ? '' : 'disabled'}>Reset to theme</button></div>
-    ${(['body','chapter-opening','chapter-title'].includes(block.kind)) ? `<button class="btn secondary inspector-default-button" id="applyEbookOverrideAsDefault" type="button">${block.kind === 'chapter-title' ? 'Use for all chapter titles' : 'Use as all-body default'}</button>` : ''}
+    ${isBodyLike ? `<label class="inspector-check"><input class="ebook-live-control" id="ebookOverrideSuppressIndent" type="checkbox" ${values.suppressIndent ? 'checked' : ''}><span><strong>Suppress first-line indent</strong><small>Presentation only; words stay locked.</small></span></label>` : ''}
+    <div class="inspector-actions"><button class="btn secondary" id="resetEbookBlockOverride" type="button" ${override ? '' : 'disabled'}>Reset this block</button>${(['body','chapter-opening','chapter-title'].includes(block.kind)) ? `<button class="btn secondary" id="applyEbookOverrideAsDefault" type="button">${block.kind === 'chapter-title' ? 'Use for all chapter titles' : 'Use as body default'}</button>` : '<span></span>'}</div>
     ${count ? `<button class="btn ghost inspector-reset-all" id="resetAllEbookOverrides" type="button">Reset all Kindle format fixes</button>` : ''}
-    <div class="inspector-safety">🔒 No text editor exists here. ${count} custom Kindle override${count === 1 ? '' : 's'} total.</div>
+    <div class="inspector-safety">🔒 Formatting metadata only. No manuscript text can be edited here.</div>
   </aside>`;
 }
 
 
+function kindleSegmentButton(key, value, label, current) {
+  return `<button type="button" data-kindle-pref-key="${escapeHtml(key)}" data-kindle-pref-value="${escapeHtml(value)}" class="${String(current) === String(value) ? 'active' : ''}">${escapeHtml(label)}</button>`;
+}
+
 function renderKindlePreviewToolbar(prefsInput) {
   const prefs = normalizeKindlePreview(prefsInput);
-  const option = (value, label, selected) => `<option value="${escapeHtml(value)}" ${selected === value ? 'selected' : ''}>${escapeHtml(label)}</option>`;
-  return `<div class="kindle-preview-toolbar">
-    <div class="kindle-preview-control"><span>Device</span><select id="kindlePreviewDevice">${Object.values(KINDLE_DEVICE_PRESETS).map((item) => option(item.id, item.label, prefs.device)).join('')}</select></div>
-    <div class="kindle-preview-control"><span>Orientation</span><select id="kindlePreviewOrientation">${option('portrait','Portrait',prefs.orientation)}${option('landscape','Landscape',prefs.orientation)}</select></div>
-    <div class="kindle-preview-control"><span>Font</span><select id="kindlePreviewFontFace">${Object.values(KINDLE_FONT_FACES).map((item) => option(item.id, item.label, prefs.fontFace)).join('')}</select></div>
-    <div class="kindle-preview-control"><span>Text</span><select id="kindlePreviewFontScale">${Object.values(KINDLE_FONT_SCALES).map((item) => option(item.id, item.label, prefs.fontScale)).join('')}</select></div>
-    <div class="kindle-preview-control"><span>Appearance</span><select id="kindlePreviewAppearance">${Object.values(KINDLE_APPEARANCES).map((item) => option(item.id, item.label, prefs.appearance)).join('')}</select></div>
-    <div class="kindle-mode-toggle" role="group" aria-label="Preview interaction mode">
-      <button type="button" data-kindle-mode="read" class="${prefs.mode === 'read' ? 'active' : ''}">Read</button>
-      <button type="button" data-kindle-mode="adjust" class="${prefs.mode === 'adjust' ? 'active' : ''}">Adjust Layout</button>
-    </div>
+  return `<div class="kindle-preview-toolbar-v110">
+    <div class="kindle-toolbar-group mode"><span>Mode</span><div class="kindle-segment">${kindleSegmentButton('mode','read','Read',prefs.mode)}${kindleSegmentButton('mode','adjust','Adjust Layout',prefs.mode)}</div></div>
+    <div class="kindle-toolbar-group"><span>Device</span><div class="kindle-segment">${kindleSegmentButton('device','ereader','Kindle',prefs.device)}${kindleSegmentButton('device','phone','Phone',prefs.device)}${kindleSegmentButton('device','tablet','Tablet',prefs.device)}</div></div>
+    <div class="kindle-toolbar-group"><span>Orientation</span><div class="kindle-segment">${kindleSegmentButton('orientation','portrait','Portrait',prefs.orientation)}${kindleSegmentButton('orientation','landscape','Landscape',prefs.orientation)}</div></div>
+    <div class="kindle-toolbar-group"><span>Text</span><div class="kindle-segment compact">${kindleSegmentButton('fontScale','s','A−',prefs.fontScale)}${kindleSegmentButton('fontScale','m','A',prefs.fontScale)}${kindleSegmentButton('fontScale','l','A+',prefs.fontScale)}</div></div>
+    <div class="kindle-toolbar-group"><span>Appearance</span><div class="kindle-segment">${kindleSegmentButton('appearance','white','Light',prefs.appearance)}${kindleSegmentButton('appearance','sepia','Sepia',prefs.appearance)}${kindleSegmentButton('appearance','dark','Dark',prefs.appearance)}</div></div>
+    ${prefs.device === 'ereader' ? `<div class="kindle-toolbar-group eink"><span>Optional</span><div class="kindle-segment">${kindleSegmentButton('simulateEink','false','Color',String(prefs.simulateEink))}${kindleSegmentButton('simulateEink','true','E-ink',String(prefs.simulateEink))}</div></div>` : ''}
   </div>`;
 }
 
@@ -890,19 +956,18 @@ function buildKindleFrameHtml(preview, prefsInput) {
   const adjust = prefs.mode === 'adjust';
   const bodyClass = isCover ? 'yrp-sim-cover' : 'yrp-sim-text';
   const inspectCss = adjust
-    ? `.yrp-inspectable{cursor:pointer}.yrp-inspectable:hover{outline:1px dashed #7c6cff;outline-offset:3px}.yrp-selected{outline:2px solid #6c5ce7!important;outline-offset:4px!important;background:rgba(108,92,231,.055)}`
+    ? `.yrp-inspectable{cursor:pointer;transition:outline-color .12s ease,background .12s ease}.yrp-inspectable:hover{outline:1px solid rgba(108,92,231,.5);outline-offset:3px;background:rgba(108,92,231,.035)}.yrp-selected{outline:2px solid #6c5ce7!important;outline-offset:4px!important;background:rgba(108,92,231,.07)!important}`
     : `.yrp-inspectable{cursor:text}.yrp-selected{outline:none!important;background:transparent!important}`;
   const coverFilter = grayscale ? 'grayscale(100%) contrast(.98)' : 'none';
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
 ${preview.css}
 html{font-size:${Math.round(font.scale * 100)}%;background:${appearance.background};color:${appearance.color}}
-body{font-family:${fontFace.stack}!important}
-body{margin:0;box-sizing:border-box;background:${appearance.background};color:${appearance.color};min-height:100vh;width:100%}
-body.yrp-sim-text{padding:2.1em 2em;max-width:none}
-body.yrp-sim-cover{padding:0;display:grid;place-items:center;overflow:hidden;background:${prefs.device === 'ereader' ? '#e7e7e4' : '#111'}}
-body.yrp-sim-cover .yrp-cover-preview{width:100%;height:100vh;min-height:100vh;padding:0;margin:0;display:grid;place-items:center;background:inherit}
-body.yrp-sim-cover .yrp-cover-preview img{display:block;max-width:100%;max-height:100vh;width:auto;height:auto;object-fit:contain;box-shadow:none;filter:${coverFilter}}
-a{color:inherit} ${inspectCss}
+body{font-family:${fontFace.stack}!important;margin:0;box-sizing:border-box;background:${appearance.background};color:${appearance.color};min-height:100vh;width:100%}
+body.yrp-sim-text{padding:2.2em 2em;max-width:none}
+body.yrp-sim-cover{padding:1.1em;display:grid;place-items:center;overflow:hidden;background:${appearance.background}}
+body.yrp-sim-cover .yrp-cover-preview{width:100%;height:calc(100vh - 2.2em);min-height:0;padding:0;margin:0;display:grid;place-items:center;background:transparent}
+body.yrp-sim-cover .yrp-cover-preview img{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;box-shadow:0 10px 28px rgba(0,0,0,.14);filter:${coverFilter};border-radius:2px}
+a{color:inherit}${inspectCss}
 @media(max-width:420px){body.yrp-sim-text{padding:1.55em 1.35em}}
 </style></head><body class="${bodyClass}">${preview.html}</body></html>`;
 }
@@ -911,13 +976,18 @@ function renderKindleSimulatorFrame(preview, prefsInput) {
   const tokens = kindlePreviewTokens(prefsInput);
   const v = tokens.viewport;
   const frameHtml = buildKindleFrameHtml(preview, prefsInput);
-  return `<div class="kindle-simulator-wrap">
-    <div class="kindle-device kindle-device-${escapeHtml(tokens.prefs.device)} ${tokens.prefs.orientation === 'landscape' ? 'landscape' : 'portrait'}" style="--kindle-w:${v.width};--kindle-h:${v.height};--kindle-radius:${v.radius}px;--kindle-bezel:${v.bezel}px;--kindle-chrome:${escapeHtml(tokens.appearance.chrome)}">
-      <div class="kindle-device-top"><span>${tokens.prefs.device === 'ereader' ? 'Kindle E-reader' : tokens.prefs.device === 'phone' ? 'Phone preview' : 'Tablet preview'}</span><small>${tokens.grayscale ? 'grayscale' : 'color'} · ${tokens.prefs.orientation}</small></div>
-      <div class="kindle-screen"><iframe id="ebookPreviewFrame" class="ebook-reader kindle-render-frame" title="Kindle reflowable preview" srcdoc="${escapeHtml(frameHtml)}"></iframe></div>
+  const label = tokens.prefs.device === 'ereader' ? 'Kindle preview' : tokens.prefs.device === 'phone' ? 'Phone preview' : 'Tablet preview';
+  const tone = tokens.grayscale ? 'E-ink simulation' : 'Color preview';
+  return `<section class="kindle-preview-pane">
+    <div class="kindle-preview-pane-head"><div><strong>${label}</strong><small>${tone} · ${escapeHtml(tokens.prefs.orientation)}</small></div><span>Same XHTML + CSS source as export</span></div>
+    <div class="kindle-simulator-wrap">
+      <div class="kindle-device kindle-device-${escapeHtml(tokens.prefs.device)} ${tokens.prefs.orientation === 'landscape' ? 'landscape' : 'portrait'}" style="--kindle-w:${v.width};--kindle-h:${v.height};--kindle-radius:${v.radius}px;--kindle-bezel:${v.bezel}px;--kindle-chrome:${escapeHtml(tokens.appearance.chrome)}">
+        <div class="kindle-screen"><iframe id="ebookPreviewFrame" class="ebook-reader kindle-render-frame" title="Kindle reflowable preview" srcdoc="${escapeHtml(frameHtml)}"></iframe></div>
+      </div>
     </div>
-  </div>`;
+  </section>`;
 }
+
 
 function refreshEbookInspectorOnly() {
   const slot = document.querySelector('#ebookInspectorSlot');
@@ -926,11 +996,69 @@ function refreshEbookInspectorOnly() {
   bindEbookInspectorControls();
 }
 
+function currentInspectorOverrideValues() {
+  const value = (id) => document.querySelector(`#${id}`)?.value ?? '';
+  const suppress = document.querySelector('#ebookOverrideSuppressIndent');
+  return {
+    spaceBefore: value('ebookOverrideBefore'),
+    spaceAfter: value('ebookOverrideAfter'),
+    firstLineIndent: value('ebookOverrideIndent'),
+    alignment: value('ebookOverrideAlignment') || 'inherit',
+    suppressIndent: suppress ? suppress.checked : undefined,
+  };
+}
+
+function applyInspectorValuesToLiveFrame() {
+  if (!state.selectedEbookBlockId) return;
+  const frame = document.querySelector('#ebookPreviewFrame');
+  const doc = frame?.contentDocument;
+  if (!doc) return;
+  const element = doc.querySelector(`[data-yrp-block-id="${CSS.escape(state.selectedEbookBlockId)}"]`);
+  if (!element) return;
+  const values = currentInspectorOverrideValues();
+  const before = values.spaceBefore === '' ? null : Number(values.spaceBefore);
+  const after = values.spaceAfter === '' ? null : Number(values.spaceAfter);
+  const indent = values.firstLineIndent === '' ? null : Number(values.firstLineIndent);
+  element.style.marginTop = Number.isFinite(before) ? `${before}em` : '';
+  element.style.marginBottom = Number.isFinite(after) ? `${after}em` : '';
+  element.style.textAlign = values.alignment && values.alignment !== 'inherit' ? values.alignment : '';
+  if (values.suppressIndent === true) element.style.textIndent = '0';
+  else element.style.textIndent = Number.isFinite(indent) ? `${indent}em` : '';
+}
+
+async function commitLiveEbookOverride() {
+  if (!state.project || !state.selectedEbookBlockId) return;
+  setBlockPresentationOverride(state.project, 'ebook', state.selectedEbookBlockId, currentInspectorOverrideValues());
+  invalidateEditionProof(state.project, 'ebook', { clearPageCount: false });
+  state.project.updatedAt = new Date().toISOString();
+  state.finalCheck = null;
+  await saveProject(state.project);
+  state.projects = await listProjects();
+  const status = document.querySelector('#ebookInspectorSaveState');
+  if (status) status.textContent = 'Saved · Story Lock unchanged';
+  disarmEbookHistory();
+}
+
 function bindEbookInspectorControls() {
-  document.querySelector('#applyEbookBlockOverride')?.addEventListener('click', applyEbookBlockOverride);
   document.querySelector('#applyEbookOverrideAsDefault')?.addEventListener('click', applyEbookOverrideAsDefault);
   document.querySelector('#resetEbookBlockOverride')?.addEventListener('click', resetEbookBlockOverride);
   document.querySelector('#resetAllEbookOverrides')?.addEventListener('click', resetAllEbookOverrides);
+  document.querySelector('#undoEbookFormatting')?.addEventListener('click', undoEbookFormatting);
+  document.querySelector('#redoEbookFormatting')?.addEventListener('click', redoEbookFormatting);
+  document.querySelectorAll('.ebook-live-control').forEach((control) => {
+    control.addEventListener('focus', armEbookHistory, { once:false });
+    control.addEventListener('input', () => {
+      armEbookHistory();
+      applyInspectorValuesToLiveFrame();
+      const status = document.querySelector('#ebookInspectorSaveState');
+      if (status) status.textContent = 'Previewing change…';
+    });
+    control.addEventListener('change', async () => {
+      armEbookHistory();
+      applyInspectorValuesToLiveFrame();
+      await commitLiveEbookOverride();
+    });
+  });
   bindKindleModeButtons(document.querySelector('#ebookInspectorSlot'));
 }
 
@@ -943,14 +1071,28 @@ function bindKindleModeButtons(root = document) {
   });
 }
 
+function bindKindlePreferenceButtons(root = document) {
+  root.querySelectorAll('[data-kindle-pref-key]').forEach((button) => {
+    if (button.dataset.kindlePrefBound === '1') return;
+    button.dataset.kindlePrefBound = '1';
+    button.addEventListener('click', () => {
+      const key = button.dataset.kindlePrefKey;
+      let value = button.dataset.kindlePrefValue;
+      if (key === 'simulateEink') value = value === 'true';
+      updateKindlePreviewPreference(key, value);
+    });
+  });
+}
+
 function updateKindlePreviewPreference(key, value) {
   state.kindlePreview = normalizeKindlePreview({ ...state.kindlePreview, [key]: value });
   if (key === 'mode' && value === 'read') {
     state.selectedEbookBlockId = '';
     state.inspectorMessage = '';
   }
-  updateMain();
+  rerenderMainPreservingScroll();
 }
+
 
 function renderEbook() {
   const project = state.project;
@@ -1006,6 +1148,7 @@ function renderEbook() {
       </div>
 
       ${state.ebookMessage ? `<div class="notice info ebook-message">${escapeHtml(state.ebookMessage)}</div>` : ''}
+      ${report.placeholders?.length ? `<div class="notice error ebook-message"><strong>Source cleanup needed before final EPUB:</strong> ${escapeHtml(report.placeholders.map((item) => item.text).join(', '))}. YasReady will preview these words but will not silently remove them from the Story-Locked manuscript.</div>` : ''}
 
       <div class="ebook-release-card ${report.ready ? 'ready' : ''}">
         <div class="ebook-release-status">
@@ -1013,7 +1156,7 @@ function renderEbook() {
           <div><div class="eyebrow">Amazon KDP · Reflowable EPUB 3</div><h3>${setupStatus}</h3><p>${report.ready ? 'Story Lock, navigation, metadata, cover, and Kindle structure all passed.' : 'Finish the highlighted setup items, then download the same EPUB you will upload to KDP.'}</p></div>
         </div>
         <div class="ebook-release-progress"><strong>${readySteps}/4</strong><span>setup</span></div>
-        <button class="btn primary ebook-download-main" id="downloadEpub" type="button" ${report.ready ? '' : 'disabled'}>Download KDP EPUB</button>
+        <div class="ebook-release-actions"><button class="btn secondary" id="jumpEbookPreviewStudio" type="button">Open Preview Studio</button><button class="btn primary ebook-download-main" id="downloadEpub" type="button" ${report.ready ? '' : 'disabled'}>Download KDP EPUB</button></div>
       </div>
 
       <div class="ebook-steps">
@@ -1071,16 +1214,18 @@ function renderEbook() {
       </div>
     </article>
 
-    <article class="panel ebook-workbench-panel kindle-preview-studio-v109">
-      <div class="panel-head"><div><div class="eyebrow">Kindle Preview Studio</div><h2>${escapeHtml(preview.section.title)}</h2><p>High-fidelity YasReady simulator using the same XHTML/CSS packaged into your EPUB. Amazon Kindle Previewer remains the final rendering authority.</p></div><div class="ebook-section-buttons"><button class="btn small secondary" id="prevEbookSection" ${preview.index <= 0 ? 'disabled' : ''}>← Previous</button><button class="btn small secondary" id="nextEbookSection" ${preview.index >= preview.sections.length - 1 ? 'disabled' : ''}>Next →</button></div></div>
-      ${renderKindlePreviewToolbar(state.kindlePreview)}
-      <div class="kindle-preview-truth"><span>LIVE EPUB SOURCE</span><strong>${state.kindlePreview.mode === 'adjust' ? 'Adjust Layout is ON' : 'Read Mode'}</strong><p>${state.kindlePreview.device === 'ereader' ? 'E-reader mode previews artwork in grayscale, like KDP’s Kindle E-reader preview.' : 'Phone/tablet modes preview color artwork.'} Change device, orientation, text size, and appearance without changing the EPUB.</p></div>
-      <div class="ebook-workbench preview-studio-grid ${state.kindlePreview.mode === 'adjust' ? 'is-adjusting' : 'is-reading'}">
-        <aside class="ebook-toc"><div class="ebook-toc-head"><strong>Reading Order</strong><span>${preview.sections.length} items</span></div><div class="ebook-toc-list">${sectionRows}</div></aside>
-        ${renderKindleSimulatorFrame(preview, state.kindlePreview)}
-        <div id="ebookInspectorSlot">${renderEbookInspector(project, design)}</div>
+    <article class="panel ebook-workbench-panel kindle-preview-studio-v110" id="ebookPreviewStudio">
+      <div class="kindle-studio-head">
+        <div><div class="eyebrow">Kindle Preview Studio</div><h2>${escapeHtml(preview.section.title)}</h2><p>Read and tune the same reflowable XHTML/CSS source used by the final EPUB. Reader simulation never changes the book; formatting overrides do.</p></div>
+        <div class="ebook-section-buttons"><button class="btn small secondary" id="prevEbookSection" ${preview.index <= 0 ? 'disabled' : ''}>← Previous</button><button class="btn small secondary" id="nextEbookSection" ${preview.index >= preview.sections.length - 1 ? 'disabled' : ''}>Next →</button></div>
       </div>
-      <div class="notice info"><strong>${state.kindlePreview.mode === 'adjust' ? 'Adjust Layout mode:' : 'Read Mode:'}</strong> ${state.kindlePreview.mode === 'adjust' ? 'click a paragraph or heading to select it. The iframe stays in place while the inspector opens, so selection no longer reloads the whole preview. Formatting fixes are presentation metadata only.' : 'the book is intentionally non-editable and free of selection outlines. Switch to Adjust Layout only when you find a visual problem.'}</div>
+      ${renderKindlePreviewToolbar(state.kindlePreview)}
+      <div class="kindle-studio-status ${state.kindlePreview.mode === 'adjust' ? 'adjust' : 'read'}"><strong>${state.kindlePreview.mode === 'adjust' ? 'Adjust Layout' : 'Read Mode'}</strong><span>${state.kindlePreview.mode === 'adjust' ? 'Click a paragraph or heading. Changes preview instantly and save as presentation metadata only.' : 'No selection boxes. Read the book like a customer, then switch to Adjust Layout only when something needs work.'}</span></div>
+      <div class="preview-studio-grid-v110 ${state.kindlePreview.mode === 'adjust' ? 'is-adjusting' : 'is-reading'}">
+        <aside class="ebook-toc preview-pane-column"><div class="ebook-toc-head"><strong>Reading Order</strong><span>${preview.sections.length} items</span></div><div class="ebook-toc-list">${sectionRows}</div></aside>
+        ${renderKindleSimulatorFrame(preview, state.kindlePreview)}
+        <div id="ebookInspectorSlot" class="preview-pane-column inspector-column">${renderEbookInspector(project, design)}</div>
+      </div>
     </article>
 
     <article class="panel ebook-preflight-panel">
@@ -1243,10 +1388,10 @@ function bindDynamicEvents() {
   });
 
   document.querySelector('#newImport')?.addEventListener('click', () => {
-    state.project = null; state.preview = null; state.ebookSectionIndex = 0; state.selectedEbookBlockId = ''; state.inspectorMessage = ''; state.ebookMessage = ''; state.finalCheck = null; state.backupMessage = ''; state.activeView = 'import'; state.error = ''; renderShell();
+    state.project = null; state.preview = null; state.ebookSectionIndex = 0; state.selectedEbookBlockId = ''; state.inspectorMessage = ''; state.ebookMessage = ''; state.ebookUndoStack = []; state.ebookRedoStack = []; state.ebookHistoryArmed = false; state.finalCheck = null; state.backupMessage = ''; state.activeView = 'import'; state.error = ''; renderShell();
   });
   document.querySelector('#libraryImport')?.addEventListener('click', () => {
-    state.project = null; state.preview = null; state.ebookSectionIndex = 0; state.selectedEbookBlockId = ''; state.inspectorMessage = ''; state.ebookMessage = ''; state.finalCheck = null; state.backupMessage = ''; state.activeView = 'import'; state.error = ''; renderShell();
+    state.project = null; state.preview = null; state.ebookSectionIndex = 0; state.selectedEbookBlockId = ''; state.inspectorMessage = ''; state.ebookMessage = ''; state.ebookUndoStack = []; state.ebookRedoStack = []; state.ebookHistoryArmed = false; state.finalCheck = null; state.backupMessage = ''; state.activeView = 'import'; state.error = ''; renderShell();
   });
   document.querySelector('#saveMetadata')?.addEventListener('click', saveProjectMetadata);
   document.querySelector('#verifyLock')?.addEventListener('click', verifyLock);
@@ -1274,6 +1419,7 @@ function bindDynamicEvents() {
   document.querySelector('#downloadPrintMaster')?.addEventListener('click', downloadPrintMaster);
   document.querySelector('#downloadPreflightReport')?.addEventListener('click', downloadPreflightReport);
   document.querySelector('#saveEbookSettings')?.addEventListener('click', saveEbookSettings);
+  document.querySelector('#jumpEbookPreviewStudio')?.addEventListener('click', () => document.querySelector('#ebookPreviewStudio')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   document.querySelector('#focusEbookOnly')?.addEventListener('click', focusEbookOnly);
   document.querySelector('#chooseEbookCover')?.addEventListener('click', () => document.querySelector('#ebookCoverInput')?.click());
   document.querySelector('#ebookCoverInput')?.addEventListener('change', (event) => event.target.files?.[0] && importEbookCover(event.target.files[0]));
@@ -1292,6 +1438,7 @@ function bindDynamicEvents() {
   document.querySelector('#kindlePreviewFontScale')?.addEventListener('change', (event) => updateKindlePreviewPreference('fontScale', event.target.value));
   document.querySelector('#kindlePreviewAppearance')?.addEventListener('change', (event) => updateKindlePreviewPreference('appearance', event.target.value));
   bindKindleModeButtons(document);
+  bindKindlePreferenceButtons(document);
 
   document.querySelectorAll('[data-go-view]').forEach((button) => button.addEventListener('click', () => {
     state.activeView = button.dataset.goView;
@@ -1363,6 +1510,9 @@ function bindDynamicEvents() {
     state.selectedEbookBlockId = '';
     state.inspectorMessage = '';
     state.ebookMessage = '';
+    state.ebookUndoStack = [];
+    state.ebookRedoStack = [];
+    state.ebookHistoryArmed = false;
     state.finalCheck = null;
     state.backupMessage = '';
     state.activeView = 'import';
@@ -1953,6 +2103,7 @@ async function applyEbookBlockOverride() {
 
 async function applyEbookOverrideAsDefault() {
   if (!state.project || !state.selectedEbookBlockId) return;
+  armEbookHistory();
   const block = ebookSelectedBlock(state.project);
   if (!block) return;
   const value = (id) => document.querySelector(`#${id}`)?.value ?? '';
@@ -1980,11 +2131,13 @@ async function applyEbookOverrideAsDefault() {
   state.finalCheck = null;
   await saveProject(state.project);
   state.projects = await listProjects();
+  disarmEbookHistory();
   updateMain();
 }
 
 async function resetEbookBlockOverride() {
   if (!state.project || !state.selectedEbookBlockId) return;
+  armEbookHistory();
   clearBlockPresentationOverride(state.project, 'ebook', state.selectedEbookBlockId);
   invalidateEditionProof(state.project, 'ebook', { clearPageCount: false });
   state.project.updatedAt = new Date().toISOString();
@@ -1992,6 +2145,7 @@ async function resetEbookBlockOverride() {
   state.inspectorMessage = 'This block is back on the Tres Amigos ebook theme.';
   await saveProject(state.project);
   state.projects = await listProjects();
+  disarmEbookHistory();
   updateMain();
 }
 
@@ -2001,6 +2155,7 @@ async function resetAllEbookOverrides() {
   const count = countPresentationOverrides(state.project, 'ebook');
   if (!count) return;
   if (!confirm(`Reset all ${count} custom Kindle format fix${count === 1 ? '' : 'es'} back to the ebook theme? Story wording will not change.`)) return;
+  armEbookHistory();
   state.project.presentationOverrides.ebook = {};
   invalidateEditionProof(state.project, 'ebook', { clearPageCount: false });
   state.selectedEbookBlockId = '';
@@ -2009,6 +2164,7 @@ async function resetAllEbookOverrides() {
   state.finalCheck = null;
   await saveProject(state.project);
   state.projects = await listProjects();
+  disarmEbookHistory();
   updateMain();
 }
 

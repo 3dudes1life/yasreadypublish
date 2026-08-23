@@ -16,8 +16,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   const project = {
     id: crypto.randomUUID(),
-    version: 19,
-    appVersion: '1.0.9',
+    version: 20,
+    appVersion: '1.0.10',
     title: baseName,
     author: '',
     createdAt: now,
@@ -188,11 +188,21 @@ export function migrateProject(project) {
     if (project.editions?.ebook) project.editions.ebook.lastPreflight = null;
   }
 
+  // 1.0.10 hardens the Kindle-first workflow: front matter is reflowed using
+  // ebook-specific presentation rules, finished EPUB output is audited, and
+  // Preview Studio gains live layout history. Migration never rewrites source
+  // blocks; it only invalidates stale ebook readiness so the new exporter is
+  // checked against the real manuscript on the next pass.
+  if (oldVersion < 20) {
+    ensurePresentationOverrides(project);
+    if (project.editions?.ebook) project.editions.ebook.lastPreflight = null;
+  }
+
   ensureEbookDesign(project);
   ensureEditions(project);
   ensurePresentationOverrides(project);
-  project.version = Math.max(oldVersion, 19);
-  project.appVersion = '1.0.9';
+  project.version = Math.max(oldVersion, 20);
+  project.appVersion = '1.0.10';
   return project;
 }
 

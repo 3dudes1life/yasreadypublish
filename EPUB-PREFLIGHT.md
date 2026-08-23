@@ -1,7 +1,9 @@
-# YasReady Publish 1.0.8 — Kindle EPUB Preflight
+# EPUB Preflight — v1.0.10
 
-The ebook release gate is now Amazon KDP / Kindle only.
+The Kindle release gate verifies the Story-Locked source and the generated EPUB package.
 
-Export is blocked when Story Lock fails, source coverage changes, chapter navigation is incomplete, the visible linked Contents page is disabled, the internal cover is missing/invalid, required title/author/language metadata is missing, paragraph separation is absent, the XHTML file count reaches Amazon's limit, a source section is too large, or unsupported DOCX image assets would be omitted.
+Blocking checks include Story Lock, exact source coverage, metadata, cover packaging, detected chapter navigation, visible Contents, logical navigation/landmarks, supported asset handling, KDP section/file guards, source placeholders, and the finished-package audit.
 
-Warnings do not silently rewrite the book. Word tables, manual page breaks, publisher metadata, and cover-resolution recommendations are surfaced for review.
+The finished-package audit opens YasReady's generated package data and confirms that production EPUB output contains no Preview Studio-only CSS/classes/hooks.
+
+Likely source placeholders are never silently deleted. They must be corrected deliberately in the master manuscript before a production EPUB can be marked ready.

@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.0.10 — Kindle Finalization + Preview Studio UX
+
+- Rebuilds Kindle Preview Studio as a fixed three-pane workbench: **Reading Order | Live Book Preview | Format Inspector**, with independent scrolling and a sticky top control bar.
+- Adds a one-click **Open Preview Studio** action from the Kindle release card so setup and proofing no longer require hunting down the page.
+- Defaults the Kindle working preview to **color**. E-ink grayscale is now an explicit simulator toggle, never a production EPUB change.
+- Removes the black device-header bar from the working simulator so no chrome covers the book.
+- Keeps **Read Mode** as the default; block selection hooks exist only in explicit **Adjust Layout** mode.
+- Makes inspector values update the selected block live in the preview, then persist as edition-scoped presentation metadata. No manuscript text editor is introduced.
+- Adds Kindle formatting **Undo / Redo**, per-block reset, reset-all, and safe promotion to body/chapter defaults.
+- Hardens front-matter sectioning: generic Word heading styles no longer create arbitrary ebook sections. `copyright law.` stays with the copyright section instead of becoming its own reading item.
+- Adds clean ebook front-matter reflow that joins print-layout line wraps into readable legal paragraphs while preserving every source block ID, source text, and Story Lock order.
+- Detects likely source placeholders such as `CHAPTERS PAGE` and **blocks final EPUB release instead of silently deleting them**.
+- Adds a finished-package EPUB audit before release: metadata, single-cover packaging, chapter file/link counts, visible Contents in the spine, Begin Reading landmark, and Preview Studio leakage are verified against the generated package.
+- Removes Preview Studio-only CSS/classes/hooks from production EPUB output.
+- Project schema **20** / app **1.0.10**; migration invalidates stale ebook preflight state but leaves manuscript blocks unchanged.
+- Automated release gate: **119/119 tests passing**, static verification PASS, Superman audit PASS.
+
 ## v1.0.9 — Kindle Simulator + Read/Adjust UX Hardening
 
 - Replaces the oversized generic cover/web preview with a device-framed Kindle working simulator.

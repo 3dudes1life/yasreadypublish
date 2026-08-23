@@ -1,4 +1,5 @@
-import { buildEbookSections, ebookTocEntries, normalizeEbookDesign, verifyEbookSourceCoverage } from './ebook-model.js';
+import { buildEbookSections, detectEbookPlaceholders, ebookTocEntries, normalizeEbookDesign, verifyEbookSourceCoverage } from './ebook-model.js';
+import { auditEpubPackage } from './epub-audit.js';
 import { effectiveStats } from './structure-overrides.js';
 
 const check = (id, label, status, message) => ({ id, label, status, message });
@@ -53,6 +54,8 @@ export function runEpubPreflight({ project, storyLockOk = true } = {}) {
   const maxApproxBytes = maxSectionApproxBytes(sections);
   const sectionSizeOk = maxApproxBytes < 30 * 1024 * 1024;
   const paragraphSeparationOk = Number(design.firstLineIndentEm) > 0 || Number(design.paragraphGapEm) > 0;
+  const placeholders = detectEbookPlaceholders(project);
+  const packageAudit = auditEpubPackage({ project });
 
   const checks = [
     check('story-lock', 'Story Lock', storyLockOk ? 'pass' : 'error', storyLockOk ? 'Source manuscript hash is verified.' : 'Story Lock failed. Kindle EPUB export is blocked.'),
@@ -77,7 +80,9 @@ export function runEpubPreflight({ project, storyLockOk = true } = {}) {
     check('structure-overrides', 'Structure repair metadata', 'pass', `${stats.structureOverrides || 0} paragraph classification override(s) are applied outside Story Lock; source wording is unchanged.`),
     check('word-tables', 'Word tables', (project?.manuscript?.metadata?.tableCount || 0) ? 'warning' : 'pass', (project?.manuscript?.metadata?.tableCount || 0) ? `${project.manuscript.metadata.tableCount} Word table(s) were detected. Paragraph text is preserved, but table grid layout is not reproduced.` : 'No Word table structures detected.'),
     check('manual-breaks', 'Manual Word page breaks', (project?.manuscript?.metadata?.manualPageBreakCount || 0) ? 'warning' : 'pass', (project?.manuscript?.metadata?.manualPageBreakCount || 0) ? `${project.manuscript.metadata.manualPageBreakCount} manual Word page break(s) were detected and intentionally ignored in the reflowable edition.` : 'No manual Word page breaks detected.'),
-    check('front-matter', 'Front matter reflow', 'pass', design.frontMatterMode === 'clean' ? 'Front matter uses clean Kindle reflow rules: source words/emphasis remain intact while print-only blank spacing is collapsed.' : 'Front matter uses bounded source paragraph alignment/spacing where available.'),
+    check('front-matter', 'Front matter reflow', 'pass', design.frontMatterMode === 'clean' ? 'Front matter uses clean Kindle reflow rules: source words/emphasis remain intact while print-only line wrapping and blank spacing are reflowed for an ebook.' : 'Front matter uses bounded source paragraph alignment/spacing where available.'),
+    check('placeholders', 'Layout placeholder scan', placeholders.length ? 'error' : 'pass', placeholders.length ? `${placeholders.length} possible print-layout placeholder${placeholders.length === 1 ? '' : 's'} detected in front/back matter: ${placeholders.map((item) => item.text).join(', ')}. Remove or deliberately rewrite these in the master manuscript before final Kindle export.` : 'No CHAPTERS PAGE / TOC PAGE-style layout placeholders were detected in ebook matter.'),
+    ...packageAudit.checks.map((item) => check(item.id, `Finished EPUB · ${item.id.replace(/^audit-/, '').replaceAll('-', ' ')}`, item.ok ? 'pass' : 'error', item.message)),
     check('sections', 'Reading-order sections', sections.length > 0 ? 'pass' : 'error', `${sections.length} source-backed XHTML section${sections.length === 1 ? '' : 's'} will be packaged plus the visible Contents.`),
   ];
 
@@ -100,6 +105,8 @@ export function runEpubPreflight({ project, storyLockOk = true } = {}) {
     design,
     sourceCoverage: coverage,
     cover: cover.cover,
+    packageAudit,
+    placeholders,
     kdp: {
       ready,
       htmlFileCount,
