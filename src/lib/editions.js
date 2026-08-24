@@ -1,5 +1,6 @@
 import { normalizePrintDesign } from './print-model.js';
 import { normalizeEbookDesign } from './ebook-model.js';
+import { normalizePrintProduction } from './print-brain.js';
 
 export const EDITION_TYPES = Object.freeze(['paperback', 'hardcover', 'ebook']);
 export const PRINT_EDITION_TYPES = Object.freeze(['paperback', 'hardcover']);
@@ -32,6 +33,7 @@ export function ensureEditions(project) {
     lastPageCount: Number(project.editions.paperback?.lastPageCount) || null,
     lastBuiltAt: project.editions.paperback?.lastBuiltAt || null,
     lastPreflight: project.editions.paperback?.lastPreflight || null,
+    production: normalizePrintProduction(project.editions.paperback?.production || {}, 'paperback'),
   };
   project.editions.hardcover = {
     enabled: Boolean(project.editions.hardcover?.enabled),
@@ -40,6 +42,7 @@ export function ensureEditions(project) {
     lastPageCount: Number(project.editions.hardcover?.lastPageCount) || null,
     lastBuiltAt: project.editions.hardcover?.lastBuiltAt || null,
     lastPreflight: project.editions.hardcover?.lastPreflight || null,
+    production: normalizePrintProduction(project.editions.hardcover?.production || {}, 'hardcover'),
   };
   project.editions.ebook = {
     enabled: project.editions.ebook?.enabled !== false,

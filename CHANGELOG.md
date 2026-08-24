@@ -1,3 +1,11 @@
+# YasReady Publish 1.0.28 — Print Brain + Actionable Kindle QA
+
+- Fixed false Kindle chapter/navigation blockers caused by comparing Book Brain effective structure against frozen DOCX parser counts.
+- Book Brain no longer promotes fuzzy Heading 1 candidates in known front/back matter into chapters. Existing projects are reanalyzed on migration without changing Story Lock source.
+- Fixed Amazon list audit so front/back-matter numbering cannot create the impossible `0 nested items` blocker. Real list problems now point to a source block.
+- Kindle quality issues can now route to Book Brain or Structure Repair instead of rendering dead red boxes.
+- Added Print Brain v1: Paperback/Hardcover manufacturing setup for trim, ink, paper, bleed, KDP page-range eligibility, all five KDP hardcover trims, and automatic safe margin floors.
+
 ## 1.0.27 — Amazon Hard Mode
 
 - Removes forced normal-body Kindle typography so reflowable prose remains reader-controlled for font face, base size, line-height, color/background, and alignment.

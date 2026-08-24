@@ -1,3 +1,13 @@
+# YasReady Publish 1.0.28 Release QA
+
+- Run `npm run verify`.
+- Confirm a migrated 1.0.27 project preserves Story Lock text and reanalyzes Book Brain chapter boundaries.
+- Confirm Kindle QA has no false 55/56 chapter mismatch when effective EPUB structure is consistent.
+- Confirm front/back-matter numbering does not create a fake nested-list blocker.
+- Confirm Paperback and Hardcover enter Print Brain before advanced Design until manufacturing setup is saved.
+- Confirm 6×9 black/cream/no-bleed recommendation and all five hardcover trims are available.
+- Confirm print preflight uses exact selected ink/paper/trim page-range rules and page-count gutter floors.
+
 # YasReady Publish v1.0.27 — Kindle Previewer Compatibility QA
 
 **Automated release gate:** 208 automated tests passing + static verification + Superman audit.

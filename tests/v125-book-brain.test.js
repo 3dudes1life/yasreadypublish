@@ -89,8 +89,8 @@ test('1.0.25 migration adds Book Brain while preserving manuscript source and ed
   project.editions.ebook.enabled = true;
   const before = JSON.stringify(project.manuscript.blocks);
   const migrated = migrateProject(project);
-  assert.equal(migrated.version, 27);
-  assert.equal(migrated.appVersion, '1.0.27');
+  assert.equal(migrated.version, 28);
+  assert.equal(migrated.appVersion, '1.0.28');
   assert.equal(migrated.editions.ebook.enabled, true);
   assert.equal(JSON.stringify(migrated.manuscript.blocks), before);
   assert.equal(migrated.bookBrain.version, 1);

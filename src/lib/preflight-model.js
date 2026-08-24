@@ -2,6 +2,7 @@ import { normalizePrintDesign } from './print-model.js';
 import { shouldGeneratePrintToc, verifyGeneratedPrintToc } from './print-toc.js';
 import { effectiveStats } from './structure-overrides.js';
 import { verifyPreviewProof } from './proof-integrity.js';
+import { printEligibility } from './print-brain.js';
 
 export const KDP_MARGIN_BANDS = Object.freeze([
   { min: 24, max: 150, inside: 0.375 },
@@ -37,6 +38,11 @@ export function runKdpPreflight({ project, preview, storyLockOk = true, editionT
   const minPages = isHardcover ? 75 : 24;
   const maxPages = isHardcover ? 550 : 828;
   const proofOwnership = verifyPreviewProof({ project, preview, editionType });
+  const storedProduction = project?.editions?.[editionType]?.production || {};
+  const production = storedProduction?.configured
+    ? storedProduction
+    : { ...storedProduction, trimId:'custom', trimWidth:design.trimWidth, trimHeight:design.trimHeight };
+  const printBrain = printEligibility({ type:editionType, production, pageCount });
 
   checks.push(check(
     'proof-ownership',
@@ -65,32 +71,23 @@ export function runKdpPreflight({ project, preview, storyLockOk = true, editionT
     pageCount ? `${pageCount} individual physical pages will export; no 2-up spreads.` : 'Build Print Preview before export.',
   ));
 
-  const exact6x9 = Math.abs(design.trimWidth - 6) < 0.001 && Math.abs(design.trimHeight - 9) < 0.001;
-  const exact55x85 = Math.abs(design.trimWidth - 5.5) < 0.001 && Math.abs(design.trimHeight - 8.5) < 0.001;
-  const paperbackCustomRange = design.trimWidth >= 4 && design.trimWidth <= 8.5 && design.trimHeight >= 6 && design.trimHeight <= 11.69;
-  const trimSupported = isHardcover ? (exact6x9 || exact55x85) : paperbackCustomRange;
+  const trimSupported = printBrain.range.available;
   checks.push(check(
     'trim',
-    'KDP trim-size support',
-    trimSupported ? (exact6x9 ? 'pass' : 'warning') : 'error',
+    'KDP trim / manufacturing option',
+    trimSupported ? 'pass' : 'error',
     trimSupported
-      ? exact6x9
-        ? `6 × 9 in trim is supported for this KDP ${editionLabel.toLowerCase()} edition.`
-        : isHardcover
-          ? '5.5 × 8.5 in is a supported KDP hardcover trim. Confirm your cover uses the same trim.'
-          : `${design.trimWidth} × ${design.trimHeight} in is within KDP paperback custom-trim bounds. Confirm the same trim in KDP.`
-      : isHardcover
-        ? `${design.trimWidth} × ${design.trimHeight} in is not one of the KDP hardcover trims validated by this release (5.5 × 8.5 or 6 × 9).`
-        : `${design.trimWidth} × ${design.trimHeight} in is outside KDP paperback custom-trim bounds validated by this release.`,
+      ? `${printBrain.production.trimWidth} × ${printBrain.production.trimHeight} in · ${printBrain.production.ink} ink · ${printBrain.production.paper} paper is available for this ${editionLabel.toLowerCase()} profile.`
+      : printBrain.range.reason,
   ));
 
   checks.push(check(
     'page-count',
     `${editionLabel} page count`,
-    pageCount >= minPages && pageCount <= maxPages ? 'pass' : 'error',
-    pageCount >= minPages && pageCount <= maxPages
-      ? `${pageCount} pages is inside the ${minPages}–${maxPages} KDP ${editionLabel.toLowerCase()} range used by this preflight.`
-      : `${pageCount || 0} pages is outside the ${minPages}–${maxPages} KDP ${editionLabel.toLowerCase()} range used by this preflight.`,
+    printBrain.pageCountOk ? 'pass' : 'error',
+    printBrain.pageCountOk
+      ? pageCount ? `${pageCount} pages is inside the ${printBrain.range.min}–${printBrain.range.max} KDP range for this exact print profile.` : printBrain.range.reason
+      : `${pageCount || 0} pages is outside the ${printBrain.range.min}–${printBrain.range.max} KDP range for this exact print profile.`,
   ));
 
   checks.push(check(
@@ -105,35 +102,27 @@ export function runKdpPreflight({ project, preview, storyLockOk = true, editionT
   checks.push(check(
     'inside-margin',
     'Inside binding margin',
-    requiredInside == null ? 'error' : design.insideMargin + 1e-9 >= requiredInside ? 'pass' : 'error',
-    requiredInside == null
+    printBrain.requiredInside == null ? 'error' : design.insideMargin + 1e-9 >= printBrain.requiredInside ? 'pass' : 'error',
+    printBrain.requiredInside == null
       ? 'Required inside margin could not be determined for this page count.'
-      : `${design.insideMargin.toFixed(3)} in set; KDP minimum for ${pageCount} pages is ${requiredInside.toFixed(3)} in.`,
-    { required: requiredInside, actual: design.insideMargin },
+      : `${design.insideMargin.toFixed(3)} in set; KDP minimum for ${pageCount} pages is ${printBrain.requiredInside.toFixed(3)} in.`,
+    { required: printBrain.requiredInside, actual: design.insideMargin },
   ));
 
   checks.push(check(
     'outside-margin',
-    'Outside margin (no bleed)',
-    design.outsideMargin + 1e-9 >= 0.25 ? 'pass' : 'error',
-    `${design.outsideMargin.toFixed(3)} in set; KDP no-bleed minimum is 0.250 in.`,
+    `Outside margin (${printBrain.production.bleed ? 'bleed' : 'no bleed'})`,
+    design.outsideMargin + 1e-9 >= printBrain.requiredOutside ? 'pass' : 'error',
+    `${design.outsideMargin.toFixed(3)} in set; KDP minimum for this bleed setting is ${printBrain.requiredOutside.toFixed(3)} in.`,
   ));
 
   checks.push(check(
     'top-bottom-margins',
     'Top / bottom margins',
-    design.topMargin + 1e-9 >= 0.25 && design.bottomMargin + 1e-9 >= 0.25 ? 'pass' : 'error',
-    `${design.topMargin.toFixed(3)} in top / ${design.bottomMargin.toFixed(3)} in bottom; KDP no-bleed minimum is 0.250 in.`,
+    design.topMargin + 1e-9 >= printBrain.requiredTopBottom && design.bottomMargin + 1e-9 >= printBrain.requiredTopBottom ? 'pass' : 'error',
+    `${design.topMargin.toFixed(3)} in top / ${design.bottomMargin.toFixed(3)} in bottom; KDP minimum for this bleed setting is ${printBrain.requiredTopBottom.toFixed(3)} in.`,
   ));
 
-  if (!isHardcover && pageCount > 776 && pageCount <= 828) {
-    checks.push(check(
-      'cream-paper-limit',
-      'Paper-color page limit',
-      'warning',
-      `${pageCount} pages fits the black-ink/white-paper 6×9 paperback limit used by this preflight, but exceeds KDP's 776-page cream-paper limit. Choose white paper or reduce page count.`,
-    ));
-  }
 
   const smallestFont = Math.min(
     design.bodyFontSize,

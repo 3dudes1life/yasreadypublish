@@ -1,3 +1,4 @@
+import { analyzeMatter } from './structure-model.js';
 /**
  * YasReady Book Brain v1
  *
@@ -228,10 +229,23 @@ export function analyzeBookBrain(project) {
   const previous = project?.bookBrain || {};
   const decisions = previous.reviewDecisions && typeof previous.reviewDecisions === 'object' ? { ...previous.reviewDecisions } : {};
   const interpretations = [];
+  const sourceStructure = analyzeMatter(blocks);
+  const hasSourceChapters = sourceStructure.firstChapterIndex != null;
 
   for (const block of blocks) {
     const candidate = chapterCandidate(block);
-    if (candidate) interpretations.push(structureInterpretation(block, 'chapter-title', candidate.confidence, candidate.reason));
+    if (!candidate) continue;
+    const explicitSourceChapter = block.kind === 'chapter-title';
+    const explicitTextChapter = /^(chapter|part|book)\s+(?:\d+|[ivxlcdm]+|[a-z]+)\b|^(prologue|epilogue)\b/i.test(clean(block.text));
+    const outsideKnownBody = hasSourceChapters && (
+      block.index < sourceStructure.firstChapterIndex
+      || (sourceStructure.backMatterStartIndex != null && block.index >= sourceStructure.backMatterStartIndex)
+    );
+    // Once the source already gives us a trustworthy chapter body, Book Brain
+    // must not promote a title-page/back-matter Heading 1 into a new chapter.
+    // Explicit chapter/prologue/epilogue wording is still respected.
+    if (outsideKnownBody && !explicitSourceChapter && !explicitTextChapter) continue;
+    interpretations.push(structureInterpretation(block, 'chapter-title', candidate.confidence, candidate.reason));
   }
 
   const firstChapterIndex = inferredFirstChapterIndex(blocks, interpretations);
@@ -239,6 +253,7 @@ export function analyzeBookBrain(project) {
 
   for (const block of blocks) {
     if (firstChapterIndex == null || block.index < firstChapterIndex) continue;
+    if (sourceStructure.backMatterStartIndex != null && block.index >= sourceStructure.backMatterStartIndex) continue;
     const candidate = semanticCandidate(block, 'body');
     if (candidate) interpretations.push(semanticInterpretation(block, candidate.role, candidate.confidence, candidate.reason));
   }

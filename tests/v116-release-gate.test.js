@@ -47,8 +47,8 @@ const flow=()=>({hardReady:true,blockers:[],reviews:[],acknowledged:[]});
 test('1.0.16 migrates the exact 1.0.15 project to schema 25 without touching manuscript blocks', () => {
   const p=project();
   const before=JSON.stringify(p.manuscript.blocks);
-  assert.equal(p.version, 27);
-  assert.equal(p.appVersion, '1.0.27');
+  assert.equal(p.version, 28);
+  assert.equal(p.appVersion, '1.0.28');
   assert.equal(JSON.stringify(p.manuscript.blocks),before);
   assert.equal(p.editions.ebook.releaseGate.version,1);
   assert.equal(p.editions.ebook.releaseGate.visualProof,null);

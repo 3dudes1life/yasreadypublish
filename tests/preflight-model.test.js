@@ -86,8 +86,8 @@ test('hardcover preflight uses independent KDP 75–550 page limit', () => {
 });
 
 test('hardcover trim is blocked outside KDP hardcover sizes', () => {
-  const project = sampleProject({ design: { trimWidth: 7, trimHeight: 10 } });
-  const report = runKdpPreflight({ project, preview: samplePreview(project, 300, { design: { trimWidth: 7, trimHeight: 10 } }, 'hardcover'), storyLockOk: true, editionType: 'hardcover' });
+  const project = sampleProject({ design: { trimWidth: 6.2, trimHeight: 9.2 } });
+  const report = runKdpPreflight({ project, preview: samplePreview(project, 300, { design: { trimWidth: 6.2, trimHeight: 9.2 } }, 'hardcover'), storyLockOk: true, editionType: 'hardcover' });
   assert.equal(report.ready, false);
   assert.equal(report.checks.find((item) => item.id === 'trim').status, 'error');
 });

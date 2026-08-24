@@ -1,6 +1,12 @@
 # YasReady Publish
 
-**Current release: v1.0.27 — Amazon Hard Mode**
+**Current release: v1.0.28 — Print Brain + Actionable Kindle QA**
+
+## v1.0.28 — Print Brain + Actionable Kindle QA
+
+YasReady now repairs the false Kindle chapter/navigation blockers exposed by Book Brain and starts the physical-book workflow with **Print Brain**. Kindle QA compares the finished EPUB against Book Brain’s effective structure instead of frozen parser counts, front/back-matter numbering no longer creates impossible list blockers, and real structural findings route to Book Brain or Structure Repair instead of rendering as dead red boxes.
+
+Paperback and Hardcover now begin with the physical manufacturing choice—trim, ink, paper, and bleed—before advanced typography. YasReady models KDP page-range eligibility, all five current hardcover trim sizes, and page-count-driven safe margin floors while preserving roomier house-style margins. This is the Print Brain foundation; deterministic production-PDF generation remains the 1.0.29 target.
 
 ## v1.0.27 — Amazon Hard Mode
 

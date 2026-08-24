@@ -5,7 +5,7 @@ import { ensureStructureOverrides } from './structure-overrides.js';
 import { ensureEditions, invalidateAllEditionProofs } from './editions.js';
 import { ensurePresentationOverrides } from './presentation-overrides.js';
 import { canonicalizeManuscriptV2 } from './manuscript-rules.js';
-import { applyBookBrain } from './book-brain.js';
+import { applyBookBrain, reanalyzeBookBrain } from './book-brain.js';
 
 export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
   const [sourceFileHash, manuscriptHash] = await Promise.all([
@@ -18,8 +18,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   const project = {
     id: crypto.randomUUID(),
-    version: 27,
-    appVersion: '1.0.27',
+    version: 28,
+    appVersion: '1.0.28',
     title: baseName,
     author: '',
     createdAt: now,
@@ -281,7 +281,7 @@ export function migrateProject(project) {
   // 1.0.18 adds source-safe chapter-heading interpretation in Theme Studio.
   // Upgrade only untouched legacy Tres Amigos spacing. If an author had already
   // customized chapter spacing, keep it exactly as-is. Manuscript blocks are never touched.
-  if (priorAppVersion !== '1.0.18' && !pre118HadChapterLayout) {
+  if (priorAppVersion !== '1.0.28' && priorAppVersion !== '1.0.18' && !pre118HadChapterLayout) {
     ensureEditions(project);
     const ebook = project.editions?.ebook?.design;
     if (ebook) {
@@ -300,7 +300,7 @@ export function migrateProject(project) {
   // Kindle rhythm. Only the untouched 1.0.18 Tres Amigos spacing pair migrates;
   // any author-customized spacing remains exactly as saved. This is presentation
   // metadata only and never changes the Story-Locked chapter heading or prose.
-  if (priorAppVersion !== '1.0.19') {
+  if (priorAppVersion !== '1.0.28' && priorAppVersion !== '1.0.19') {
     ensureEditions(project);
     const ebook = project.editions?.ebook?.design;
     if (ebook) {
@@ -324,7 +324,7 @@ export function migrateProject(project) {
   // 1.0.21 removes the stale legacy chapter flourish from the private Tres Amigos
   // house style. Other themes keep their ornaments. This changes presentation
   // metadata only; Story Lock manuscript text and hashes are untouched.
-  if (priorAppVersion !== '1.0.21') {
+  if (priorAppVersion !== '1.0.28' && priorAppVersion !== '1.0.21') {
     ensureEditions(project);
     const ebook = project.editions?.ebook?.design;
     if (ebook) {
@@ -342,7 +342,7 @@ export function migrateProject(project) {
   // front-matter presentation for title, copyright, and dedication pages.
   // Because the EPUB renderer changes, prior ebook preflight/proof/freeze state
   // must be rechecked. Canonical manuscript blocks, words, runs, and hashes are untouched.
-  if (priorAppVersion !== '1.0.22') {
+  if (priorAppVersion !== '1.0.28' && priorAppVersion !== '1.0.22') {
     ensureEditions(project);
     if (project.editions?.ebook) {
       project.editions.ebook.lastPreflight = null;
@@ -376,7 +376,7 @@ export function migrateProject(project) {
   // 1.0.27 Amazon Hard Mode invalidates prior Kindle proof/freeze state because
   // production CSS/package validation is stricter and external Previewer/KDP gates
   // are now tracked separately. Manuscript source, wording, media and hashes remain untouched.
-  if (oldVersion < 27 || priorAppVersion !== '1.0.27') {
+  if (priorAppVersion !== '1.0.28' && (oldVersion < 27 || priorAppVersion !== '1.0.27')) {
     ensureEditions(project);
     if (project.editions?.ebook) {
       project.editions.ebook.lastPreflight = null;
@@ -392,8 +392,19 @@ export function migrateProject(project) {
     }
   }
 
-  project.version = Math.max(oldVersion, 27);
-  project.appVersion = '1.0.27';
+
+  // 1.0.28 repairs Book Brain's chapter boundary logic so fuzzy Heading 1
+  // candidates cannot become chapters in known front/back matter. Reanalyze
+  // existing projects to clear stale inferredKinds while preserving explicit
+  // review decisions and every Story-Locked source byte.
+  if (oldVersion < 28 || priorAppVersion !== '1.0.28') {
+    if (project.bookBrain) reanalyzeBookBrain(project);
+    ensureEditions(project);
+    if (project.editions?.ebook) project.editions.ebook.lastPreflight = null;
+  }
+
+  project.version = Math.max(oldVersion, 28);
+  project.appVersion = '1.0.28';
   return project;
 }
 

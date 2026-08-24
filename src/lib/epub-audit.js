@@ -1,5 +1,6 @@
 import { buildEpubPackageData } from './epub-export.js';
-import { detectEbookPlaceholders } from './ebook-model.js';
+import { buildEbookSections, detectEbookPlaceholders } from './ebook-model.js';
+import { effectiveStats } from './structure-overrides.js';
 
 function count(text, pattern) {
   return [...String(text || '').matchAll(pattern)].length;
@@ -97,7 +98,7 @@ export function auditEpubPackage({ project } = {}) {
   const tocNav = nav.match(/<nav[^>]*epub:type="toc"[\s\S]*?<\/nav>/i)?.[0] || '';
   const chapterNavLinks = count(tocNav, /href="text\/chapter-\d+\.xhtml"/g);
   const placeholders = detectEbookPlaceholders(project);
-  const expectedChapters = Number(project?.manuscript?.stats?.chapters || project?.manuscript?.chapters?.length || 0);
+  const expectedChapters = Number(effectiveStats(project).chapters || 0);
   const titleOk = unescapeXml(titleMatch?.[1] || '') === String(project?.title || '');
   const authorOk = unescapeXml(creatorMatch?.[1] || '') === String(project?.author || '');
   const coverOk = coverItems === 1 && coverHtml.length === 0 && [...files.keys()].some((path) => /^OEBPS\/images\/cover\.(?:jpg|png)$/i.test(path));
@@ -137,9 +138,15 @@ export function auditEpubPackage({ project } = {}) {
   const sourceTables = Number(project?.manuscript?.metadata?.tableCount || 0);
   const sourceHyperlinks = Number(project?.manuscript?.metadata?.hyperlinkCount || 0);
   const preservedHyperlinks = (project?.manuscript?.blocks || []).flatMap((block) => block.runs || []).filter((run) => String(run.href || '').trim()).length;
-  const sourceNumberedBlocks = (project?.manuscript?.blocks || []).filter((block) => block.numbering).length;
-  const nestedNumberedBlocks = (project?.manuscript?.blocks || []).filter((block) => block.numbering && String(block.numbering.ilvl || '0') !== '0').length;
+  const ebookSections = buildEbookSections(project).sections;
+  const numberedRows = ebookSections.flatMap((section) => (section.blocks || []).filter((block) => block.numbering).map((block) => ({ section, block })));
+  const chapterNumberedRows = numberedRows.filter((row) => row.section.type === 'chapter');
+  const matterNumberedRows = numberedRows.filter((row) => row.section.type !== 'chapter');
+  const sourceNumberedBlocks = chapterNumberedRows.length;
+  const nestedNumberedBlocks = chapterNumberedRows.filter((row) => String(row.block.numbering?.ilvl || '0') !== '0').length;
   const semanticListItems = xhtmlEntries.reduce((sum, [, content]) => sum + count(content, /<li\b[^>]*class="[^"]*semantic-list-item/gi), 0);
+  const unconvertedSimpleListItems = Math.max(0, sourceNumberedBlocks - semanticListItems);
+  const firstListProblem = chapterNumberedRows.find((row) => String(row.block.numbering?.ilvl || '0') !== '0') || (unconvertedSimpleListItems ? chapterNumberedRows[0] : null);
   const coverAsset = project?.editions?.ebook?.cover ? [project.editions.ebook.cover] : [];
   const themeAssets = [project?.editions?.ebook?.design?.themeStudio?.chapterArtwork, project?.editions?.ebook?.design?.themeStudio?.sceneBreakArtwork].filter(Boolean);
   const imageFactsRows = [...coverAsset, ...(project?.manuscript?.media || []), ...themeAssets].map((asset) => ({ asset, ...imageFacts(asset) }));
@@ -191,7 +198,7 @@ export function auditEpubPackage({ project } = {}) {
     { id:'audit-amazon-images', ok:imageDimensionFailures.length === 0, message:imageDimensionFailures.length === 0 ? `${imageFactsRows.length} packaged image asset(s) have readable dimensions greater than 1 px.` : `${imageDimensionFailures.length} image asset(s) have missing/1-pixel dimensions that can break Kindle conversion.` },
     { id:'audit-amazon-tables', ok:sourceTables === 0, message:sourceTables === 0 ? 'No source tables require semantic reconstruction.' : `${sourceTables} source table(s) detected. Hard Mode blocks export rather than silently flattening tables.` },
     { id:'audit-amazon-hyperlinks', ok:sourceHyperlinks === 0 || preservedHyperlinks >= sourceHyperlinks, message:sourceHyperlinks === 0 ? 'No source hyperlinks require preservation.' : preservedHyperlinks >= sourceHyperlinks ? `${sourceHyperlinks} source hyperlink(s) are preserved in the ebook model.` : `${sourceHyperlinks} source hyperlink(s) were detected but only ${preservedHyperlinks} are preserved; re-import with 1.0.27.` },
-    { id:'audit-amazon-lists', ok:nestedNumberedBlocks === 0 && semanticListItems >= sourceNumberedBlocks, message:sourceNumberedBlocks === 0 ? 'No source numbered/bulleted lists require semantic reconstruction.' : nestedNumberedBlocks === 0 && semanticListItems >= sourceNumberedBlocks ? `${sourceNumberedBlocks} list item(s) are exported as semantic HTML lists.` : `${sourceNumberedBlocks} numbered/list paragraph(s) include ${nestedNumberedBlocks} nested item(s); nested list reconstruction needs review.` },
+    { id:'audit-amazon-lists', ok:nestedNumberedBlocks === 0 && unconvertedSimpleListItems === 0, message:sourceNumberedBlocks === 0 ? (matterNumberedRows.length ? `${matterNumberedRows.length} numbered front/back-matter paragraph(s) are outside chapter-list reconstruction and do not block Kindle export.` : 'No source numbered/bulleted lists require semantic reconstruction.') : nestedNumberedBlocks > 0 ? `${sourceNumberedBlocks} chapter list paragraph(s) include ${nestedNumberedBlocks} nested item(s); nested list reconstruction needs review.` : unconvertedSimpleListItems > 0 ? `${unconvertedSimpleListItems} of ${sourceNumberedBlocks} simple chapter list item(s) were not emitted as semantic HTML list items.` : `${sourceNumberedBlocks} chapter list item(s) are exported as semantic HTML lists.`, blockId:firstListProblem?.block?.id || null, action:firstListProblem ? 'source' : null },
   ];
   return {
     ok: checks.every((item) => item.ok),
@@ -213,6 +220,6 @@ export function auditEpubPackage({ project } = {}) {
     brokenFragmentTargets,
     previewLeak,
     files: files.size,
-    amazonHardMode: { htmlFileCount, oversizedXhtml, hiddenChars, forcedBodyTypography, imposedBodySides, horizontalEmMargins, positionCss, negativeMargins, sourceTables, sourceHyperlinks, preservedHyperlinks, sourceNumberedBlocks, nestedNumberedBlocks, semanticListItems, imageDimensionFailures:imageDimensionFailures.length, transparentImages:transparentImages.length, cmykImages:cmykImages.length },
+    amazonHardMode: { htmlFileCount, oversizedXhtml, hiddenChars, forcedBodyTypography, imposedBodySides, horizontalEmMargins, positionCss, negativeMargins, sourceTables, sourceHyperlinks, preservedHyperlinks, sourceNumberedBlocks, matterNumberedBlocks:matterNumberedRows.length, nestedNumberedBlocks, unconvertedSimpleListItems, semanticListItems, imageDimensionFailures:imageDimensionFailures.length, transparentImages:transparentImages.length, cmykImages:cmykImages.length },
   };
 }

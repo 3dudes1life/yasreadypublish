@@ -56,13 +56,14 @@ import {
   normalizeEbookThemeStudio, setChapterHeadingOverride, sourceStyleRecords, splitChapterHeading,
 } from './lib/ebook-theme-studio.js';
 import { addBug, deleteBug, loadBugLog, setBugStatus } from './lib/bug-log.js';
+import { applyPrintBrainToDesign, normalizePrintProduction, printEligibility, printTrimOptions, recommendedPrintProduction } from './lib/print-brain.js';
 import { bookBrainReviewItems, decideBookBrainInterpretation, reanalyzeBookBrain } from './lib/book-brain.js';
 import {
   applySafeFixBatch, auditKindleAccessibility, buildKindleReleaseGate, freezeKindleRelease,
   kindleReleaseReport, markAllCurrentReviewsIntentional, markKindleVisualProofComplete, setKindleExternalConfirmation,
 } from './lib/kindle-release-gate.js';
 
-const VERSION = '1.0.27';
+const VERSION = '1.0.28';
 // Legacy capability labels retained for regression discovery only (not default UI): Amazon KDP · Reflowable EPUB 3 · Kindle Preview Studio · Semantic Style Palette · Kindle Release Gate · v1.0.16
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
@@ -304,6 +305,7 @@ function renderMain() {
   if (state.activeView === 'repair') return renderRepair();
   if (state.activeView === 'editions') return renderEditions();
   if (state.activeView === 'navigator') return renderNavigator();
+  if (state.activeView === 'print-brain') return renderPrintBrainSetup();
   if (state.activeView === 'design') return renderDesign();
   if (state.activeView === 'print') return renderPrint();
   if (state.activeView === 'export') return renderExport();
@@ -669,6 +671,36 @@ function renderThemeCard(theme, builtIn = true) {
       ${builtIn ? '' : `<button class="btn ghost" data-export-theme="${escapeHtml(id)}">Export</button><button class="btn danger subtle" data-delete-theme="${escapeHtml(id)}">Delete</button>`}
     </div>
   </div>`;
+}
+
+function renderPrintBrainSetup() {
+  const project = state.project;
+  ensureEditions(project);
+  const type = currentPrintEditionType();
+  const edition = project.editions[type];
+  const production = normalizePrintProduction(edition.production || recommendedPrintProduction(type), type);
+  const trims = printTrimOptions(type);
+  const pageCount = Number(edition.lastPageCount || state.preview?.pages?.length || 0);
+  const eligibility = printEligibility({ type, production, pageCount });
+  const inkOptions = type === 'hardcover'
+    ? [['black','Black & white'],['premium','Premium color']]
+    : [['black','Black & white'],['standard','Standard color'],['premium','Premium color']];
+  const paperOptions = production.ink === 'black'
+    ? (type === 'hardcover' ? [['cream','Cream'],['white','White']] : [['cream','Cream'],['white','White'],['groundwood','Groundwood']])
+    : [['white','White']];
+  return `<article class="panel print-brain-panel">
+    <div class="simple-page-head"><div><span class="simple-kicker">PRINT BRAIN · v1.0.28</span><h2>Make your ${type === 'hardcover' ? 'hardcover' : 'paperback'}.</h2><p>Choose the physical book. YasReady handles the KDP geometry and checks the combination against Amazon’s manufacturing rules.</p></div></div>
+    <div class="print-brain-recommend"><div><span>RECOMMENDED FOR FICTION</span><strong>6 × 9 · Black ink · Cream paper · No bleed</strong><small>Same Story-Locked manuscript. Paperback and hardcover still paginate independently.</small></div><button class="btn secondary" id="usePrintBrainRecommended" type="button">Use Recommended</button></div>
+    <div class="print-brain-grid">
+      <label class="design-field"><span>Book size</span><select id="printBrainTrim">${trims.map((trim) => `<option value="${trim.id}" ${trim.id === production.trimId ? 'selected' : ''}>${escapeHtml(trim.label)}${trim.id === '6x9' ? ' · Recommended' : ''}</option>`).join('')}</select></label>
+      <label class="design-field"><span>Interior</span><select id="printBrainInk">${inkOptions.map(([value,label]) => `<option value="${value}" ${value === production.ink ? 'selected' : ''}>${label}</option>`).join('')}</select></label>
+      <label class="design-field"><span>Paper</span><select id="printBrainPaper">${paperOptions.map(([value,label]) => `<option value="${value}" ${value === production.paper ? 'selected' : ''}>${label}</option>`).join('')}</select></label>
+      <label class="toggle-row"><input id="printBrainBleed" type="checkbox" ${production.bleed ? 'checked' : ''}><span><strong>Interior bleed</strong><small>Only turn on when artwork/backgrounds must print to the edge.</small></span></label>
+    </div>
+    <div class="notice ${eligibility.range.available ? 'success' : 'error'}"><strong>${eligibility.range.available ? 'KDP option is valid.' : 'This combination is unavailable.'}</strong> ${escapeHtml(eligibility.range.reason)}${pageCount ? ` Current proof: ${pageCount} pages.` : ' YasReady will recalculate the gutter after pagination.'}</div>
+    <details class="simple-advanced-panel"><summary><span><strong>Why these settings?</strong><small>Amazon manufacturing rules, without making you memorize the chart.</small></span><b>⌄</b></summary><div class="simple-advanced-body"><p>Inside margin changes with final page count. No-bleed outside/top/bottom minimum is 0.25 in; bleed requires at least 0.375 in. YasReady applies the safe minimum automatically and never shrinks a roomier house-style margin.</p></div></details>
+    <div class="simple-step-footer"><button class="btn ghost" data-simple-step="style" type="button">← Back</button><button class="btn primary" id="savePrintBrainSetup" type="button">Save & style the book →</button></div>
+  </article>`;
 }
 
 function renderDesign() {
@@ -1441,7 +1473,7 @@ function renderKindleQualityPanel(quality, preview) {
       <div class="kindle-quality-issues">${issues.length ? issues.map((item) => {
         const target = qualityIssueTargetIndex(item, preview);
         const reviewed = item.severity !== 'error' && Boolean(kindleReviewDecision(state.project, item));
-        return `<div class="kindle-quality-issue ${item.severity} ${reviewed ? 'acknowledged' : ''}"><span>${reviewed ? '✓' : icon(item.severity)}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.message)}</small>${reviewed ? '<em>Marked intentional for this exact finding.</em>' : ''}</div><div class="kindle-quality-actions">${target >= 0 ? `<button type="button" data-quality-section="${target}" data-quality-block="${escapeHtml(item.blockId || '')}">Go there</button>` : ''}${item.severity === 'warning' ? `<button type="button" data-kindle-review-source="quality" data-kindle-review-id="${escapeHtml(item.id)}">${reviewed ? 'Unmark' : 'Intentional'}</button>` : ''}</div></div>`;
+        return `<div class="kindle-quality-issue ${item.severity} ${reviewed ? 'acknowledged' : ''}"><span>${reviewed ? '✓' : icon(item.severity)}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.message)}</small>${reviewed ? '<em>Marked intentional for this exact finding.</em>' : ''}</div><div class="kindle-quality-actions">${target >= 0 ? `<button type="button" data-quality-section="${target}" data-quality-block="${escapeHtml(item.blockId || '')}">Go there</button>` : ''}${item.action === 'book-brain' ? `<button type="button" data-quality-action="book-brain">Review Book Brain</button>` : ''}${item.action === 'structure' ? `<button type="button" data-quality-action="structure">Open Structure Repair</button>` : ''}${item.severity === 'warning' ? `<button type="button" data-kindle-review-source="quality" data-kindle-review-id="${escapeHtml(item.id)}">${reviewed ? 'Unmark' : 'Intentional'}</button>` : ''}</div></div>`;
       }).join('') : `<div class="kindle-quality-clean"><span>✓</span><div><strong>No whole-book formatting anomalies detected.</strong><small>Keep doing the visual early/middle/late chapter check before final export.</small></div></div>`}</div>
       <div class="kindle-quality-footer"><span>Enhanced Typesetting safety: ${quality.enhanced.errors ? 'BLOCKED' : quality.enhanced.warnings ? 'REVIEW' : 'PASS'}</span><span>${quality.chapters} chapters scanned</span><span>${quality.tocChapters} Kindle chapter links</span></div>
     </div>
@@ -2160,6 +2192,36 @@ function renderSource() {
 
 
 
+function readPrintBrainForm(type = currentPrintEditionType()) {
+  const trimId = document.querySelector('#printBrainTrim')?.value || '6x9';
+  const ink = document.querySelector('#printBrainInk')?.value || 'black';
+  const paper = document.querySelector('#printBrainPaper')?.value || (ink === 'black' ? 'cream' : 'white');
+  const bleed = Boolean(document.querySelector('#printBrainBleed')?.checked);
+  return normalizePrintProduction({ configured:true, trimId, ink, paper, bleed }, type);
+}
+
+async function savePrintBrainSetup(useRecommended = false) {
+  if (!state.project) return;
+  ensureEditions(state.project);
+  const type = currentPrintEditionType();
+  const production = useRecommended ? { ...recommendedPrintProduction(type), configured:true } : readPrintBrainForm(type);
+  const edition = state.project.editions[type];
+  edition.production = production;
+  edition.design = applyPrintBrainToDesign(edition.design, production, type, Number(edition.lastPageCount || 0));
+  state.project.design.print = { ...edition.design };
+  edition.lastPreflight = null;
+  edition.lastPageCount = null;
+  edition.lastBuiltAt = null;
+  state.preview = null;
+  state.finalCheck = null;
+  state.project.updatedAt = new Date().toISOString();
+  state.editionMessage = `${editionLabel(type)} Print Brain setup saved. YasReady will recalculate pagination and the required gutter.`;
+  await saveProject(state.project);
+  state.projects = await listProjects();
+  state.activeView = 'design';
+  updateMain();
+}
+
 async function updateEditionEnabled(type, enabled) {
   if (!state.project) return;
   ensureEditions(state.project);
@@ -2213,7 +2275,7 @@ async function workOnPrintEdition(type) {
   state.editionMessage = `Now working on ${editionLabel(type)}. Its page count, TOC numbers, gutters, and PDF are independent.`;
   state.project.updatedAt = new Date().toISOString();
   await saveProject(state.project);
-  state.activeView = 'design';
+  state.activeView = state.project.editions[type]?.production?.configured ? 'design' : 'print-brain';
   updateMain();
 }
 
@@ -2358,6 +2420,8 @@ function bindDynamicEvents() {
   document.querySelector('#restoreBackupButton')?.addEventListener('click', () => document.querySelector('#restoreBackupInput')?.click());
   document.querySelector('#restoreBackupInput')?.addEventListener('change', (event) => event.target.files?.[0] && restoreProjectBackup(event.target.files[0]));
   document.querySelector('#saveDesign')?.addEventListener('click', saveDesign);
+  document.querySelector('#savePrintBrainSetup')?.addEventListener('click', () => savePrintBrainSetup(false));
+  document.querySelector('#usePrintBrainRecommended')?.addEventListener('click', () => savePrintBrainSetup(true));
   document.querySelector('#copyPaperbackToHardcover')?.addEventListener('click', copyPaperbackIntoHardcover);
   document.querySelectorAll('[data-edition-enabled]').forEach((input) => input.addEventListener('change', () => updateEditionEnabled(input.dataset.editionEnabled, input.checked)));
   document.querySelectorAll('[data-work-edition]').forEach((button) => button.addEventListener('click', () => workOnPrintEdition(button.dataset.workEdition)));
@@ -2424,6 +2488,16 @@ function bindDynamicEvents() {
   document.querySelector('#toggleKindleQaMatrix')?.addEventListener('click', () => { state.kindleQaMatrix = !state.kindleQaMatrix; if (state.kindleQaMatrix) state.kindlePreview = normalizeKindlePreview({ ...state.kindlePreview, mode: 'read' }); updateMain(); });
   document.querySelector('#exitKindleQaMatrix')?.addEventListener('click', () => { state.kindleQaMatrix = false; updateMain(); });
   document.querySelectorAll('[data-quality-section]').forEach((button) => button.addEventListener('click', () => { const index = Number(button.dataset.qualitySection); if (Number.isFinite(index)) jumpToKindleQualityIssue(index, button.dataset.qualityBlock || ''); }));
+  document.querySelectorAll('[data-quality-action]').forEach((button) => button.addEventListener('click', () => {
+    const action = button.dataset.qualityAction;
+    if (action === 'book-brain') {
+      state.activeView = 'brain';
+      updateMain();
+    } else if (action === 'structure') {
+      state.activeView = 'repair';
+      updateMain();
+    }
+  }));
   document.querySelectorAll('[data-intelligence-section]').forEach((button) => button.addEventListener('click', () => { const index = Number(button.dataset.intelligenceSection); if (Number.isFinite(index)) jumpToKindleIntelligenceIssue(index, button.dataset.intelligenceBlock || ''); }));
   document.querySelectorAll('[data-intelligence-fix]').forEach((button) => button.addEventListener('click', () => applyKindleIntelligenceFixById(button.dataset.intelligenceFix)));
   document.querySelectorAll('[data-kindle-review-source]').forEach((button) => button.addEventListener('click', () => toggleKindleReviewDecision(button.dataset.kindleReviewSource, button.dataset.kindleReviewId)));

@@ -3,13 +3,15 @@ import { buildEpubPackageData } from './epub-export.js';
 import { auditEpubPackage } from './epub-audit.js';
 import { countPresentationOverrides, ensurePresentationOverrides } from './presentation-overrides.js';
 import { semanticRoleCounts } from './semantic-styles.js';
+import { effectiveStats } from './structure-overrides.js';
 
 const BODY_KINDS = new Set(['body', 'chapter-opening', 'text-message']);
 const NORMAL_STYLE_RE = /^(normal|body text|body|no spacing|default paragraph font)$/i;
 
-function issue({ id, severity = 'info', label, message, blockId = null, sectionId = null, count = null }) {
-  return { id, severity, label, message, blockId, sectionId, count };
+function issue({ id, severity = 'info', label, message, blockId = null, sectionId = null, count = null, action = null }) {
+  return { id, severity, label, message, blockId, sectionId, count, action };
 }
+
 
 function styleName(block) {
   return String(block?.style?.name || 'Normal').trim() || 'Normal';
@@ -98,9 +100,14 @@ export function scanKindleQuality(project) {
     issues.push(issue({ id: 'placeholders', severity: 'error', label: 'Source placeholder text', message: `${placeholders.length} print-layout placeholder${placeholders.length === 1 ? '' : 's'} remain in ebook matter.`, blockId: placeholders[0]?.id || null }));
   }
 
-  const expectedChapters = Number(project?.manuscript?.stats?.chapters || project?.manuscript?.chapters?.length || 0);
+  const sourceChapterCount = Number(project?.manuscript?.stats?.chapters || project?.manuscript?.chapters?.length || 0);
+  const expectedChapters = Number(effectiveStats(project).chapters || 0);
   if (chapters.length !== expectedChapters) {
-    issues.push(issue({ id: 'chapter-count', severity: 'error', label: 'Chapter map mismatch', message: `Detected ${expectedChapters} source chapters but built ${chapters.length} ebook chapter sections.` }));
+    issues.push(issue({ id: 'chapter-count', severity: 'error', label: 'Chapter map mismatch', message: `Effective book structure contains ${expectedChapters} chapters but the EPUB builder created ${chapters.length}.`, action:'structure' }));
+  }
+  if (sourceChapterCount !== expectedChapters) {
+    const inferred = (project?.bookBrain?.interpretations || []).find((entry) => entry.category === 'structure' && entry.suggestion === 'chapter-title' && entry.state !== 'ignored' && !project?.manuscript?.blocks?.find((block) => block.id === entry.blockId && block.kind === 'chapter-title'));
+    issues.push(issue({ id:'book-brain-chapter-variance', severity:'warning', label:'Book Brain chapter interpretation', message:`The source parser found ${sourceChapterCount} chapter${sourceChapterCount === 1 ? '' : 's'}; Book Brain currently interprets ${expectedChapters}. Review the inferred chapter start${expectedChapters - sourceChapterCount === 1 ? '' : 's'} before release.`, blockId:inferred?.blockId || null, action:'book-brain' }));
   }
 
   for (const section of chapters) {
@@ -161,7 +168,7 @@ export function scanKindleQuality(project) {
   }
 
   for (const check of packageAudit.checks.filter((check) => !check.ok)) {
-    issues.push(issue({ id: `package-${check.id}`, severity: 'error', label: 'Finished EPUB package', message: check.message }));
+    issues.push(issue({ id: `package-${check.id}`, severity: 'error', label: 'Finished EPUB package', message: check.message, blockId: check.blockId || null, action: check.action || null }));
   }
   for (const check of enhanced.checks.filter((check) => !check.ok)) {
     issues.push(issue({ id: `enhanced-${check.id}`, severity: check.severity === 'error' ? 'error' : 'warning', label: check.label, message: check.message }));
@@ -169,7 +176,7 @@ export function scanKindleQuality(project) {
 
   const navChapterCount = toc.filter((entry) => entry.type === 'chapter').length;
   if (navChapterCount !== expectedChapters) {
-    issues.push(issue({ id: 'toc-count', severity: 'error', label: 'Kindle navigation count', message: `Kindle navigation has ${navChapterCount} chapter links for ${expectedChapters} detected chapters.` }));
+    issues.push(issue({ id: 'toc-count', severity: 'error', label: 'Kindle navigation count', message: `Kindle navigation has ${navChapterCount} chapter links for ${expectedChapters} effective chapters.` }));
   }
 
   const summary = {
