@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import {
   analyzeSpineRasterQuality,
   buildContentAwareStretchMap,
+  compositeNativeSpineCore,
   planSeamlessSpineExpansion,
 } from '../src/lib/full-wrap-art.js';
 import { migrateProject } from '../src/lib/project.js';
@@ -23,7 +24,7 @@ function makeRgba(width, height, paint) {
 test('1.0.37 cover-engine rebuild uses content-aware elastic retargeting for Book 2 geometry', () => {
   const plan = planSeamlessSpineExpansion({ sourceSpinePx:285, targetSpinePx:547.5, sourceToTargetScale:1 });
   assert.equal(plan.mode, 'content-aware-elastic');
-  assert.equal(plan.backgroundMode, 'content-aware-horizontal-retarget');
+  assert.equal(plan.backgroundMode, 'content-aware-underlay+native-core');
   assert.equal(plan.usesTiling, false);
   assert.equal(plan.usesRowFlattening, false);
   assert.equal(plan.contentAware, true);
@@ -33,7 +34,7 @@ test('1.0.37 cover-engine rebuild uses content-aware elastic retargeting for Boo
   assert.equal(plan.extraTargetPx, 263);
 });
 
-test('1.0.37 cover-engine rebuild protects high-detail title columns while background absorbs width', () => {
+test('1.0.37 cover-engine v6 keeps elastic underlay bounded while background absorbs width', () => {
   const energy = new Float64Array(120);
   energy.fill(2);
   for (let x = 42; x < 78; x += 1) energy[x] = 100;
@@ -42,6 +43,29 @@ test('1.0.37 cover-engine rebuild protects high-detail title columns while backg
   assert.ok(map.protectedMedianStretch <= 1.28);
   assert.ok(map.maxAssignedStretch > 1.2, 'low-detail background did not absorb expansion');
   assert.ok(map.maxAssignedStretch <= 4.5);
+});
+
+
+test('1.0.37 cover-engine v6 restores the original spine core at exact 1:1 raster scale', () => {
+  const sourceWidth = 120, targetWidth = 220, height = 48;
+  const source = makeRgba(sourceWidth,height,(x,y) => {
+    const textBand = x >= 44 && x <= 76 && ((y % 17) < 8);
+    return textBand ? [244,236,194] : [12 + (x % 9), 92 + (y % 11), 84 + ((x+y) % 7)];
+  });
+  const underlay = makeRgba(targetWidth,height,(x,y) => [20 + (x % 5), 98 + (y % 7), 90]);
+  const native = compositeNativeSpineCore(underlay,targetWidth,source,sourceWidth,height);
+  assert.equal(native.metrics.nativeScaleX,1);
+  assert.equal(native.metrics.nativeScaleY,1);
+  assert.ok(native.metrics.protectedCoreFraction >= 0.94);
+  assert.equal(native.metrics.nativeCoreMeanAbsError,0);
+
+  const quality = analyzeSpineRasterQuality(native.rgba,targetWidth,height,{
+    protectedMedianStretch:1.03,
+    protectedP90Stretch:1.03,
+    maxAssignedStretch:4.2,
+    nativeCore:native.metrics,
+  });
+  assert.equal(quality.checks.find((item)=>item.id==='wrap-art-native-core-preservation')?.status,'pass');
 });
 
 test('1.0.37 cover-engine visual QA rejects horizontal stripe/banding manufacture', () => {
@@ -85,6 +109,8 @@ test('1.0.37 cover-engine source contains no strip tiler or row-flattening gener
   assert.ok(source.includes('computeSpineColumnEnergy'));
   assert.ok(source.includes('buildContentAwareStretchMap'));
   assert.ok(source.includes('retargetSpineRgba'));
+  assert.ok(source.includes('compositeNativeSpineCore'));
+  assert.ok(source.includes('wrap-art-native-core-preservation'));
   assert.ok(source.includes('analyzeSpineRasterQuality'));
   assert.ok(source.includes('wrap-art-horizontal-banding'));
   assert.ok(source.includes('wrap-art-periodic-repetition'));

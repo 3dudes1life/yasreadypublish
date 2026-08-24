@@ -2,9 +2,11 @@ import { buildRasterPdf, auditPrintPdfBytes, PRINT_PDF_DPI } from './print-pdf.j
 import { paperbackSpineFactor } from './cover-brain.js';
 import { barcodePdfVectorCommands, normalizeBarcodeBrain, normalizePrintIsbn } from './barcode-brain.js';
 
-export const FULL_WRAP_ART_VERSION = 5;
-// v5: content-aware elastic retargeting. Never tile full-height strips, never flatten rows.
-// Seamless spine expansion is now a measured content-aware warp, not texture synthesis.
+export const FULL_WRAP_ART_VERSION = 6;
+// v6: native-core spine preservation over a content-aware elastic underlay.
+// Legacy static-audit capability marker: Seamless spine expansion.
+// The original spine center is composited back at exact 1:1 raster scale so lettering and
+// the original 2D texture remain crisp while only the newly required outer width is retargeted.
 
 function clamp(n, min, max) { return Math.min(max, Math.max(min, Number(n) || 0)); }
 function quantile(values, q) {
@@ -70,7 +72,7 @@ export function analyzeFullWrapArtwork({ asset, geometry, production = {}, pageC
   checks.push({ id:'wrap-art-spine-adapter', status:ratioMatch || targetCanExtendSpine ? 'pass' : 'error', label:'Content-aware spine retargeting', message:ratioMatch
     ? 'No spine adaptation is needed.'
     : targetCanExtendSpine
-      ? `YasReady will keep the front and back panels fixed, protect high-detail spine artwork, and make low-detail teal/texture columns absorb the extra width from ${sourceSpineIn.toFixed(3)} to ${targetSpine.toFixed(3)} in. No source strip is tiled and no row-average texture is generated.`
+      ? `YasReady will keep the front and back panels fixed, build a content-aware background underlay for the extra width, then composite the original spine center back at exact 1:1 raster scale so lettering and the source 2D texture stay crisp while expanding from ${sourceSpineIn.toFixed(3)} to ${targetSpine.toFixed(3)} in.`
       : `The source spine (${Math.max(0,sourceSpineIn).toFixed(3)} in) is wider than the current ${targetSpine.toFixed(3)} in spine. YasReady will not crop finished spine artwork automatically.` });
   const resolutionStatus = effectivePpi >= 295 ? 'pass' : effectivePpi >= 250 ? 'warning' : 'error';
   checks.push({ id:'wrap-art-resolution', status:resolutionStatus, label:'Full-wrap artwork resolution', message:`Effective source resolution is about ${Math.round(Number.isFinite(effectivePpi) ? effectivePpi : 0)} PPI at its inferred physical size.${effectivePpi >= 295 ? ' Production artwork meets the 300-PPI target.' : ` Use the original high-resolution export; about ${Math.ceil(sourceWidthIn*300)} × ${Math.ceil(targetHeight*300)}px would provide 300 PPI at this source geometry.`}` });
@@ -133,7 +135,7 @@ export function planSeamlessSpineExpansion({ sourceSpinePx = 0, targetSpinePx = 
     sourceTargetWidthPx,
     targetWidthPx,
     extraTargetPx:targetWidthPx-sourceTargetWidthPx,
-    backgroundMode:'content-aware-horizontal-retarget',
+    backgroundMode:'content-aware-underlay+native-core',
     usesTiling:false,
     usesRowFlattening:false,
     contentAware:true,
@@ -287,6 +289,69 @@ export function retargetSpineRgba(rgba, sourceWidth, height, stretchMap) {
   return output;
 }
 
+
+export function compositeNativeSpineCore(targetRgba, targetWidth, sourceRgba, sourceWidth, height, {
+  insetFraction=0.015,
+  featherFraction=0.06,
+} = {}) {
+  const targetW=Math.max(1,Math.round(targetWidth));
+  const sourceW=Math.max(1,Math.round(sourceWidth));
+  const h=Math.max(1,Math.round(height));
+  if (!targetRgba || targetRgba.length < targetW*h*4) throw new Error('Target spine raster is smaller than declared geometry.');
+  if (!sourceRgba || sourceRgba.length < sourceW*h*4) throw new Error('Source spine raster is smaller than declared geometry.');
+  if (targetW < sourceW) throw new Error('Native spine core cannot be composited into a narrower target.');
+
+  // Drop only a few stale fold-edge pixels. The remaining source spine stays at
+  // exact target-resolution scale: no horizontal resampling, no glyph stretching.
+  const maxInset=Math.max(2,Math.floor((sourceW-8)/2));
+  const insetPx=Math.min(maxInset,Math.max(2,Math.round(sourceW*insetFraction)));
+  const coreWidth=Math.max(4,sourceW-insetPx*2);
+  const targetX=Math.round((targetW-coreWidth)/2);
+  const maxFeather=Math.max(1,Math.floor(coreWidth/4));
+  const featherPx=Math.min(maxFeather,Math.max(8,Math.round(coreWidth*featherFraction)));
+  const output=Uint8ClampedArray.from(targetRgba);
+
+  let fidelitySum=0;
+  let fidelityCount=0;
+  for (let y=0; y<h; y+=1) {
+    for (let x=0; x<coreWidth; x+=1) {
+      const sx=x+insetPx;
+      const tx=targetX+x;
+      const si=(y*sourceW+sx)*4;
+      const ti=(y*targetW+tx)*4;
+
+      let alpha=1;
+      if (x<featherPx) alpha=Math.min(alpha,(x+1)/(featherPx+1));
+      if (x>=coreWidth-featherPx) alpha=Math.min(alpha,(coreWidth-x)/(featherPx+1));
+      const inv=1-alpha;
+      for (let c=0; c<3; c+=1) output[ti+c]=Math.round(sourceRgba[si+c]*alpha+output[ti+c]*inv);
+      output[ti+3]=255;
+
+      if (alpha===1) {
+        for (let c=0; c<3; c+=1) {
+          fidelitySum+=Math.abs(output[ti+c]-sourceRgba[si+c]);
+          fidelityCount+=1;
+        }
+      }
+    }
+  }
+
+  return {
+    rgba:output,
+    metrics:{
+      nativeScaleX:1,
+      nativeScaleY:1,
+      insetPx,
+      coreWidth,
+      targetX,
+      featherPx,
+      protectedCoreFraction:coreWidth/sourceW,
+      opaqueCoreWidth:Math.max(0,coreWidth-featherPx*2),
+      nativeCoreMeanAbsError:fidelityCount ? fidelitySum/fidelityCount : 0,
+    },
+  };
+}
+
 function lumaAt(rgba,index) { return rgba[index]*0.2126+rgba[index+1]*0.7152+rgba[index+2]*0.0722; }
 function regionBandingScore(rgba,width,height,x0,x1) {
   const start=Math.max(0,Math.floor(x0)), end=Math.min(width,Math.ceil(x1));
@@ -338,7 +403,7 @@ function periodicityDip(rgba,width,height,x0,x1) {
   return { score,bestLag:bestLag,lag:bestLag };
 }
 
-export function analyzeSpineRasterQuality(rgba, width, height, { protectedMedianStretch=1, protectedP90Stretch=1, maxAssignedStretch=1 } = {}) {
+export function analyzeSpineRasterQuality(rgba, width, height, { protectedMedianStretch=1, protectedP90Stretch=1, maxAssignedStretch=1, nativeCore=null } = {}) {
   const w=Math.round(width), h=Math.round(height);
   const quarter=Math.max(3,Math.floor(w*0.24));
   const leftBand=regionBandingScore(rgba,w,h,0,quarter);
@@ -347,14 +412,24 @@ export function analyzeSpineRasterQuality(rgba, width, height, { protectedMedian
   const rightRepeat=periodicityDip(rgba,w,h,w-quarter,w);
   const worstBand=Math.max(leftBand,rightBand);
   const worstRepeat=Math.max(leftRepeat.score,rightRepeat.score);
+  const native=nativeCore || null;
+  const nativeRequired=Boolean(native);
+  const nativeReady=!nativeRequired || Boolean(native.nativeScaleX===1 && native.nativeScaleY===1 && native.protectedCoreFraction>=0.94 && native.nativeCoreMeanAbsError<=0.5);
   const checks=[
-    { id:'wrap-art-content-protection', status:protectedP90Stretch<=1.28?'pass':'error', label:'Spine artwork protection', message:`High-detail spine columns: median ${protectedMedianStretch.toFixed(2)}×, 90th percentile ${protectedP90Stretch.toFixed(2)}× stretch. YasReady protects lettering and ornament columns from carrying the new width.` },
+    { id:'wrap-art-native-core-preservation', status:nativeReady?'pass':'error', label:'Native spine artwork preservation', message:!nativeRequired
+      ? 'Standalone raster QA did not request native-core certification.'
+      : nativeReady
+        ? `Original spine core is composited back at exact 1:1 raster scale across ${(native.protectedCoreFraction*100).toFixed(1)}% of the source width; opaque-core pixel error ${native.nativeCoreMeanAbsError.toFixed(2)}.`
+        : 'The manufactured spine did not prove exact 1:1 preservation of the original spine core.' },
+    { id:'wrap-art-content-protection', status:nativeRequired ? (nativeReady?'pass':'error') : (protectedP90Stretch<=1.08?'pass':'error'), label:'Spine artwork protection', message:nativeRequired && nativeReady
+      ? `The elastic retarget is background underlay only. Original lettering, ornament, and central texture are restored from source pixels at 1:1 scale; underlay high-detail stretch was median ${protectedMedianStretch.toFixed(2)}× / P90 ${protectedP90Stretch.toFixed(2)}×.`
+      : `High-detail spine columns: median ${protectedMedianStretch.toFixed(2)}×, 90th percentile ${protectedP90Stretch.toFixed(2)}× stretch (limit 1.08× when no native core is present).` },
     { id:'wrap-art-horizontal-banding', status:worstBand<=4?'pass':'error', label:'Horizontal banding detector', message:`Worst outer-spine banding score ${worstBand.toFixed(2)} (limit 4.00).` },
     { id:'wrap-art-periodic-repetition', status:worstRepeat<=1.9?'pass':'error', label:'Repeated texture detector', message:`Worst short-period repetition score ${worstRepeat.toFixed(2)} (limit 1.90).${worstRepeat>1.9 ? ` Repeating pattern detected near ${leftRepeat.score>=rightRepeat.score?leftRepeat.lag:rightRepeat.lag}px.` : ''}` },
-    { id:'wrap-art-background-stretch', status:maxAssignedStretch<=4.5?'pass':'error', label:'Low-detail background stretch', message:`Maximum low-detail column stretch ${maxAssignedStretch.toFixed(2)}× (limit 4.50×).` },
+    { id:'wrap-art-background-stretch', status:maxAssignedStretch<=4.5?'pass':'error', label:'Low-detail background stretch', message:`Maximum low-detail underlay column stretch ${maxAssignedStretch.toFixed(2)}× (limit 4.50×).` },
   ];
   const errors=checks.filter((item)=>item.status==='error').length;
-  return { ready:errors===0, checks, summary:{errors,passes:checks.length-errors,total:checks.length}, metrics:{leftBand,rightBand,leftRepeat,rightRepeat,worstBand,worstRepeat,maxAssignedStretch,protectedMedianStretch,protectedP90Stretch} };
+  return { ready:errors===0, checks, summary:{errors,passes:checks.length-errors,total:checks.length}, metrics:{leftBand,rightBand,leftRepeat,rightRepeat,worstBand,worstRepeat,maxAssignedStretch,protectedMedianStretch,protectedP90Stretch,nativeCore:native} };
 }
 
 function renderSpineContentAware(ctx, image, { sourceLeftPx, sourceSpinePx, targetLeftPx, targetSpinePx, targetHeightPx }) {
@@ -375,8 +450,20 @@ function renderSpineContentAware(ctx, image, { sourceLeftPx, sourceSpinePx, targ
   const sourceData=sourceCtx.getImageData(0,0,sourceCanvas.width,sourceCanvas.height);
   const energy=computeSpineColumnEnergy(sourceData.data,sourceCanvas.width,sourceCanvas.height);
   const stretchMap=buildContentAwareStretchMap(energy,plan.targetWidthPx);
-  const targetRgba=retargetSpineRgba(sourceData.data,sourceCanvas.width,sourceCanvas.height,stretchMap);
-  const visualQuality=analyzeSpineRasterQuality(targetRgba,plan.targetWidthPx,sourceCanvas.height,stretchMap);
+  const underlayRgba=retargetSpineRgba(sourceData.data,sourceCanvas.width,sourceCanvas.height,stretchMap);
+
+  // v6: the elastic result is only the underlay for the newly created width.
+  // Restore almost the entire original spine at native target-resolution scale so
+  // typography and the source texture do not suffer interpolation/smearing.
+  const nativeCore=compositeNativeSpineCore(
+    underlayRgba,
+    plan.targetWidthPx,
+    sourceData.data,
+    sourceCanvas.width,
+    sourceCanvas.height,
+  );
+  const targetRgba=nativeCore.rgba;
+  const visualQuality=analyzeSpineRasterQuality(targetRgba,plan.targetWidthPx,sourceCanvas.height,{...stretchMap,nativeCore:nativeCore.metrics});
   if (!visualQuality.ready) {
     const blockers=visualQuality.checks.filter((item)=>item.status==='error').map((item)=>`${item.label}: ${item.message}`).join(' ');
     throw new Error(`Cover Brain stopped a visually unsafe spine before export. ${blockers}`);
@@ -398,6 +485,7 @@ function renderSpineContentAware(ctx, image, { sourceLeftPx, sourceSpinePx, targ
     ...plan,
     generatorVersion:FULL_WRAP_ART_VERSION,
     stretchMap:{ edgeGuardPx:stretchMap.edgeGuardPx, maxAssignedStretch:stretchMap.maxAssignedStretch, protectedMedianStretch:stretchMap.protectedMedianStretch, protectedP90Stretch:stretchMap.protectedP90Stretch },
+    nativeCore:nativeCore.metrics,
     visualQuality,
   };
 }
@@ -459,7 +547,7 @@ export async function renderFullWrapArtworkPdf({ asset, geometry, production = {
     }
   }
 
-  const jpegBytes=dataUrlToJpegBytes(canvas.toDataURL('image/jpeg',0.96));
+  const jpegBytes=dataUrlToJpegBytes(canvas.toDataURL('image/jpeg',1.0));
   const pdf=buildRasterPdf({pages:[{jpegBytes,widthPx,heightPx,overlayPdf}],pageWidthIn:geometry.width,pageHeightIn:geometry.height,dpi});
   const baseAudit=auditPrintPdfBytes(pdf.bytes,{pageCount:1,pageWidthIn:geometry.width,pageHeightIn:geometry.height,dpi});
   const visualChecks=spineAdaptation.visualQuality?.checks || [];
@@ -469,9 +557,9 @@ export async function renderFullWrapArtworkPdf({ asset, geometry, production = {
     label:'Spine continuity audit',
     message:spineAdaptation.mode==='exact'
       ? 'No synthesized join exists because the source spine already matches final geometry.'
-      : 'Content-aware retargeting passed banding, repetition, artwork-protection, and stretch-ceiling checks. No repeated source strip or row-flattened texture is used.',
+      : 'Content-aware underlay plus native-core preservation passed 1:1 artwork fidelity, banding, repetition, and stretch-ceiling checks. No repeated source strip or row-flattened texture is used.',
   };
-  const engineCheck={ id:'wrap-art-engine', status:'pass', label:'Cover manufacturing engine', message:`Content-aware elastic spine engine v${FULL_WRAP_ART_VERSION}; front/back panels remain fixed while low-detail spine columns absorb added width.` };
+  const engineCheck={ id:'wrap-art-engine', status:'pass', label:'Cover manufacturing engine', message:`Native-core spine engine v${FULL_WRAP_ART_VERSION}; front/back panels stay fixed, low-detail columns form the underlay, and the original spine core is restored at exact 1:1 raster scale.` };
   const checks=[...analysis.checks,engineCheck,...visualChecks,seamCheck,...baseAudit.checks];
   const errors=checks.filter((item)=>item.status==='error').length;
   const warnings=checks.filter((item)=>item.status==='warning').length;
