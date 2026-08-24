@@ -51,7 +51,7 @@ test('572-page Tres Amigos profile passes blocking KDP layout checks', () => {
   assert.equal(report.ready, true);
   assert.equal(report.summary.errors, 0);
   assert.equal(report.requiredInsideMargin, 0.75);
-  assert.ok(report.summary.warnings >= 1); // font embedding is post-export verification
+  assert.equal(report.checks.find((item) => item.id === 'font-embedding')?.status, 'pass'); // 1.0.29 raster PDF removes live-font embedding risk
 });
 
 test('odd physical page count is blocked so KDP cannot silently add a page', () => {

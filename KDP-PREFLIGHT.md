@@ -37,7 +37,7 @@ A manual/source TOC in the DOCX is never silently deleted or replaced.
 
 ## PDF production gate
 
-When preflight has no blocking errors, **Create Paperback PDF** or **Create Hardcover PDF** opens the fixed single-page Print Master. The Print Master performs a second DOM overflow inspection against every physical page before triggering the system print/PDF dialog. If any page overflows its fixed trim box, PDF creation remains blocked.
+When preflight has no blocking errors, **Build Paperback PDF** or **Build Hardcover PDF** runs **Print PDF Hard Mode**. YasReady renders the already-frozen physical pages at 300 DPI, builds the PDF directly in the browser, audits the finished PDF bytes, hashes the file, and downloads it only when the finished-file audit passes. The system browser Print → Save as PDF dialog is no longer part of the primary production path. The HTML Print Master remains available only as an advanced visual/debug fallback.
 
 Page numbers, running headers, chapter openings, generated TOC entries, and intentional blank versos are baked into the fixed-page production master; they are not manuscript edits.
 

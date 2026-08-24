@@ -7,7 +7,7 @@ const required = [
   'src/lib/navigator-model.js', 'src/lib/theme-store.js', 'src/lib/preflight-model.js', 'src/lib/print-export.js',
   'src/lib/ebook-model.js', 'src/lib/ebook-preflight.js', 'src/lib/epub-export.js', 'src/lib/structure-overrides.js',
   'src/lib/print-toc.js', 'src/lib/project-backup.js', 'src/lib/readiness-model.js', 'src/lib/spacing-policy.js',
-  'src/lib/editions.js', 'src/lib/proof-integrity.js', 'src/lib/presentation-overrides.js', 'src/lib/semantic-styles.js', 'src/lib/print-brain.js',
+  'src/lib/editions.js', 'src/lib/proof-integrity.js', 'src/lib/presentation-overrides.js', 'src/lib/semantic-styles.js', 'src/lib/print-brain.js', 'src/lib/print-pdf.js',
   'src/lib/kindle-preview-model.js', 'src/lib/kindle-quality.js', 'src/lib/kindle-intelligence.js',
   'src/lib/kindle-production-flow.js', 'src/lib/epub-audit.js', 'src/lib/ebook-theme-studio.js', 'src/lib/kindle-release-gate.js', 'src/lib/bug-log.js', 'src/lib/book-brain.js', 'public/vendor/jszip.min.js',
   'STORY-LOCK-SPEC.md', 'KDP-PREFLIGHT.md', 'EPUB-PREFLIGHT.md', 'KINDLE-STANDARDS.md', 'RELEASE-QA.md',
@@ -23,7 +23,7 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
 }
 const main = readFileSync('src/main.js', 'utf8');
 for (const marker of [
-  "const VERSION = '1.0.28'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
+  "const VERSION = '1.0.29'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
   'Amazon KDP · Reflowable EPUB 3', 'Kindle Preview Studio', 'Adjust Layout', 'preview-studio-grid-v110',
   'Kindle Pro consistency scan', '3-View Torture Test', '11 pt reference', 'Semantic Style Palette', 'Content style',
   'saveEbookSemanticStyles', 'Kindle Intelligence', 'Compare Chapters', 'compareKindleChaptersButton', 'Undo', 'Redo',
@@ -52,8 +52,8 @@ for (const dynamicBinding of [
 }
 
 const project = readFileSync('src/lib/project.js', 'utf8');
-if (!project.includes("appVersion: '1.0.28'") || !project.includes('version: 28') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
-  throw new Error('Project app version was not migrated to 1.0.28 with Print Brain / QA repair schema 28 state.');
+if (!project.includes("appVersion: '1.0.29'") || !project.includes('version: 29') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
+  throw new Error('Project app version was not migrated to 1.0.29 with Print PDF Hard Mode schema 29 state.');
 }
 const editions = readFileSync('src/lib/editions.js', 'utf8');
 if (!editions.includes('reviewDecisions:')) throw new Error('Edition normalization does not preserve Kindle review decisions.');
@@ -125,10 +125,12 @@ const printBrain = readFileSync('src/lib/print-brain.js', 'utf8');
 for (const marker of ['PRINT_BRAIN_VERSION','printTrimOptions','normalizePrintProduction','printEligibility','applyPrintBrainToDesign']) {
   if (!printBrain.includes(marker)) throw new Error(`Print Brain engine is missing: ${marker}`);
 }
-for (const marker of ['PRINT BRAIN · v1.0.28','Use Recommended','Save & style the book','data-quality-action']) {
+for (const marker of ['PRINT BRAIN · v1.0.29','Use Recommended','Save & style the book','data-quality-action','PRINT PDF HARD MODE · v1.0.29','Build ${escapeHtml(editionLabel(currentPrintEditionType()))} PDF']) {
   if (!main.includes(marker)) throw new Error(`1.0.28 Print Brain / actionable QA UI is missing: ${marker}`);
 }
 if (!readFileSync('src/lib/book-brain.js','utf8').includes('outsideKnownBody')) throw new Error('1.0.28 Book Brain boundary guard is missing.');
 if (!readFileSync('src/lib/kindle-quality.js','utf8').includes('effectiveStats(project).chapters')) throw new Error('1.0.28 Kindle QA still compares against frozen parser chapter counts.');
 
-console.log('YasReady Publish v1.0.28 static verification passed.');
+const printPdf = readFileSync('src/lib/print-pdf.js','utf8');
+for (const marker of ['renderProductionPrintPdf','buildRasterPdf','auditPrintPdfBytes','PRINT_PDF_DPI = 300','/MediaBox','/DCTDecode']) if (!printPdf.includes(marker)) throw new Error(`1.0.29 Print PDF Hard Mode is missing: ${marker}`);
+console.log('YasReady Publish v1.0.29 static verification passed.');

@@ -1,6 +1,12 @@
 # YasReady Publish
 
-**Current release: v1.0.28 — Print Brain + Actionable Kindle QA**
+**Current release: v1.0.29 — Print PDF Hard Mode**
+
+## v1.0.29 — Print PDF Hard Mode
+
+YasReady now owns the primary KDP print-interior PDF instead of delegating final production to Chrome/Safari Print → Save as PDF. After the frozen Paperback/Hardcover preflight passes, YasReady renders each physical page at 300 DPI, builds a PDF with exact physical MediaBox geometry, audits the finished byte stream, hashes the result, and downloads only after the PDF audit passes.
+
+The finished-file audit verifies physical page count, exact trim/bleed page size, 300-DPI raster geometry, no encryption, no annotations/comments, no added trim/crop-mark boxes, the modeled 650 MB KDP ceiling, and a complete PDF trailer. Because each final page is baked into a print-resolution image, the PDF contains no live font objects and cannot suffer font substitution at KDP. The older HTML Print Master remains available under advanced export actions only as a visual/debug fallback.
 
 ## v1.0.28 — Print Brain + Actionable Kindle QA
 

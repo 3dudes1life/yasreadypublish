@@ -1,7 +1,7 @@
 import { parseDocx } from './lib/docx-parser.js';
 import { createProjectFromImport, migrateProject, verifyProjectStoryLock } from './lib/project.js';
 import { deleteProject, listProjects, loadProject, saveProject } from './lib/project-store.js';
-import { shortHash } from './lib/hash.js';
+import { sha256Hex, shortHash } from './lib/hash.js';
 import {
   applyTemplate,
   BUILT_IN_PRINT_THEMES,
@@ -20,6 +20,7 @@ import { adjacentChapter, buildPreviewNavigation, currentNavigationEntry, spread
 import { deleteCustomTheme, loadCustomThemes, parseThemeJson, saveCustomTheme, serializeTheme } from './lib/theme-store.js';
 import { runKdpPreflight } from './lib/preflight-model.js';
 import { buildPrintMasterHtml } from './lib/print-export.js';
+import { PRINT_PDF_DPI, renderProductionPrintPdf } from './lib/print-pdf.js';
 import { normalizeEbookDesign } from './lib/ebook-model.js';
 import { runEpubPreflight } from './lib/ebook-preflight.js';
 import { buildEbookPreviewHtml, buildEpubBlob, buildDevicePreviewHtml } from './lib/epub-export.js';
@@ -63,7 +64,7 @@ import {
   kindleReleaseReport, markAllCurrentReviewsIntentional, markKindleVisualProofComplete, setKindleExternalConfirmation,
 } from './lib/kindle-release-gate.js';
 
-const VERSION = '1.0.28';
+const VERSION = '1.0.29';
 // Legacy capability labels retained for regression discovery only (not default UI): Amazon KDP · Reflowable EPUB 3 · Kindle Preview Studio · Semantic Style Palette · Kindle Release Gate · v1.0.16
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
@@ -689,7 +690,7 @@ function renderPrintBrainSetup() {
     ? (type === 'hardcover' ? [['cream','Cream'],['white','White']] : [['cream','Cream'],['white','White'],['groundwood','Groundwood']])
     : [['white','White']];
   return `<article class="panel print-brain-panel">
-    <div class="simple-page-head"><div><span class="simple-kicker">PRINT BRAIN · v1.0.28</span><h2>Make your ${type === 'hardcover' ? 'hardcover' : 'paperback'}.</h2><p>Choose the physical book. YasReady handles the KDP geometry and checks the combination against Amazon’s manufacturing rules.</p></div></div>
+    <div class="simple-page-head"><div><span class="simple-kicker">PRINT BRAIN · v1.0.29</span><h2>Make your ${type === 'hardcover' ? 'hardcover' : 'paperback'}.</h2><p>Choose the physical book. YasReady handles the KDP geometry and checks the combination against Amazon’s manufacturing rules.</p></div></div>
     <div class="print-brain-recommend"><div><span>RECOMMENDED FOR FICTION</span><strong>6 × 9 · Black ink · Cream paper · No bleed</strong><small>Same Story-Locked manuscript. Paperback and hardcover still paginate independently.</small></div><button class="btn secondary" id="usePrintBrainRecommended" type="button">Use Recommended</button></div>
     <div class="print-brain-grid">
       <label class="design-field"><span>Book size</span><select id="printBrainTrim">${trims.map((trim) => `<option value="${trim.id}" ${trim.id === production.trimId ? 'selected' : ''}>${escapeHtml(trim.label)}${trim.id === '6x9' ? ' · Recommended' : ''}</option>`).join('')}</select></label>
@@ -998,6 +999,16 @@ function renderPreflightCheck(item) {
   return `<div class="preflight-row ${item.status}"><div class="preflight-icon">${icon}</div><div><strong>${escapeHtml(item.label)}</strong><p>${escapeHtml(item.message)}</p></div><span>${item.status.toUpperCase()}</span></div>`;
 }
 
+function renderPrintPdfReport() {
+  const candidate = state.printPdfReport || state.project?.editions?.[currentPrintEditionType()]?.lastPdfAudit || null;
+  const report = candidate && (!candidate.proofSignature || candidate.proofSignature === state.preview?.proofSignature) ? candidate : null;
+  if (!report) return '';
+  const ready = Boolean(report.ready);
+  const sizeMb = Number(report.fileSize || 0) / 1024 / 1024;
+  const metadata = report.metadata || {};
+  return `<section class="print-pdf-result ${ready ? 'ready' : 'blocked'}"><div><div class="eyebrow">FINISHED PDF AUDIT</div><h3>${ready ? 'Production PDF passed.' : 'Finished PDF needs attention.'}</h3><p>${report.pageCount || metadata.pageCount || 0} pages · ${Number(metadata.pageWidthIn || report.pageWidthIn || 0).toFixed(3)} × ${Number(metadata.pageHeightIn || report.pageHeightIn || 0).toFixed(3)} in · ${report.dpi || metadata.dpi || PRINT_PDF_DPI} DPI · ${sizeMb.toFixed(1)} MB</p>${report.sha256 ? `<small>SHA-256 ${escapeHtml(shortHash(report.sha256, 16))}</small>` : ''}</div><div class="preflight-counts"><span class="pass">${report.summary?.passes || 0} pass</span><span class="warning">${report.summary?.warnings || 0} warning</span><span class="error">${report.summary?.errors || 0} error</span></div></section>`;
+}
+
 function renderExport() {
   if (!state.preview) {
     return `
@@ -1019,13 +1030,14 @@ function renderExport() {
       <div class="panel-head"><div><span class="badge ${report.ready ? 'good' : 'bad'}">${report.ready ? `${editionLabel(currentPrintEditionType()).toUpperCase()} READY` : 'EXPORT BLOCKED'}</span><h2>${escapeHtml(editionLabel(currentPrintEditionType()))} export</h2><p>${report.pageCount} single pages · ${report.design.trimWidth} × ${report.design.trimHeight} in · no-bleed text interior</p></div><button class="btn secondary" id="buildPreviewForExport" type="button">Rebuild proof</button></div>
       <div class="preflight-hero ${readyClass}">
         <div class="preflight-ring"><b>${report.summary.passes}</b><span>passes</span></div>
-        <div><h3>${report.ready ? 'The physical-book gate passed.' : `${report.summary.errors} blocking issue${report.summary.errors === 1 ? '' : 's'} found.`}</h3><p>${report.ready ? `Create ${editionLabel(currentPrintEditionType())} PDF opens a final fixed-page master, checks every page for overflow after fonts load, then opens the system print dialog for Save as PDF.` : 'Fix the blocking checks below and rebuild the proof. YasReady will not export around a failed gate.'}</p></div>
+        <div><h3>${report.ready ? 'The physical-book gate passed.' : `${report.summary.errors} blocking issue${report.summary.errors === 1 ? '' : 's'} found.`}</h3><p>${report.ready ? `YasReady can now render the final ${editionLabel(currentPrintEditionType()).toLowerCase()} PDF itself at ${PRINT_PDF_DPI} DPI, audit the finished bytes, and download only after Print PDF Hard Mode passes.` : 'Fix the blocking checks below and rebuild the proof. YasReady will not export around a failed gate.'}</p></div>
         <div class="preflight-counts"><span class="pass">${report.summary.passes} pass</span><span class="warning">${report.summary.warnings} warning</span><span class="error">${report.summary.errors} error</span></div>
       </div>
       <div class="export-primary-card ${report.ready ? 'ready' : 'blocked'}">
-        <div><div class="eyebrow">Final ${escapeHtml(editionLabel(currentPrintEditionType()).toLowerCase())} file</div><h3>${report.ready ? 'Create the PDF you upload to KDP' : 'PDF creation is locked until preflight passes'}</h3><p>Page numbers, running headers, generated Contents, right-hand chapter starts, blank versos, mirrored margins, and Story-Locked text are all baked into the fixed-page master.</p></div>
-        <button class="btn primary export-main-button" id="createPaperbackPdf" type="button" ${report.ready ? '' : 'disabled'}>Create ${escapeHtml(editionLabel(currentPrintEditionType()))} PDF</button>
+        <div><div class="eyebrow">PRINT PDF HARD MODE · v1.0.29</div><h3>${report.ready ? 'Build the KDP interior PDF' : 'PDF creation is locked until preflight passes'}</h3><p>${report.ready ? `Exact physical pages · ${PRINT_PDF_DPI} DPI · no browser print dialog · finished-file audit before download.` : 'Page numbers, running headers, generated Contents, right-hand chapter starts, blank versos, mirrored margins, and Story-Locked text must pass before final rendering.'}</p></div>
+        <button class="btn primary export-main-button" id="createPaperbackPdf" type="button" ${report.ready ? '' : 'disabled'}>Build ${escapeHtml(editionLabel(currentPrintEditionType()))} PDF</button>
       </div>
+      ${renderPrintPdfReport()}
       <div class="preflight-list">${report.checks.map(renderPreflightCheck).join('')}</div>
       <div class="export-actions">
         <button class="btn secondary" id="openPrintMaster" type="button" ${report.ready ? '' : 'disabled'}>Open Print Master</button>
@@ -1033,7 +1045,7 @@ function renderExport() {
         <button class="btn secondary" id="downloadPreflightReport" type="button">Download Preflight Report</button>
         <button class="btn secondary" id="runFinalCheck" type="button">Run Final Check</button>
       </div>
-      <div class="notice info"><strong>Mac / Chrome PDF settings:</strong> choose <strong>Save as PDF</strong>, keep scale at <strong>100%</strong>, paper size at the book trim size, and browser headers/footers off. YasReady’s final master performs an overflow check before the print dialog is allowed to open.</div>
+      <div class="notice success"><strong>1.0.29 production path:</strong> the primary PDF button no longer depends on Chrome/Safari Print → Save as PDF. The HTML Print Master remains available below only as an advanced visual fallback.</div>
     </article>`;
 }
 
@@ -2210,6 +2222,8 @@ async function savePrintBrainSetup(useRecommended = false) {
   edition.design = applyPrintBrainToDesign(edition.design, production, type, Number(edition.lastPageCount || 0));
   state.project.design.print = { ...edition.design };
   edition.lastPreflight = null;
+  edition.lastPdfAudit = null;
+  state.printPdfReport = null;
   edition.lastPageCount = null;
   edition.lastBuiltAt = null;
   state.preview = null;
@@ -3007,22 +3021,47 @@ async function buildPreviewForExport() {
 }
 
 async function createPaperbackPdf() {
-  const popup = window.open('', '_blank');
   const result = await ensureExportReady();
   if (!result.ok) {
-    popup?.close();
     state.activeView = 'export';
     updateMain();
     return;
   }
-  if (!popup) {
-    alert('Your browser blocked the PDF window. Allow popups for YasReady Publish and try again.');
-    return;
+  ensureEditions(state.project);
+  const type = currentPrintEditionType();
+  const production = state.project.editions[type]?.production || {};
+  state.busy = true;
+  state.busyMessage = `Rendering ${editionLabel(type)} PDF at ${PRINT_PDF_DPI} DPI…`;
+  state.printPdfProgress = '';
+  updateMain();
+  try {
+    const packaged = await renderProductionPrintPdf({
+      project:state.project, preview:state.preview, editionType:type, production, dpi:PRINT_PDF_DPI,
+      onProgress:({ page, total }) => {
+        state.printPdfProgress = `${page}/${total}`;
+        state.busyMessage = `Rendering ${editionLabel(type)} PDF · page ${page} of ${total}…`;
+        const busy = document.querySelector('.busy-card p');
+        if (busy) busy.textContent = state.busyMessage;
+      },
+    });
+    const sha256 = await sha256Hex(packaged.bytes);
+    state.printPdfReport = { ...packaged.audit, sha256, metadata:packaged.metadata, proofSignature:state.preview?.proofSignature || '', generatedAt:new Date().toISOString() };
+    state.project.editions[type].lastPdfAudit = state.printPdfReport;
+    state.project.updatedAt = new Date().toISOString();
+    await saveProject(state.project);
+    state.projects = await listProjects();
+    if (!packaged.audit.ready) throw new Error('Print PDF Hard Mode blocked download because the finished PDF failed its byte-level audit.');
+    downloadBlobFile(`${safeExportBaseName()}-${type}-kdp-interior.pdf`, packaged.blob);
+  } catch (error) {
+    console.error(error);
+    alert(error?.message || 'YasReady could not build the production PDF safely.');
+  } finally {
+    state.busy = false;
+    state.busyMessage = '';
+    state.printPdfProgress = '';
+    state.activeView = 'export';
+    updateMain();
   }
-  const html = buildPrintMasterHtml({ project: state.project, preview: state.preview, manuscriptHash: state.project.source.manuscriptHash, autoPrint: true });
-  popup.document.open();
-  popup.document.write(html);
-  popup.document.close();
 }
 
 async function openPrintMaster() {
@@ -4251,6 +4290,8 @@ async function buildPreview() {
     state.project.editions[editionType].lastPageCount = state.preview.pages.length;
     state.project.editions[editionType].lastBuiltAt = new Date().toISOString();
     state.project.editions[editionType].lastPreflight = null;
+    state.project.editions[editionType].lastPdfAudit = null;
+    state.printPdfReport = null;
     await saveProject(state.project);
   } catch (error) {
     console.error(error);

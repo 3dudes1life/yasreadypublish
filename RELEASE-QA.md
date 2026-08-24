@@ -1,3 +1,14 @@
+# YasReady Publish 1.0.29 Release QA
+
+- Run `npm run verify`; 224 automated tests must pass.
+- Confirm the primary Paperback/Hardcover export button says **Build … PDF** and does not open a browser print dialog.
+- Confirm Print PDF Hard Mode renders at 300 DPI and downloads only after the finished-byte audit passes.
+- Confirm a generated sample PDF reports the exact 6 × 9 MediaBox as 432 × 648 points, is unencrypted, and contains the expected physical page count in an independent PDF parser.
+- Confirm the finished audit checks page count, MediaBox dimensions, 300-DPI image geometry, encryption, annotations, extra page boxes, file size, and EOF closure.
+- Confirm changing print design/production/pagination invalidates `lastPdfAudit`.
+- Confirm migration from 1.0.28 clears stale pre-Hard-Mode PDF audit state without changing Story Lock manuscript data.
+- Keep **Open Print Master / Download HTML Master** as advanced fallback/debug actions only.
+
 # YasReady Publish 1.0.28 Release QA
 
 - Run `npm run verify`.

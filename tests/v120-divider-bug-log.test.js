@@ -9,7 +9,7 @@ function project(themeId='tres-amigos-private', divider='flourish') {
 
 test('1.0.20 removes only the legacy Tres Amigos chapter flourish', () => {
   const p=migrateProject(project());
-  assert.equal(p.appVersion, '1.0.28');
+  assert.equal(p.appVersion, '1.0.29');
   assert.equal(p.editions.ebook.design.themeStudio.chapterDivider,'none');
   const other=migrateProject(project('contemporary-romance','flourish'));
   assert.equal(other.editions.ebook.design.themeStudio.chapterDivider,'flourish');

@@ -3,7 +3,7 @@ import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const VERSION = '1.0.28';
+const VERSION = '1.0.29';
 
 function walk(dir) {
   const out = [];
@@ -33,7 +33,7 @@ const project = readFileSync(join(ROOT, 'src/lib/project.js'), 'utf8');
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 if (pkg.version !== VERSION) throw new Error(`package.json version is ${pkg.version}, expected ${VERSION}`);
 if (!main.includes(`const VERSION = '${VERSION}'`)) throw new Error('main.js version mismatch');
-if (!project.includes(`appVersion: '${VERSION}'`) || !project.includes(`project.appVersion = '${VERSION}'`) || !project.includes('version: 28')) throw new Error('project schema appVersion/schema mismatch');
+if (!project.includes(`appVersion: '${VERSION}'`) || !project.includes(`project.appVersion = '${VERSION}'`) || !project.includes('version: 29')) throw new Error('project schema appVersion/schema mismatch');
 
 const buttonIds = [...main.matchAll(/<button\b[^>]*\s+id="([^"]+)"/g)].map((m) => m[1]);
 const boundIds = new Set([...main.matchAll(/querySelector\(['"]#([^'"]+)['"]\)/g)].map((m) => m[1]));
@@ -76,6 +76,11 @@ const printBrain = readFileSync(join(ROOT, 'src/lib/print-brain.js'), 'utf8');
 for (const marker of ['cream:776','requiredPrintInsideMargin','printEligibility','HARDCOVER_TRIMS','6.14x9.21','8.25x11']) {
   if (!printBrain.includes(marker)) throw new Error(`Missing Print Brain hardening: ${marker}`);
 }
+const printPdf = readFileSync(join(ROOT, 'src/lib/print-pdf.js'), 'utf8');
+for (const marker of ['renderProductionPrintPdf','buildRasterPdf','auditPrintPdfBytes','PRINT_PDF_DPI = 300','KDP_PRINT_FILE_LIMIT_BYTES']) {
+  if (!printPdf.includes(marker)) throw new Error(`Missing Print PDF Hard Mode marker: ${marker}`);
+}
+if (!main.includes('PRINT PDF HARD MODE · v1.0.29') || !main.includes('renderProductionPrintPdf')) throw new Error('Print PDF Hard Mode UI/runtime wiring is missing.');
 
 const epub = readFileSync(join(ROOT, 'src/lib/epub-export.js'), 'utf8');
 for (const marker of ['epub:type="landmarks"','properties="cover-image"','itemref idref="visible-toc"','text/contents.xhtml','<guide>']) {

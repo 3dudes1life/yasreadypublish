@@ -33,6 +33,7 @@ export function ensureEditions(project) {
     lastPageCount: Number(project.editions.paperback?.lastPageCount) || null,
     lastBuiltAt: project.editions.paperback?.lastBuiltAt || null,
     lastPreflight: project.editions.paperback?.lastPreflight || null,
+    lastPdfAudit: project.editions.paperback?.lastPdfAudit || null,
     production: normalizePrintProduction(project.editions.paperback?.production || {}, 'paperback'),
   };
   project.editions.hardcover = {
@@ -42,6 +43,7 @@ export function ensureEditions(project) {
     lastPageCount: Number(project.editions.hardcover?.lastPageCount) || null,
     lastBuiltAt: project.editions.hardcover?.lastBuiltAt || null,
     lastPreflight: project.editions.hardcover?.lastPreflight || null,
+    lastPdfAudit: project.editions.hardcover?.lastPdfAudit || null,
     production: normalizePrintProduction(project.editions.hardcover?.production || {}, 'hardcover'),
   };
   project.editions.ebook = {
@@ -137,6 +139,7 @@ export function invalidateEditionProof(project, type, { clearPageCount = true } 
   const edition = project.editions?.[type];
   if (!edition) return project;
   edition.lastPreflight = null;
+  if (type !== 'ebook') edition.lastPdfAudit = null;
   if (clearPageCount && type !== 'ebook') {
     edition.lastPageCount = null;
     edition.lastBuiltAt = null;

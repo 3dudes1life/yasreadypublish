@@ -224,9 +224,9 @@ export function runKdpPreflight({ project, preview, storyLockOk = true, editionT
 
   checks.push(check(
     'font-embedding',
-    'Font embedding',
-    'warning',
-    'Browser PDF generation must embed the selected fonts. Confirm embedding in the exported PDF before KDP upload.',
+    'Font substitution protection',
+    'pass',
+    'Print PDF Hard Mode rasterizes each finished page at 300 DPI, so the KDP interior contains no live font objects that can be substituted or left unembedded.',
   ));
 
   const errors = checks.filter((item) => item.status === 'error').length;

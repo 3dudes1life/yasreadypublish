@@ -860,3 +860,6 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .print-brain-recommend small { display:block; margin-top:4px; color:#777; }
 .print-brain-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin:18px 0; }
 @media (max-width:760px) { .print-brain-grid { grid-template-columns:1fr; } .print-brain-recommend { align-items:flex-start; flex-direction:column; } }
+
+/* 1.0.29 Print PDF Hard Mode */
+.print-pdf-result{margin:14px 0;padding:16px 18px;border:1px solid var(--line,#dedee5);border-radius:16px;display:flex;justify-content:space-between;gap:18px;align-items:center;background:#fafafa}.print-pdf-result.ready{background:#f1faf4;border-color:#cbe7d3}.print-pdf-result.blocked{background:#fff4f3;border-color:#f0c8c4}.print-pdf-result h3{margin:4px 0 5px}.print-pdf-result p{margin:0;color:var(--muted,#666)}.print-pdf-result small{display:block;margin-top:7px;color:var(--muted,#777);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}@media(max-width:760px){.print-pdf-result{align-items:flex-start;flex-direction:column}}

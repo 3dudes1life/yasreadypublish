@@ -1,3 +1,14 @@
+# YasReady Publish 1.0.29 — Print PDF Hard Mode
+
+- Replaces the primary browser Print → Save as PDF workflow with YasReady's own client-side production PDF renderer.
+- Renders every frozen physical page at 300 DPI and packages one raster page image per PDF page so KDP cannot substitute or drop fonts after export.
+- Generates exact PDF MediaBox dimensions from the active Paperback/Hardcover trim profile, including the modeled interior bleed extension when bleed is enabled.
+- Audits the actual finished PDF bytes before download: PDF signature, page count, exact page size, 300-DPI image geometry, encryption, annotations, additional page boxes/trim marks, file-size ceiling, and EOF/xref closure.
+- Hashes the finished PDF with SHA-256 and stores the audit against the exact frozen print-proof signature. Any design/pagination change invalidates the remembered PDF audit.
+- Keeps the HTML Print Master only as an advanced visual/debug fallback; it is no longer the production path.
+- Print preflight now treats live-font embedding risk as eliminated in the generated KDP interior because the final PDF contains no font objects.
+- Story Lock source wording, structure, notes, media fingerprints, and manuscript hashes remain unchanged by migration.
+
 # YasReady Publish 1.0.28 — Print Brain + Actionable Kindle QA
 
 - Fixed false Kindle chapter/navigation blockers caused by comparing Book Brain effective structure against frozen DOCX parser counts.
