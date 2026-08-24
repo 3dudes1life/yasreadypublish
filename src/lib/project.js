@@ -5,6 +5,7 @@ import { ensureStructureOverrides } from './structure-overrides.js';
 import { ensureEditions, invalidateAllEditionProofs } from './editions.js';
 import { ensurePresentationOverrides } from './presentation-overrides.js';
 import { canonicalizeManuscriptV2 } from './manuscript-rules.js';
+import { applyBookBrain } from './book-brain.js';
 
 export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
   const [sourceFileHash, manuscriptHash] = await Promise.all([
@@ -17,8 +18,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   const project = {
     id: crypto.randomUUID(),
-    version: 25,
-    appVersion: '1.0.24',
+    version: 26,
+    appVersion: '1.0.25',
     title: baseName,
     author: '',
     createdAt: now,
@@ -64,6 +65,9 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
   };
   ensureEditions(project);
   ensurePresentationOverrides(project);
+  // 1.0.25 Book Brain interprets high-confidence structure/presentation after
+  // import. It never changes manuscript wording or canonical Story Lock data.
+  applyBookBrain(project);
   return project;
 }
 
@@ -355,8 +359,22 @@ export function migrateProject(project) {
   // 1.0.24 hardens Book 1-style title/copyright rendering across reading apps.
   // Publisher metadata may be displayed when the source title page omits it, and
   // copyright spacing is compacted. Stored source text/order/hash remain exact.
-  project.version = Math.max(oldVersion, 25);
-  project.appVersion = '1.0.24';
+
+  // 1.0.25 adds Book Brain: a Story-Lock-safe semantic interpretation layer.
+  // Existing projects are analyzed once on migration so a previously imported
+  // manuscript gains automatic page/block understanding without a re-import.
+  if (oldVersion < 26 || !project.bookBrain) {
+    applyBookBrain(project);
+    if (project.editions?.ebook) {
+      project.editions.ebook.lastPreflight = null;
+      if (project.editions.ebook.releaseGate && typeof project.editions.ebook.releaseGate === 'object') {
+        project.editions.ebook.releaseGate.visualProof = null;
+        project.editions.ebook.releaseGate.freeze = null;
+      }
+    }
+  }
+  project.version = Math.max(oldVersion, 26);
+  project.appVersion = '1.0.25';
   return project;
 }
 

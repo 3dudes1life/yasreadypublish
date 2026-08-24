@@ -72,6 +72,12 @@ export function semanticRoleForBlock(project, block, sectionType = 'chapter') {
     || {};
   const mapped = normalizeSemanticRole(styleMap?.[styleName] || 'auto');
   if (mapped !== 'auto') return mapped;
+
+  // Book Brain inference is separate from author overrides and Word style maps.
+  // It can make a messy source semantically useful without polluting the local
+  // override count or pretending the author manually formatted the block.
+  const brainRole = normalizeSemanticRole(project?.bookBrain?.semanticRoles?.[block?.id] || 'auto');
+  if (brainRole !== 'auto') return brainRole;
   return autoSemanticRole(block, sectionType);
 }
 

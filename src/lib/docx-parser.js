@@ -195,6 +195,9 @@ function paragraphLayout(paragraph) {
     hangingTwips: num(getAttr(indent, 'hanging')),
     keepNext: Boolean(firstChildByLocalName(pPr, 'keepNext')),
     pageBreakBefore: Boolean(firstChildByLocalName(pPr, 'pageBreakBefore')),
+    // Preserve page-boundary evidence for Book Brain. This is source metadata
+    // only; canonical Story Lock text is unchanged.
+    manualPageBreak: descendantsByLocalName(paragraph, 'br').some((node) => getAttr(node, 'type') === 'page'),
   };
 }
 

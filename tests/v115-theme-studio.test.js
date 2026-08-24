@@ -53,8 +53,8 @@ test('1.0.15 migration advances the real 1.0.14 project without mutating Story-L
   const p=project();
   const before=JSON.stringify(p.manuscript.blocks);
   const again=migrateProject(p);
-  assert.equal(again.version,25);
-  assert.equal(again.appVersion,'1.0.24');
+  assert.equal(again.version, 26);
+  assert.equal(again.appVersion, '1.0.25');
   assert.equal(JSON.stringify(again.manuscript.blocks),before);
   assert.equal(again.editions.ebook.design.themeStudio.themeId,'tres-amigos-private');
 });

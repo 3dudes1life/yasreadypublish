@@ -1,6 +1,7 @@
 import { analyzeMatter, matterSectionForBlockIndex } from './structure-model.js';
 import { effectiveBlocks } from './structure-overrides.js';
 import { defaultEbookThemeStudio, normalizeEbookThemeStudio } from './ebook-theme-studio.js';
+import { bookBrainMatterStart } from './book-brain.js';
 
 export const DEFAULT_EBOOK_DESIGN = Object.freeze({
   themeId: 'tres-amigos-ebook',
@@ -161,13 +162,17 @@ export function buildEbookSections(project) {
     const matter = matterSectionForBlockIndex(block.index, structure);
     const type = matter === 'body' ? 'chapter' : matter;
     const startsChapter = block.kind === 'chapter-title';
+    const brainStart = type !== 'chapter' ? bookBrainMatterStart(project, block.id) : null;
+    const hasMatterContent = current?.blocks?.some((candidate) => candidate.kind !== 'blank');
     const startsMatterHeading = type !== 'chapter'
       && matterSectionHeading(block, type)
-      && current?.blocks?.some((candidate) => candidate.kind !== 'blank');
+      && hasMatterContent;
+    const startsBrainMatter = type !== 'chapter' && brainStart && hasMatterContent;
 
-    if (!current || current.type !== type || startsChapter || startsMatterHeading) startSection(type);
+    if (!current || current.type !== type || startsChapter || startsMatterHeading || startsBrainMatter) startSection(type);
+    if (brainStart && !current.roleHint) current.roleHint = brainStart.role;
     current.blocks.push(block);
-    if (startsChapter || (type !== 'chapter' && matterSectionHeading(block, type))) current.includeInToc = true;
+    if (startsChapter || (type !== 'chapter' && (matterSectionHeading(block, type) || brainStart))) current.includeInToc = true;
   }
 
   for (const section of sections) {
@@ -176,7 +181,7 @@ export function buildEbookSections(project) {
     section.startBlockIndex = section.blocks[0]?.index ?? null;
     section.endBlockIndex = section.blocks.at(-1)?.index ?? null;
     section.wordCount = section.blocks.reduce((sum, block) => sum + (block.wordCount || 0), 0);
-    section.role = ebookMatterRole(section);
+    section.role = section.roleHint || ebookMatterRole(section);
   }
 
   return { sections, structure };

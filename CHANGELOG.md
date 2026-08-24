@@ -1,3 +1,14 @@
+## 1.0.25 — Book Brain · Smart eBook Interpretation
+
+- Added Book Brain v1, a Story-Lock-safe semantic interpretation layer for messy/underformatted DOCX manuscripts.
+- Auto-detects high-confidence chapter starts, title/copyright/dedication/contents page boundaries, text conversations, scene breaks, subheads, written notes/letters, and verse.
+- Uses a confidence policy: high confidence applies automatically; ambiguous interpretations go to a focused review queue; low confidence leaves source behavior untouched.
+- Book Brain page-role metadata now drives the same semantic front-matter renderer used by Preview Studio and exported EPUBs, even when the source lacks explicit page labels.
+- Existing projects gain Book Brain on migration without re-import and without changing Story Lock canonical source.
+- DOCX paragraph metadata now preserves manual page-break evidence for safer page-role inference.
+- Added Simple Mode Book Brain summary and one-click review decisions.
+- PDF reconstruction remains a planned future input path; this release hardens the semantic engine on DOCX first.
+
 ## 1.0.24 — Front Matter Typography & Copyright Fit
 
 - Pins the Tres Amigos title page to the Book 1 sans-serif display hierarchy across EPUB reading apps.

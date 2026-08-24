@@ -1,6 +1,13 @@
 # YasReady Publish
 
-**Current release: v1.0.24 — Format-First Flow + Dedication Spacing**
+**Current release: v1.0.25 — Book Brain · Smart eBook Interpretation**
+
+## v1.0.25 — Book Brain · Smart eBook Interpretation
+
+YasReady now interprets manuscript meaning instead of depending on perfect Word formatting. On DOCX import it identifies high-confidence chapter starts, title/copyright/dedication/contents boundaries, text conversations, scene breaks, subheads, notes/letters, and verse. High-confidence interpretation is applied automatically as Story-Lock-safe metadata; ambiguous items appear in a small review queue. Source wording, runs, order, notes, media, and canonical hashes are never rewritten.
+
+PDF reconstruction is a future Book Brain input path; v1.0.25 intentionally keeps the production importer on DOCX while the semantic engine is hardened.
+
 
 Private publishing studio for Story-Locked manuscripts.
 

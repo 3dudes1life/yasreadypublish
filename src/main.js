@@ -56,12 +56,13 @@ import {
   normalizeEbookThemeStudio, setChapterHeadingOverride, sourceStyleRecords, splitChapterHeading,
 } from './lib/ebook-theme-studio.js';
 import { addBug, deleteBug, loadBugLog, setBugStatus } from './lib/bug-log.js';
+import { bookBrainReviewItems, decideBookBrainInterpretation, reanalyzeBookBrain } from './lib/book-brain.js';
 import {
   applySafeFixBatch, auditKindleAccessibility, buildKindleReleaseGate, freezeKindleRelease,
   kindleReleaseReport, markAllCurrentReviewsIntentional, markKindleVisualProofComplete,
 } from './lib/kindle-release-gate.js';
 
-const VERSION = '1.0.24';
+const VERSION = '1.0.25';
 // Legacy capability labels retained for regression discovery only (not default UI): Amazon KDP · Reflowable EPUB 3 · Kindle Preview Studio · Semantic Style Palette · Kindle Release Gate · v1.0.16
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
@@ -113,6 +114,7 @@ const state = {
   releaseGateMessage: '',
   simpleStep: 'book',
   lastExportedEdition: '',
+  bookBrainMessage: '',
 };
 
 const app = document.querySelector('#app');
@@ -292,6 +294,7 @@ function renderMain() {
   if (state.busy) return renderBusy();
   if (state.activeView === 'library') return renderLibrary();
   if (state.activeView === 'bugs') return renderBugLog();
+  if (state.activeView === 'brain') return renderBookBrainReview();
   if (state.activeView === 'style-simple') return renderSimpleStyleHub();
   if (state.activeView === 'preview-simple') return renderSimplePreviewHub();
   if (state.activeView === 'export-simple') return renderSimpleExportHub();
@@ -317,7 +320,7 @@ function renderImport() {
       <div class="empty-project simple-dropzone" id="dropzone">
         <div class="drop-icon">⇧</div>
         <h3>Drop your DOCX here</h3>
-        <p>No rewriting. No silent corrections. Just your book, separated from its design layer.</p>
+        <p>No rewriting. No silent corrections. Book Brain figures out chapters, front matter, conversations, and other structure even when the Word formatting is messy.</p>
         <button class="btn primary simple-primary-cta" id="chooseFile">Choose DOCX</button>
         <input type="file" id="fileInput" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
       </div>
@@ -348,6 +351,7 @@ function renderProject() {
       </div>
       ${state.error ? `<div class="notice error">${escapeHtml(state.error)}</div>` : ''}
       ${stats.chapters === 0 ? `<div class="notice error"><strong>We couldn't confidently detect chapter starts.</strong> Your text is untouched. Open Advanced Tools → Structure Repair to review the source structure.</div>` : ''}
+      ${renderBookBrainCard(p)}
       <section class="simple-edition-choice ${enabledCount ? '' : 'onboarding'}">
         <div class="simple-section-head"><div><h3>${enabledCount ? 'Formats for this book' : 'What are you making?'}</h3><p>${enabledCount ? 'Use only the editions you actually need. You can add another format later.' : 'Pick one or more. Nothing is assumed after upload.'}</p></div>${enabledCount ? '<span class="simple-required-chip">Change anytime</span>' : '<span class="simple-required-chip">Start here</span>'}</div>
         <div class="simple-edition-grid">${enabled.map(([id,label,on,copy]) => `<label class="simple-edition-card ${on ? 'on' : ''}"><input class="simple-edition-checkbox" type="checkbox" data-edition-enabled="${id}" ${on ? 'checked' : ''}><span>${on ? '✓' : '○'}</span><div><strong>${label}</strong><small>${on ? 'Selected · ' : ''}${copy}</small></div></label>`).join('')}</div>
@@ -377,6 +381,57 @@ function renderProject() {
         </div>
       </details>
     </article>`;
+}
+
+
+function bookBrainSummaryText(brain) {
+  const summary = brain?.summary || {};
+  const parts = [];
+  if (summary.chapters) parts.push(`${formatNumber(summary.chapters)} chapter${summary.chapters === 1 ? '' : 's'}`);
+  if (summary.titlePages) parts.push('title page');
+  if (summary.copyrightPages) parts.push('copyright');
+  if (summary.dedicationPages) parts.push('dedication');
+  if (summary.tocPages) parts.push('contents');
+  if (summary.textMessages) parts.push(`${formatNumber(summary.textMessages)} text conversation${summary.textMessages === 1 ? '' : 's'}`);
+  if (summary.sceneBreaks) parts.push(`${formatNumber(summary.sceneBreaks)} scene break${summary.sceneBreaks === 1 ? '' : 's'}`);
+  if (summary.writtenNotes) parts.push(`${formatNumber(summary.writtenNotes)} written note${summary.writtenNotes === 1 ? '' : 's'}`);
+  return parts.slice(0, 7).join(' · ') || 'Manuscript structure analyzed';
+}
+
+function renderBookBrainCard(project) {
+  const brain = project?.bookBrain;
+  if (!brain) return '';
+  const reviews = bookBrainReviewItems(project);
+  const ready = reviews.length === 0;
+  return `<section class="book-brain-card ${ready ? 'ready' : 'review'}" id="bookBrainCard">
+    <div class="book-brain-icon">${ready ? '✦' : '?'}</div>
+    <div class="book-brain-copy">
+      <div class="book-brain-title-row"><span class="simple-kicker">BOOK BRAIN</span><strong>${brain.confidence || 0}% understood</strong></div>
+      <h3>${ready ? 'YasReady understood the book.' : `${reviews.length} thing${reviews.length === 1 ? '' : 's'} need a quick look.`}</h3>
+      <p>${escapeHtml(bookBrainSummaryText(brain))}</p>
+      <small>${ready ? 'High-confidence structure was formatted automatically. Story Lock kept every source word untouched.' : 'Everything obvious was handled automatically. Review only the uncertain interpretations.'}</small>
+    </div>
+    <div class="book-brain-actions">
+      ${reviews.length ? `<button class="btn primary" data-go-view="brain" type="button">Review ${reviews.length} →</button>` : '<span class="book-brain-done">✓ No review needed</span>'}
+      <button class="btn ghost" id="reanalyzeBookBrain" type="button">Analyze again</button>
+    </div>
+  </section>`;
+}
+
+function renderBookBrainReview() {
+  const project = state.project;
+  const items = bookBrainReviewItems(project);
+  const brain = project?.bookBrain || {};
+  return `<article class="panel book-brain-review-panel">
+    <div class="simple-page-head"><div><span class="simple-kicker">Book Brain · v1.0.25</span><h2>${items.length ? `Check ${items.length} uncertain interpretation${items.length === 1 ? '' : 's'}.` : 'Book Brain is happy.'}</h2><p>YasReady already handled the high-confidence structure. These are the only places it refused to guess.</p></div><span class="simple-lock-chip">🔒 Words untouched</span></div>
+    ${state.bookBrainMessage ? `<div class="notice success">${escapeHtml(state.bookBrainMessage)}</div>` : ''}
+    ${items.length ? `<div class="book-brain-review-list">${items.map((item) => `<section class="book-brain-review-item">
+      <div class="book-brain-confidence"><strong>${Math.round(item.confidence * 100)}%</strong><span>confidence</span></div>
+      <div class="book-brain-review-copy"><span class="simple-kicker">${escapeHtml(item.category)}</span><h3>${escapeHtml(item.label)}</h3><p>“${escapeHtml(item.text)}”</p><small>${escapeHtml(item.reason)}</small></div>
+      <div class="book-brain-review-actions"><button class="btn primary" data-book-brain-decision="accepted" data-book-brain-id="${escapeHtml(item.id)}" type="button">Use this</button><button class="btn secondary" data-book-brain-decision="ignored" data-book-brain-id="${escapeHtml(item.id)}" type="button">Keep source</button></div>
+    </section>`).join('')}</div>` : `<div class="book-brain-empty"><div>✓</div><h3>Nothing needs your attention.</h3><p>${escapeHtml(bookBrainSummaryText(brain))}</p></div>`}
+    <div class="simple-step-footer"><button class="btn ghost" data-go-view="import" type="button">← Back to Book</button>${items.length ? '' : '<button class="btn primary" data-simple-step="style" type="button">Continue to Style →</button>'}</div>
+  </article>`;
 }
 
 function renderSimpleStyleHub() {
@@ -2372,6 +2427,8 @@ function bindDynamicEvents() {
     if (button.dataset.goView === 'import') state.simpleStep = 'book';
     updateMain();
   }));
+  document.querySelector('#reanalyzeBookBrain')?.addEventListener('click', reanalyzeCurrentBookBrain);
+  document.querySelectorAll('[data-book-brain-decision]').forEach((button) => button.addEventListener('click', () => reviewBookBrainInterpretation(button.dataset.bookBrainId, button.dataset.bookBrainDecision)));
 
   const search = document.querySelector('#sourceSearch');
   search?.addEventListener('input', (event) => {
@@ -2620,6 +2677,45 @@ async function restoreProjectBackup(file) {
   }
 }
 
+
+
+async function reanalyzeCurrentBookBrain() {
+  if (!state.project) return;
+  try {
+    reanalyzeBookBrain(state.project);
+    state.project.updatedAt = new Date().toISOString();
+    invalidateEditionProof(state.project, 'ebook', { clearPageCount:false });
+    state.finalCheck = null;
+    state.bookBrainMessage = 'Book Brain analyzed the manuscript again. High-confidence interpretation was applied without changing source text.';
+    await saveProject(state.project);
+    state.projects = await listProjects();
+    updateMain();
+  } catch (error) {
+    console.error(error);
+    state.bookBrainMessage = error?.message || 'Book Brain could not analyze this manuscript safely.';
+    updateMain();
+  }
+}
+
+async function reviewBookBrainInterpretation(id, decision) {
+  if (!state.project || !id) return;
+  try {
+    const entry = decideBookBrainInterpretation(state.project, id, decision);
+    state.project.updatedAt = new Date().toISOString();
+    invalidateEditionProof(state.project, 'ebook', { clearPageCount:false });
+    state.finalCheck = null;
+    state.bookBrainMessage = decision === 'accepted'
+      ? `Used Book Brain's ${entry.label} interpretation. Story text was not changed.`
+      : `Kept the source interpretation for “${entry.text}”.`;
+    await saveProject(state.project);
+    state.projects = await listProjects();
+    updateMain();
+  } catch (error) {
+    console.error(error);
+    state.bookBrainMessage = error?.message || 'That Book Brain decision could not be saved safely.';
+    updateMain();
+  }
+}
 
 async function applyStructureRepair(blockId, kind) {
   if (!state.project) return;

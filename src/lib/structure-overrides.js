@@ -32,7 +32,8 @@ export function effectiveBlocks(project) {
   let previousNonEmpty = null;
   return source.map((block) => {
     const overrideKind = overrides[block.id] || null;
-    let kind = overrideKind || block.kind;
+    const brainKind = String(project?.bookBrain?.inferredKinds?.[block.id] || '').trim();
+    let kind = overrideKind || (STRUCTURE_OVERRIDE_KINDS.includes(brainKind) ? brainKind : null) || block.kind;
     // A manually identified chapter title still gets a non-indented opening paragraph.
     // This is derived presentation structure only; source text is untouched.
     if (!overrideKind && kind === 'body' && previousNonEmpty?.kind === 'chapter-title') kind = 'chapter-opening';
