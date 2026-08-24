@@ -1,6 +1,7 @@
 import { normalizePrintDesign } from './print-model.js';
 import { normalizeEbookDesign } from './ebook-model.js';
 import { normalizePrintProduction } from './print-brain.js';
+import { normalizeCoverBrain } from './cover-brain.js';
 
 export const EDITION_TYPES = Object.freeze(['paperback', 'hardcover', 'ebook']);
 export const PRINT_EDITION_TYPES = Object.freeze(['paperback', 'hardcover']);
@@ -35,6 +36,8 @@ export function ensureEditions(project) {
     lastPreflight: project.editions.paperback?.lastPreflight || null,
     lastPdfAudit: project.editions.paperback?.lastPdfAudit || null,
     production: normalizePrintProduction(project.editions.paperback?.production || {}, 'paperback'),
+    coverBrain: normalizeCoverBrain(project.editions.paperback?.coverBrain || {}, 'paperback'),
+    lastCoverAudit: project.editions.paperback?.lastCoverAudit || null,
   };
   project.editions.hardcover = {
     enabled: Boolean(project.editions.hardcover?.enabled),
@@ -45,6 +48,8 @@ export function ensureEditions(project) {
     lastPreflight: project.editions.hardcover?.lastPreflight || null,
     lastPdfAudit: project.editions.hardcover?.lastPdfAudit || null,
     production: normalizePrintProduction(project.editions.hardcover?.production || {}, 'hardcover'),
+    coverBrain: normalizeCoverBrain(project.editions.hardcover?.coverBrain || {}, 'hardcover'),
+    lastCoverAudit: project.editions.hardcover?.lastCoverAudit || null,
   };
   project.editions.ebook = {
     enabled: project.editions.ebook?.enabled !== false,
@@ -139,7 +144,7 @@ export function invalidateEditionProof(project, type, { clearPageCount = true } 
   const edition = project.editions?.[type];
   if (!edition) return project;
   edition.lastPreflight = null;
-  if (type !== 'ebook') edition.lastPdfAudit = null;
+  if (type !== 'ebook') { edition.lastPdfAudit = null; edition.lastCoverAudit = null; }
   if (clearPageCount && type !== 'ebook') {
     edition.lastPageCount = null;
     edition.lastBuiltAt = null;

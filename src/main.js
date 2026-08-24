@@ -21,6 +21,8 @@ import { deleteCustomTheme, loadCustomThemes, parseThemeJson, saveCustomTheme, s
 import { runKdpPreflight } from './lib/preflight-model.js';
 import { buildPrintMasterHtml } from './lib/print-export.js';
 import { PRINT_PDF_DPI, renderProductionPrintPdf } from './lib/print-pdf.js';
+import { COVER_DPI, coverBrainChecks, coverGeometry, normalizeCoverBrain } from './lib/cover-brain.js';
+import { renderCoverPdf } from './lib/cover-pdf.js';
 import { normalizeEbookDesign } from './lib/ebook-model.js';
 import { runEpubPreflight } from './lib/ebook-preflight.js';
 import { buildEbookPreviewHtml, buildEpubBlob, buildDevicePreviewHtml } from './lib/epub-export.js';
@@ -64,7 +66,7 @@ import {
   kindleReleaseReport, markAllCurrentReviewsIntentional, markKindleVisualProofComplete, setKindleExternalConfirmation,
 } from './lib/kindle-release-gate.js';
 
-const VERSION = '1.0.29';
+const VERSION = '1.0.30';
 // Legacy capability labels retained for regression discovery only (not default UI): Amazon KDP · Reflowable EPUB 3 · Kindle Preview Studio · Semantic Style Palette · Kindle Release Gate · v1.0.16
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
@@ -117,6 +119,8 @@ const state = {
   simpleStep: 'book',
   lastExportedEdition: '',
   bookBrainMessage: '',
+  coverBrainMessage: '',
+  coverPdfReport: null,
 };
 
 const app = document.querySelector('#app');
@@ -158,6 +162,13 @@ function currentDesign() {
   if (!state.project) return normalizePrintDesign({});
   const type = currentPrintEditionType();
   return getPrintEditionDesign(state.project, type);
+}
+
+function currentCoverBrain() {
+  if (!state.project) return normalizeCoverBrain({}, currentPrintEditionType());
+  ensureEditions(state.project);
+  const type = currentPrintEditionType();
+  return normalizeCoverBrain(state.project.editions?.[type]?.coverBrain || {}, type);
 }
 
 function saveCurrentPrintDesign(design) {
@@ -999,6 +1010,58 @@ function renderPreflightCheck(item) {
   return `<div class="preflight-row ${item.status}"><div class="preflight-icon">${icon}</div><div><strong>${escapeHtml(item.label)}</strong><p>${escapeHtml(item.message)}</p></div><span>${item.status.toUpperCase()}</span></div>`;
 }
 
+
+function renderCoverBrain() {
+  ensureEditions(state.project);
+  const type = currentPrintEditionType();
+  const edition = state.project.editions[type];
+  const cover = currentCoverBrain();
+  const pageCount = Number(edition?.lastPageCount || state.preview?.pages?.length || 0);
+  const report = coverBrainChecks({ type, production:edition?.production || {}, pageCount, cover, ebookCover:getEbookCover(state.project) });
+  const g = report.geometry;
+  const frontArt = report.frontArt;
+  const last = state.coverPdfReport || edition?.lastCoverAudit || null;
+  const safeFront = frontArt?.dataUrl ? `<img src="${escapeHtml(frontArt.dataUrl)}" alt="Front cover artwork">` : `<div class="cover-brain-generated-front"><strong>${escapeHtml(state.project.title || 'Untitled')}</strong><span>${escapeHtml(state.project.author || '')}</span></div>`;
+  const ratioBack = Math.max(1, g.panels.back.width * 80);
+  const ratioSpine = Math.max(8, g.panels.spine.width * 80);
+  const ratioFront = Math.max(1, g.panels.front.width * 80);
+  const spineTitle = cover.spineTitle || state.project.title || '';
+  const spineAuthor = cover.spineAuthor || state.project.author || '';
+  const hardcoverConfirm = type === 'hardcover' ? `
+    <div class="cover-hardcover-confirm">
+      <label class="design-field"><span>Exact KDP hardcover spine width</span><div class="number-wrap"><input id="coverHardcoverSpine" type="number" min="0.1" max="3" step="0.0001" value="${cover.hardcoverSpineWidthIn || ''}" placeholder="From Amazon Cover Calculator"><em>in</em></div></label>
+      <label class="toggle-row"><input id="coverHardcoverConfirmed" type="checkbox" ${cover.hardcoverGeometryConfirmed ? 'checked' : ''}><span><strong>I confirmed this spine width in Amazon Cover Calculator</strong><small>Hardcover production PDF stays locked until the exact case-laminate spine is confirmed. YasReady will not guess a manufacturing dimension Amazon does not publish as a formula.</small></span></label>
+      <a class="btn ghost" href="https://kdp.amazon.com/cover-templates?language=en_US" target="_blank" rel="noopener">Open Amazon Cover Calculator ↗</a>
+    </div>` : '';
+  return `<section class="cover-brain-card">
+    <div class="cover-brain-head"><div><div class="eyebrow">COVER BRAIN · v1.0.30</div><h3>${escapeHtml(editionLabel(type))} cover</h3><p>Final page count drives the spine and full-wrap canvas. YasReady reserves the barcode zone and keeps every critical element inside KDP safety.</p></div><div class="cover-brain-dims"><strong>${g.width.toFixed(4)} × ${g.height.toFixed(4)}</strong><span>in full cover</span><small>Spine ${g.spineWidth.toFixed(4)} in${g.exact ? '' : ' · estimate'}</small></div></div>
+    ${state.coverBrainMessage ? `<div class="notice info">${escapeHtml(state.coverBrainMessage)}</div>` : ''}
+    <div class="cover-brain-preview" style="--back:${ratioBack};--spine:${ratioSpine};--front:${ratioFront};background:${escapeHtml(cover.background)};color:${escapeHtml(cover.textColor)}">
+      <div class="cover-panel cover-back"><div class="cover-back-copy">${escapeHtml(cover.backCopy || 'Back-cover copy')}</div>${cover.amazonBarcode ? '<div class="cover-barcode-zone">AMAZON BARCODE</div>' : ''}</div>
+      <div class="cover-panel cover-spine"><span>${g.spineTextAllowed ? escapeHtml(spineTitle || 'SPINE') : 'NO SPINE TEXT'}</span></div>
+      <div class="cover-panel cover-front">${safeFront}</div>
+    </div>
+    <div class="cover-brain-grid">
+      <div class="cover-brain-fields">
+        <label class="design-field"><span>Front artwork</span><select id="coverFrontSource"><option value="ebook-cover" ${cover.source === 'ebook-cover' ? 'selected' : ''}>Use Kindle cover</option><option value="uploaded-front" ${cover.source === 'uploaded-front' ? 'selected' : ''}>Use uploaded print artwork</option><option value="generated" ${cover.source === 'generated' ? 'selected' : ''}>Generate simple text front</option></select></label>
+        <div class="cover-upload-row"><input id="printCoverFrontInput" type="file" accept="image/jpeg,image/png" hidden><button class="btn secondary" id="choosePrintCoverFront" type="button">${cover.frontArt ? 'Replace print front' : 'Upload print front'}</button>${cover.frontArt ? '<button class="btn ghost" id="removePrintCoverFront" type="button">Remove</button>' : ''}<small>${frontArt ? `${frontArt.width} × ${frontArt.height}px · ${Math.round(report.frontDpi)} effective PPI` : 'JPEG/PNG · 300 DPI at final trim recommended'}</small></div>
+        <label class="design-field wide"><span>Back-cover copy</span><textarea id="coverBackCopy" rows="7" placeholder="Paste the finished back-cover description here…">${escapeHtml(cover.backCopy)}</textarea></label>
+        <label class="design-field"><span>Spine title</span><input id="coverSpineTitle" value="${escapeHtml(spineTitle)}" ${g.spineTextAllowed ? '' : 'disabled'}></label>
+        <label class="design-field"><span>Spine author</span><input id="coverSpineAuthor" value="${escapeHtml(spineAuthor)}" ${g.spineTextAllowed ? '' : 'disabled'}></label>
+        <label class="design-field"><span>Publisher / imprint</span><input id="coverPublisher" value="${escapeHtml(cover.publisher || state.project.editions?.ebook?.design?.publisher || '')}"></label>
+        <label class="design-field"><span>Finish</span><select id="coverFinish"><option value="matte" ${cover.finish === 'matte' ? 'selected' : ''}>Matte</option><option value="glossy" ${cover.finish === 'glossy' ? 'selected' : ''}>Glossy</option></select></label>
+        <label class="design-field"><span>Background</span><input id="coverBackground" type="color" value="${escapeHtml(cover.background)}"></label>
+        <label class="design-field"><span>Text color</span><input id="coverTextColor" type="color" value="${escapeHtml(cover.textColor)}"></label>
+        <label class="toggle-row wide"><input id="coverAmazonBarcode" type="checkbox" ${cover.amazonBarcode ? 'checked' : ''}><span><strong>Let Amazon place the barcode · Recommended</strong><small>Cover Brain keeps a 2 × 1.2 in zone clear on the back cover so KDP can place its manufacturing-safe barcode.</small></span></label>
+        ${hardcoverConfirm}
+        <div class="cover-brain-actions wide"><button class="btn primary" id="saveCoverBrain" type="button">Save Cover Brain</button><button class="btn ${report.ready ? 'primary' : 'secondary'}" id="buildCoverPdf" type="button" ${report.ready ? '' : 'disabled'}>Build ${escapeHtml(editionLabel(type))} Cover PDF</button></div>
+      </div>
+      <div class="cover-brain-checks"><div class="cover-check-head"><strong>${report.ready ? 'Cover ready to build' : `${report.summary.errors} cover blocker${report.summary.errors === 1 ? '' : 's'}`}</strong><span>${report.summary.passes} pass · ${report.summary.warnings} warning</span></div>${report.checks.map((item) => `<div class="cover-check ${item.status}"><span>${item.status === 'pass' ? '✓' : item.status === 'warning' ? '!' : '×'}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.message)}</small></div></div>`).join('')}${last ? `<div class="notice ${last.ready ? 'success' : 'error'}"><strong>${last.ready ? 'Last cover PDF passed.' : 'Last cover PDF failed.'}</strong>${last.sha256 ? ` SHA-256 ${escapeHtml(shortHash(last.sha256,16))}` : ''}</div>` : ''}</div>
+    </div>
+    <div class="cover-brain-foot"><span>Paperback geometry is calculated directly from Amazon’s published spine formulas.</span><span>Hardcover wrap 0.51 in · safe edge 0.635 in · hinge 0.4 in.</span></div>
+  </section>`;
+}
+
 function renderPrintPdfReport() {
   const candidate = state.printPdfReport || state.project?.editions?.[currentPrintEditionType()]?.lastPdfAudit || null;
   const report = candidate && (!candidate.proofSignature || candidate.proofSignature === state.preview?.proofSignature) ? candidate : null;
@@ -1038,6 +1101,7 @@ function renderExport() {
         <button class="btn primary export-main-button" id="createPaperbackPdf" type="button" ${report.ready ? '' : 'disabled'}>Build ${escapeHtml(editionLabel(currentPrintEditionType()))} PDF</button>
       </div>
       ${renderPrintPdfReport()}
+      ${renderCoverBrain()}
       <div class="preflight-list">${report.checks.map(renderPreflightCheck).join('')}</div>
       <div class="export-actions">
         <button class="btn secondary" id="openPrintMaster" type="button" ${report.ready ? '' : 'disabled'}>Open Print Master</button>
@@ -2450,6 +2514,11 @@ function bindDynamicEvents() {
   document.querySelector('#rebuildPreview')?.addEventListener('click', buildPreview);
   document.querySelector('#buildPreviewForExport')?.addEventListener('click', buildPreviewForExport);
   document.querySelector('#createPaperbackPdf')?.addEventListener('click', createPaperbackPdf);
+  document.querySelector('#saveCoverBrain')?.addEventListener('click', saveCoverBrainSettings);
+  document.querySelector('#buildCoverPdf')?.addEventListener('click', buildCurrentCoverPdf);
+  document.querySelector('#choosePrintCoverFront')?.addEventListener('click', () => document.querySelector('#printCoverFrontInput')?.click());
+  document.querySelector('#printCoverFrontInput')?.addEventListener('change', (event) => event.target.files?.[0] && importPrintCoverFront(event.target.files[0]));
+  document.querySelector('#removePrintCoverFront')?.addEventListener('click', removePrintCoverFront);
   document.querySelector('#openPrintMaster')?.addEventListener('click', openPrintMaster);
   document.querySelector('#downloadPrintMaster')?.addEventListener('click', downloadPrintMaster);
   document.querySelector('#downloadPreflightReport')?.addEventListener('click', downloadPreflightReport);
@@ -3062,6 +3131,97 @@ async function createPaperbackPdf() {
     state.activeView = 'export';
     updateMain();
   }
+}
+
+
+function readCoverBrainForm() {
+  const type = currentPrintEditionType();
+  const base = currentCoverBrain();
+  return normalizeCoverBrain({
+    ...base,
+    configured:true,
+    source:document.querySelector('#coverFrontSource')?.value || base.source,
+    finish:document.querySelector('#coverFinish')?.value || base.finish,
+    background:document.querySelector('#coverBackground')?.value || base.background,
+    textColor:document.querySelector('#coverTextColor')?.value || base.textColor,
+    backCopy:document.querySelector('#coverBackCopy')?.value || '',
+    spineTitle:document.querySelector('#coverSpineTitle')?.value || '',
+    spineAuthor:document.querySelector('#coverSpineAuthor')?.value || '',
+    publisher:document.querySelector('#coverPublisher')?.value || '',
+    amazonBarcode:Boolean(document.querySelector('#coverAmazonBarcode')?.checked),
+    hardcoverSpineWidthIn:document.querySelector('#coverHardcoverSpine')?.value || base.hardcoverSpineWidthIn,
+    hardcoverGeometryConfirmed:Boolean(document.querySelector('#coverHardcoverConfirmed')?.checked),
+  }, type);
+}
+
+async function saveCoverBrainSettings() {
+  if (!state.project) return;
+  ensureEditions(state.project);
+  const type = currentPrintEditionType();
+  const before = JSON.stringify(state.project.manuscript?.blocks || []);
+  state.project.editions[type].coverBrain = readCoverBrainForm();
+  state.project.editions[type].lastCoverAudit = null;
+  state.coverPdfReport = null;
+  const after = JSON.stringify(state.project.manuscript?.blocks || []);
+  if (before !== after) throw new Error('Story Lock blocked Cover Brain because manuscript blocks changed.');
+  state.project.updatedAt = new Date().toISOString();
+  state.coverBrainMessage = 'Cover Brain saved. Cover presentation metadata changed; manuscript wording did not.';
+  await saveProject(state.project);
+  state.projects = await listProjects();
+  updateMain();
+}
+
+async function importPrintCoverFront(file) {
+  if (!state.project) return;
+  if (!['image/jpeg','image/png'].includes(file.type)) { alert('Choose a JPEG or PNG print-cover image.'); return; }
+  try {
+    const dataUrl = await fileToDataUrl(file);
+    const { width, height } = await imageDimensions(dataUrl);
+    ensureEditions(state.project);
+    const type = currentPrintEditionType();
+    const cover = currentCoverBrain();
+    cover.frontArt = { fileName:file.name, mimeType:file.type, fileSize:file.size, width, height, dataUrl, updatedAt:new Date().toISOString() };
+    cover.source = 'uploaded-front'; cover.configured = true;
+    state.project.editions[type].coverBrain = normalizeCoverBrain(cover, type);
+    state.project.editions[type].lastCoverAudit = null;
+    state.coverPdfReport = null;
+    state.coverBrainMessage = `Print front attached: ${file.name} (${width} × ${height}px).`;
+    state.project.updatedAt = new Date().toISOString();
+    await saveProject(state.project); state.projects = await listProjects(); updateMain();
+  } catch (error) { console.error(error); alert(error?.message || 'Print cover artwork could not be attached.'); }
+}
+
+async function removePrintCoverFront() {
+  if (!state.project) return;
+  ensureEditions(state.project);
+  const type = currentPrintEditionType();
+  const cover = currentCoverBrain();
+  cover.frontArt = null; cover.source = getEbookCover(state.project) ? 'ebook-cover' : 'generated';
+  state.project.editions[type].coverBrain = normalizeCoverBrain(cover, type);
+  state.project.editions[type].lastCoverAudit = null; state.coverPdfReport = null;
+  state.coverBrainMessage = 'Uploaded print front removed.';
+  await saveProject(state.project); state.projects = await listProjects(); updateMain();
+}
+
+async function buildCurrentCoverPdf() {
+  if (!state.project) return;
+  await saveCoverBrainSettings();
+  ensureEditions(state.project);
+  const type = currentPrintEditionType();
+  const edition = state.project.editions[type];
+  const pageCount = Number(edition.lastPageCount || state.preview?.pages?.length || 0);
+  state.busy = true; state.busyMessage = `Building ${editionLabel(type)} full-wrap cover at ${COVER_DPI} DPI…`; updateMain();
+  try {
+    const packaged = await renderCoverPdf({ project:state.project, editionType:type, production:edition.production || {}, pageCount, cover:edition.coverBrain || {}, dpi:COVER_DPI });
+    const sha256 = await sha256Hex(packaged.bytes);
+    state.coverPdfReport = { ...packaged.audit, sha256, geometry:packaged.geometry, generatedAt:new Date().toISOString(), pageCount };
+    edition.lastCoverAudit = state.coverPdfReport;
+    state.project.updatedAt = new Date().toISOString();
+    await saveProject(state.project); state.projects = await listProjects();
+    if (!packaged.audit.ready) throw new Error('Cover Brain blocked download because the finished cover PDF failed its audit.');
+    downloadBlobFile(`${safeExportBaseName()}-${type}-kdp-cover.pdf`, packaged.blob);
+  } catch (error) { console.error(error); alert(error?.message || 'YasReady could not build the cover PDF safely.'); }
+  finally { state.busy=false; state.busyMessage=''; state.activeView='export'; updateMain(); }
 }
 
 async function openPrintMaster() {

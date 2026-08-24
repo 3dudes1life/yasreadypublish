@@ -1,3 +1,13 @@
+# YasReady Publish 1.0.30 — Cover Brain + Kindle E21018 Fix
+
+- Fixes the Kindle Previewer `E21018` conversion failure reported against `OEBPS/text/front-001.xhtml` by removing `display:none`, `visibility:hidden`, hidden attributes, and source-blank helper markup from the **publishable EPUB**. Preview-only helpers remain confined to YasReady Preview Studio.
+- Adds a production EPUB hard gate (`audit-amazon-no-hidden-css`) so hidden-content CSS/markup cannot silently return in a Kindle export.
+- Invalidates stale Kindle Previewer / Enhanced Typesetting confirmations when migrating into 1.0.30 because the production EPUB renderer changed; current 1.0.30 projects preserve confirmations on reload.
+- Adds **Cover Brain v1** for Paperback and Hardcover. Paperback full-wrap geometry is driven by the finished interior page count, trim, ink, and paper profile; Amazon barcode clearance and spine-text eligibility are checked automatically.
+- Adds 300-DPI cover PDF generation using the existing deterministic PDF engine, with Kindle-cover reuse, uploaded print-front art, back-cover copy, spine text, publisher/imprint, finish, and color controls.
+- Paperback uses Amazon's published spine factors and 0.125-inch outer bleed. Hardcover uses Amazon's published 0.51-inch wrap, 0.4-inch hinge, and 0.635-inch safety geometry but **does not invent an exact spine formula Amazon does not publish**; final hardcover cover PDF remains locked until the exact Cover Calculator spine width is entered and confirmed.
+- Cover audits are edition-scoped and invalidated whenever the print proof/design changes. Story Lock manuscript text and hashes remain untouched.
+
 # YasReady Publish 1.0.29 — Print PDF Hard Mode
 
 - Replaces the primary browser Print → Save as PDF workflow with YasReady's own client-side production PDF renderer.

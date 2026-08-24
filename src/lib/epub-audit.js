@@ -107,6 +107,7 @@ export function auditEpubPackage({ project } = {}) {
   const visibleTocInSpine = /<itemref idref="visible-toc"\/>/.test(opf);
   const visibleToc = String(files.get('OEBPS/text/contents.xhtml') || '');
   const navHiddenHack = /hidden=|display\s*:\s*none/i.test(nav);
+  const productionHiddenCss = /display\s*:\s*none|visibility\s*:\s*hidden/i.test(css);
   const privateOpfMetadata = /yasready:|yasready\.com\/vocab/i.test(opf);
   const guideOk = /<guide>[\s\S]*type="toc"[\s\S]*type="text"[\s\S]*<\/guide>/i.test(opf);
   const legacyCoverMetaOk = !project?.editions?.ebook?.cover || /<meta name="cover" content="cover-image"\/>/.test(opf);
@@ -124,6 +125,7 @@ export function auditEpubPackage({ project } = {}) {
   const manuscriptMediaOk = manuscriptImageManifest.length === manuscriptMedia.length
     && manuscriptImageManifest.every((match) => filePaths.has(match[1]));
   const xhtmlEntries = [...files.entries()].filter(([path, content]) => /\.xhtml$/i.test(path) && typeof content === 'string');
+  const productionHiddenMarkup = xhtmlEntries.some(([, content]) => /(?:\shidden(?:=|\s|>)|style="[^"]*(?:display\s*:\s*none|visibility\s*:\s*hidden))/i.test(content));
   const htmlFileCount = xhtmlEntries.length;
   const htmlFileCountOk = htmlFileCount < 300;
   const xhtmlSizes = xhtmlEntries.map(([path, content]) => ({ path, bytes:byteLength(content) }));
@@ -180,6 +182,7 @@ export function auditEpubPackage({ project } = {}) {
     { id:'audit-chapters', ok:chaptersOk, message:chaptersOk ? `${expectedChapters} chapter XHTML files and ${expectedChapters} chapter navigation links match.` : `Chapter package count/navigation does not match ${expectedChapters} detected chapters.` },
     { id:'audit-nav-spine', ok:!navInSpine && visibleTocInSpine, message:!navInSpine && visibleTocInSpine ? 'Logical nav stays out of the spine while the separate visible Contents page is in reading order.' : 'Kindle navigation and visible Contents are not separated correctly in the spine.' },
     { id:'audit-nav-hidden', ok:!navHiddenHack, message:!navHiddenHack ? 'Logical navigation contains no hidden/display:none TOC markup that Kindle conversion rejects.' : 'Logical navigation contains hidden/display:none markup that can break Kindle conversion.' },
+    { id:'audit-amazon-no-hidden-css', ok:!productionHiddenCss && !productionHiddenMarkup, message:!productionHiddenCss && !productionHiddenMarkup ? 'Production EPUB contains no display:none/visibility:hidden CSS or hidden XHTML markup; Kindle Previewer E21018 trigger removed.' : 'Production EPUB still contains hidden-content CSS/markup that can trigger Kindle Previewer E21018.' },
     { id:'audit-visible-toc-file', ok:Boolean(visibleToc) && visibleTocTargetsOk, message:Boolean(visibleToc) && visibleTocTargetsOk ? 'Visible Contents is packaged separately and every link resolves.' : 'Visible Contents XHTML is missing or contains broken links.' },
     { id:'audit-guide', ok:guideOk, message:guideOk ? 'OPF guide declares Table of Contents and Begin Reading targets for Kindle compatibility.' : 'OPF guide is missing Kindle-friendly TOC/start references.' },
     { id:'audit-legacy-cover-meta', ok:legacyCoverMetaOk, message:legacyCoverMetaOk ? 'Cover is declared with EPUB 3 and legacy Kindle cover metadata.' : 'Legacy Kindle cover metadata is missing or mismatched.' },
@@ -220,6 +223,6 @@ export function auditEpubPackage({ project } = {}) {
     brokenFragmentTargets,
     previewLeak,
     files: files.size,
-    amazonHardMode: { htmlFileCount, oversizedXhtml, hiddenChars, forcedBodyTypography, imposedBodySides, horizontalEmMargins, positionCss, negativeMargins, sourceTables, sourceHyperlinks, preservedHyperlinks, sourceNumberedBlocks, matterNumberedBlocks:matterNumberedRows.length, nestedNumberedBlocks, unconvertedSimpleListItems, semanticListItems, imageDimensionFailures:imageDimensionFailures.length, transparentImages:transparentImages.length, cmykImages:cmykImages.length },
+    amazonHardMode: { htmlFileCount, oversizedXhtml, hiddenChars, productionHiddenCss, productionHiddenMarkup, forcedBodyTypography, imposedBodySides, horizontalEmMargins, positionCss, negativeMargins, sourceTables, sourceHyperlinks, preservedHyperlinks, sourceNumberedBlocks, matterNumberedBlocks:matterNumberedRows.length, nestedNumberedBlocks, unconvertedSimpleListItems, semanticListItems, imageDimensionFailures:imageDimensionFailures.length, transparentImages:transparentImages.length, cmykImages:cmykImages.length },
   };
 }

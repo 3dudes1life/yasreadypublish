@@ -3,7 +3,7 @@ import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const VERSION = '1.0.29';
+const VERSION = '1.0.30';
 
 function walk(dir) {
   const out = [];
@@ -33,7 +33,7 @@ const project = readFileSync(join(ROOT, 'src/lib/project.js'), 'utf8');
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 if (pkg.version !== VERSION) throw new Error(`package.json version is ${pkg.version}, expected ${VERSION}`);
 if (!main.includes(`const VERSION = '${VERSION}'`)) throw new Error('main.js version mismatch');
-if (!project.includes(`appVersion: '${VERSION}'`) || !project.includes(`project.appVersion = '${VERSION}'`) || !project.includes('version: 29')) throw new Error('project schema appVersion/schema mismatch');
+if (!project.includes(`appVersion: '${VERSION}'`) || !project.includes(`project.appVersion = '${VERSION}'`) || !project.includes('version: 30')) throw new Error('project schema appVersion/schema mismatch');
 
 const buttonIds = [...main.matchAll(/<button\b[^>]*\s+id="([^"]+)"/g)].map((m) => m[1]);
 const boundIds = new Set([...main.matchAll(/querySelector\(['"]#([^'"]+)['"]\)/g)].map((m) => m[1]));
@@ -82,6 +82,17 @@ for (const marker of ['renderProductionPrintPdf','buildRasterPdf','auditPrintPdf
 }
 if (!main.includes('PRINT PDF HARD MODE · v1.0.29') || !main.includes('renderProductionPrintPdf')) throw new Error('Print PDF Hard Mode UI/runtime wiring is missing.');
 
+
+const coverBrain = readFileSync(join(ROOT, 'src/lib/cover-brain.js'), 'utf8');
+for (const marker of ['coverGeometry','coverBrainChecks','paperbackSpineWidth','hardcoverGeometryConfirmed']) {
+  if (!coverBrain.includes(marker)) throw new Error(`Missing Cover Brain marker: ${marker}`);
+}
+const coverPdf = readFileSync(join(ROOT, 'src/lib/cover-pdf.js'), 'utf8');
+for (const marker of ['renderCoverPdf','buildRasterPdf','auditPrintPdfBytes','AMAZON BARCODE RESERVED']) {
+  if (!coverPdf.includes(marker)) throw new Error(`Missing Cover PDF marker: ${marker}`);
+}
+if (!main.includes('COVER BRAIN · v1.0.30') || !main.includes('buildCoverPdf')) throw new Error('Cover Brain UI/runtime wiring is missing.');
+
 const epub = readFileSync(join(ROOT, 'src/lib/epub-export.js'), 'utf8');
 for (const marker of ['epub:type="landmarks"','properties="cover-image"','itemref idref="visible-toc"','text/contents.xhtml','<guide>']) {
   if (!epub.includes(marker)) throw new Error(`Missing Kindle EPUB marker: ${marker}`);
@@ -93,7 +104,7 @@ const epubAudit = readFileSync(join(ROOT, 'src/lib/epub-audit.js'), 'utf8');
 for (const marker of ['auditEpubPackage','audit-preview-leak','audit-cover','detectEbookPlaceholders']) {
   if (!epubAudit.includes(marker)) throw new Error(`Missing finished EPUB audit marker: ${marker}`);
 }
-for (const marker of ['audit-amazon-body-defaults','audit-amazon-percent-margins','audit-amazon-hidden-text','audit-amazon-html-size','audit-amazon-images','audit-amazon-tables','audit-amazon-hyperlinks','audit-amazon-lists']) if (!epubAudit.includes(marker)) throw new Error(`Missing Amazon Hard Mode marker: ${marker}`);
+for (const marker of ['audit-amazon-no-hidden-css','audit-amazon-body-defaults','audit-amazon-percent-margins','audit-amazon-hidden-text','audit-amazon-html-size','audit-amazon-images','audit-amazon-tables','audit-amazon-hyperlinks','audit-amazon-lists']) if (!epubAudit.includes(marker)) throw new Error(`Missing Amazon Hard Mode marker: ${marker}`);
 const ebookModel = readFileSync(join(ROOT, 'src/lib/ebook-model.js'), 'utf8');
 if (!ebookModel.includes('matterSectionHeading') || !ebookModel.includes('detectEbookPlaceholders')) throw new Error('Kindle front-matter/placeholder hardening is missing.');
 const kindleQuality = readFileSync(join(ROOT, 'src/lib/kindle-quality.js'), 'utf8');

@@ -1,6 +1,12 @@
 # YasReady Publish
 
-**Current release: v1.0.29 — Print PDF Hard Mode**
+**Current release: v1.0.30 — Cover Brain + Kindle E21018 Fix**
+
+## v1.0.30 — Cover Brain + Kindle E21018 Fix
+
+Version 1.0.30 uses the real Kindle Previewer conversion log from the Tres Amigos Book 2 test as a release input. The logged `E21018` failure pointed at `OEBPS/text/front-001.xhtml`; the production EPUB now contains no `display:none`, `visibility:hidden`, hidden attributes, or front-matter blank helper markup, and the finished-package audit blocks export if those patterns reappear. Preview Studio may still use private visual helpers because they are not packaged for Amazon.
+
+Cover Brain v1 now sits on top of the frozen print interior. Paperback cover geometry is calculated from final page count + trim + ink + paper, reserves Amazon's barcode area, checks 300-DPI front artwork, enforces spine-text eligibility, and can build a one-page full-wrap cover PDF with the deterministic PDF engine. Hardcover uses Amazon's published wrap/hinge/safety geometry, but final production remains locked until the exact spine width from Amazon Cover Calculator is entered and explicitly confirmed; YasReady will not fabricate a manufacturing-critical formula Amazon does not publish.
 
 ## v1.0.29 — Print PDF Hard Mode
 

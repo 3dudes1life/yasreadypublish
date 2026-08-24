@@ -44,8 +44,8 @@ test('1.0.28 migration reanalyzes stale Book Brain inferred chapter state withou
   p.bookBrain={ reviewDecisions:{}, inferredKinds:{back2:'chapter-title'}, semanticRoles:{}, pageStarts:{}, interpretations:[], summary:{} };
   const before=JSON.stringify(p.manuscript.blocks);
   const migrated=migrateProject(p);
-  assert.equal(migrated.version,29);
-  assert.equal(migrated.appVersion,'1.0.29');
+  assert.equal(migrated.version, 30);
+  assert.equal(migrated.appVersion,'1.0.30');
   assert.equal(JSON.stringify(migrated.manuscript.blocks),before);
   assert.equal(migrated.bookBrain.inferredKinds.back2,undefined);
   assert.equal(effectiveStats(migrated).chapters,2);
@@ -91,10 +91,29 @@ test('1.0.28 Print Brain applies KDP-safe geometry without shrinking roomier hou
 });
 
 
-test('1.0.28 migration is stable on reload and does not erase current release-gate confirmations', () => {
+test('1.0.30 compatibility migration invalidates stale pre-1.0.30 Kindle confirmations', () => {
   const p=chapterBoundaryProject();
   p.version=28;
   p.appVersion='1.0.28';
+  p.bookBrain={ reviewDecisions:{}, inferredKinds:{}, semanticRoles:{}, pageStarts:{}, interpretations:[], summary:{} };
+  p.editions.ebook.releaseGate={
+    version:2,
+    visualProof:{token:'proof-token',at:'2026-08-23T00:00:00.000Z'},
+    freeze:{token:'freeze-token',at:'2026-08-23T00:00:00.000Z'},
+    safeFixRuns:[],reviewRuns:[],
+    external:{kindlePreviewerOpened:true,enhancedTypesetting:true,kdpOnlinePreviewApproved:false},
+  };
+  const migrated=migrateProject(p);
+  assert.equal(migrated.editions.ebook.releaseGate.visualProof, null);
+  assert.equal(migrated.editions.ebook.releaseGate.freeze, null);
+  assert.equal(migrated.editions.ebook.releaseGate.external?.kindlePreviewerOpened,false);
+  assert.equal(migrated.editions.ebook.releaseGate.external?.enhancedTypesetting,false);
+});
+
+test('1.0.30 migration is stable on reload and preserves current release-gate confirmations', () => {
+  const p=chapterBoundaryProject();
+  p.version=30;
+  p.appVersion='1.0.30';
   p.bookBrain={ reviewDecisions:{}, inferredKinds:{}, semanticRoles:{}, pageStarts:{}, interpretations:[], summary:{} };
   p.editions.ebook.releaseGate={
     version:2,

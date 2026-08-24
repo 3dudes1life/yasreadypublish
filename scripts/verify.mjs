@@ -7,7 +7,7 @@ const required = [
   'src/lib/navigator-model.js', 'src/lib/theme-store.js', 'src/lib/preflight-model.js', 'src/lib/print-export.js',
   'src/lib/ebook-model.js', 'src/lib/ebook-preflight.js', 'src/lib/epub-export.js', 'src/lib/structure-overrides.js',
   'src/lib/print-toc.js', 'src/lib/project-backup.js', 'src/lib/readiness-model.js', 'src/lib/spacing-policy.js',
-  'src/lib/editions.js', 'src/lib/proof-integrity.js', 'src/lib/presentation-overrides.js', 'src/lib/semantic-styles.js', 'src/lib/print-brain.js', 'src/lib/print-pdf.js',
+  'src/lib/editions.js', 'src/lib/proof-integrity.js', 'src/lib/presentation-overrides.js', 'src/lib/semantic-styles.js', 'src/lib/print-brain.js', 'src/lib/print-pdf.js', 'src/lib/cover-brain.js', 'src/lib/cover-pdf.js',
   'src/lib/kindle-preview-model.js', 'src/lib/kindle-quality.js', 'src/lib/kindle-intelligence.js',
   'src/lib/kindle-production-flow.js', 'src/lib/epub-audit.js', 'src/lib/ebook-theme-studio.js', 'src/lib/kindle-release-gate.js', 'src/lib/bug-log.js', 'src/lib/book-brain.js', 'public/vendor/jszip.min.js',
   'STORY-LOCK-SPEC.md', 'KDP-PREFLIGHT.md', 'EPUB-PREFLIGHT.md', 'KINDLE-STANDARDS.md', 'RELEASE-QA.md',
@@ -23,7 +23,7 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
 }
 const main = readFileSync('src/main.js', 'utf8');
 for (const marker of [
-  "const VERSION = '1.0.29'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
+  "const VERSION = '1.0.30'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
   'Amazon KDP · Reflowable EPUB 3', 'Kindle Preview Studio', 'Adjust Layout', 'preview-studio-grid-v110',
   'Kindle Pro consistency scan', '3-View Torture Test', '11 pt reference', 'Semantic Style Palette', 'Content style',
   'saveEbookSemanticStyles', 'Kindle Intelligence', 'Compare Chapters', 'compareKindleChaptersButton', 'Undo', 'Redo',
@@ -52,8 +52,8 @@ for (const dynamicBinding of [
 }
 
 const project = readFileSync('src/lib/project.js', 'utf8');
-if (!project.includes("appVersion: '1.0.29'") || !project.includes('version: 29') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
-  throw new Error('Project app version was not migrated to 1.0.29 with Print PDF Hard Mode schema 29 state.');
+if (!project.includes("appVersion: '1.0.30'") || !project.includes('version: 30') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
+  throw new Error('Project app version was not migrated to 1.0.30 with Cover Brain / Kindle compatibility schema 30 state.');
 }
 const editions = readFileSync('src/lib/editions.js', 'utf8');
 if (!editions.includes('reviewDecisions:')) throw new Error('Edition normalization does not preserve Kindle review decisions.');
@@ -70,7 +70,7 @@ for (const marker of ['chapter-layout-${layout}','chapter-label','chapter-name',
 }
 const audit = readFileSync('src/lib/epub-audit.js', 'utf8');
 for (const marker of ['auditEpubPackage','audit-preview-leak','audit-cover','detectEbookPlaceholders']) if (!audit.includes(marker)) throw new Error(`Finished EPUB audit is missing: ${marker}`);
-for (const marker of ['audit-amazon-body-defaults','audit-amazon-percent-margins','audit-amazon-hidden-text','audit-amazon-html-size','audit-amazon-images','audit-amazon-tables','audit-amazon-hyperlinks','audit-amazon-lists']) if (!audit.includes(marker)) throw new Error(`Amazon Hard Mode audit is missing: ${marker}`);
+for (const marker of ['audit-amazon-no-hidden-css','audit-amazon-body-defaults','audit-amazon-percent-margins','audit-amazon-hidden-text','audit-amazon-html-size','audit-amazon-images','audit-amazon-tables','audit-amazon-hyperlinks','audit-amazon-lists']) if (!audit.includes(marker)) throw new Error(`Amazon Hard Mode audit is missing: ${marker}`);
 const quality = readFileSync('src/lib/kindle-quality.js', 'utf8');
 for (const marker of ['scanKindleQuality','enhancedTypesettingAudit','kindleTorturePresets','semanticRoleCounts']) if (!quality.includes(marker)) throw new Error(`Kindle Pro QA is missing: ${marker}`);
 const semantic = readFileSync('src/lib/semantic-styles.js', 'utf8');
@@ -133,4 +133,9 @@ if (!readFileSync('src/lib/kindle-quality.js','utf8').includes('effectiveStats(p
 
 const printPdf = readFileSync('src/lib/print-pdf.js','utf8');
 for (const marker of ['renderProductionPrintPdf','buildRasterPdf','auditPrintPdfBytes','PRINT_PDF_DPI = 300','/MediaBox','/DCTDecode']) if (!printPdf.includes(marker)) throw new Error(`1.0.29 Print PDF Hard Mode is missing: ${marker}`);
-console.log('YasReady Publish v1.0.29 static verification passed.');
+const coverBrain = readFileSync('src/lib/cover-brain.js', 'utf8');
+for (const marker of ['coverGeometry','coverBrainChecks','paperbackSpineWidth','hardcoverGeometryConfirmed','0.0025','0.51','0.4','0.635']) if (!coverBrain.includes(marker)) throw new Error(`1.0.30 Cover Brain is missing: ${marker}`);
+const coverPdf = readFileSync('src/lib/cover-pdf.js', 'utf8');
+for (const marker of ['renderCoverPdf','buildRasterPdf','auditPrintPdfBytes','AMAZON BARCODE RESERVED']) if (!coverPdf.includes(marker)) throw new Error(`1.0.30 Cover PDF pipeline is missing: ${marker}`);
+for (const marker of ['COVER BRAIN · v1.0.30','buildCoverPdf','Save Cover Brain']) if (!main.includes(marker)) throw new Error(`1.0.30 Cover Brain UI is missing: ${marker}`);
+console.log('YasReady Publish v1.0.30 static verification passed.');

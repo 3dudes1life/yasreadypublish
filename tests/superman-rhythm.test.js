@@ -25,7 +25,7 @@ test('blank source markup after chapter 4 cannot alter uniform ebook paragraph r
   const late=buildEbookPreviewHtml({project,sectionIndex:40});
   assert.match(first.css,/p\.body \{ margin:0 0 0\.7em 0;/);
   assert.match(late.css,/p\.body \{ margin:0 0 0\.7em 0;/);
-  assert.match(late.html,/class="blank collapsed"/);
+  assert.doesNotMatch(late.html,/class="blank collapsed"/);
 });
 
 test('collapse policy treats all chapter-body blanks the same regardless of chapter number', () => {

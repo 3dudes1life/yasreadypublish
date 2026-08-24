@@ -1,3 +1,17 @@
+# YasReady Publish 1.0.30 Release QA
+
+- Run `npm run verify`; **230 automated tests must pass**.
+- Reproduce the Kindle package path that previously failed with `E21018` and confirm `OEBPS/text/front-001.xhtml` still contains the visible title while the production CSS/XHTML contains no `display:none`, `visibility:hidden`, hidden attributes, or `matter-source-blank` helpers.
+- Confirm the finished EPUB audit reports `audit-amazon-no-hidden-css` PASS.
+- Export a fresh Book 2 EPUB and test that exact file in Kindle Previewer; only the external app can confirm Amazon conversion success.
+- Confirm migrating a pre-1.0.30 project invalidates stale Kindle Previewer / Enhanced Typesetting confirmations, while reopening an already-current 1.0.30 project preserves them.
+- For a 200-page 6×9 cream-paper paperback, confirm Cover Brain computes a 0.5000-inch spine and 12.7500 × 9.2500-inch full cover.
+- Confirm paperback spine text is blocked at 79 pages and allowed at 80 pages.
+- Confirm Amazon barcode mode reserves a 2 × 1.2-inch clear zone on the back cover.
+- Confirm Kindle cover reuse and uploaded JPEG/PNG front artwork are checked for effective 300-DPI print resolution.
+- Confirm Hardcover shows only an estimated planning spine until the exact Amazon Cover Calculator spine width is entered and confirmed; production cover PDF must stay locked before confirmation.
+- Confirm print proof/design invalidation clears the remembered Cover PDF audit without altering Story Lock manuscript data.
+
 # YasReady Publish 1.0.29 Release QA
 
 - Run `npm run verify`; 224 automated tests must pass.

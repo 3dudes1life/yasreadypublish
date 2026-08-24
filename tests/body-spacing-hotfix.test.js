@@ -45,7 +45,7 @@ test('1.0.4 ebook keeps every source blank but normalizes a blank run visually',
   };
   const preview = buildEbookPreviewHtml({ project, sectionIndex:1 });
   assert.match(preview.html, /id="p-3" class="blank normalized"/);
-  assert.match(preview.html, /id="p-4" class="blank collapsed"/);
+  assert.doesNotMatch(preview.html, /id="p-4"/);
   assert.match(preview.css, /p\.blank\.normalized \{ display:block;/);
   assert.match(preview.css, /p\.blank\.collapsed \{ display:none;/);
 });
@@ -60,8 +60,8 @@ test('1.0.4 migration replaces legacy blank-dependent spacing with uniform rhyth
   };
   const before = JSON.stringify(project.manuscript.blocks);
   migrateProject(project);
-  assert.equal(project.version, 29);
-  assert.equal(project.appVersion, '1.0.29');
+  assert.equal(project.version, 30);
+  assert.equal(project.appVersion, '1.0.30');
   assert.equal(project.design.print.bodyBlankPolicy, 'collapse');
   assert.equal(project.design.ebook.bodyBlankPolicy, 'collapse');
   assert.equal(project.design.print.bodyBlankSpace, 0.12);

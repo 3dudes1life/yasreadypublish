@@ -210,7 +210,10 @@ function renderBlock(block, { blankMode = 'preserve', sectionType = 'chapter', d
     return `<div id="${id}" class="media-block${inspectClass}"${attrs}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${media}${textPart}</div>`;
   }
 
-  if (block.kind === 'blank') return `<p id="${id}" class="blank ${blankMode === 'collapse' ? 'collapsed' : blankMode === 'normalize' ? 'normalized' : 'preserved'}"${attrs}></p>`;
+  if (block.kind === 'blank') {
+    if (blankMode === 'collapse' && !previewMode) return '';
+    return `<p id="${id}" class="blank ${blankMode === 'collapse' ? 'collapsed' : blankMode === 'normalize' ? 'normalized' : 'preserved'}"${attrs}></p>`;
+  }
   if (block.kind === 'chapter-title') {
     const studio = normalizeEbookThemeStudio(design?.themeStudio || {});
     const chapterOverride = chapterHeadingOverride(project, block.id);
@@ -224,7 +227,11 @@ function renderBlock(block, { blankMode = 'preserve', sectionType = 'chapter', d
     const before = artwork && studio.chapterArtworkPosition === 'above' ? artwork : '';
     const after = artwork && studio.chapterArtworkPosition === 'below' ? artwork : '';
     const split = splitChapterHeading(block.text || '');
-    const layout = split.split ? studio.chapterHeadingLayout : 'combined';
+    let layout = split.split ? studio.chapterHeadingLayout : 'combined';
+    // Kindle production never hides half of a Story-Locked chapter heading.
+    // Number-only/title-only remain Preview Studio experiments; Amazon output
+    // safely falls back to the complete number + title treatment.
+    if (!previewMode && ['number-only','title-only'].includes(layout)) layout = 'number-title';
     let headingContent = content;
     if (layout !== 'combined' && split.split) {
       const label = escapeXml(split.label);
@@ -289,6 +296,10 @@ function renderMatterInlineBlock(block, { project, sectionType, previewMode }) {
 }
 
 function hiddenMatterBlank(block, previewMode = false) {
+  // Amazon Kindle Previewer can throw E21018 when content documents contain
+  // elements hidden with display:none. Production EPUBs omit print-only blank
+  // markers entirely; Preview Studio may keep an empty marker for inspection.
+  if (!previewMode) return '';
   const id = escapeXml(block.id || '');
   const attrs = previewAttrs(block, previewMode);
   return `<span id="${id}" class="matter-source-blank"${attrs} aria-hidden="true"></span>`;
@@ -520,7 +531,7 @@ function renderSectionBody(section, project, design, previewMode = false) {
   return `${body}${sectionNotesHtml(section, project)}`;
 }
 
-function stylesheet(designInput) {
+function stylesheet(designInput, previewMode = false) {
   const design = normalizeEbookDesign(designInput);
   const studio = normalizeEbookThemeStudio(design.themeStudio || {});
   const firstParagraphCss = studio.firstParagraphTreatment === 'drop-cap'
@@ -552,7 +563,7 @@ h1.chapter-title { margin:0; text-align:${design.chapterTitleAlignment}; font-si
 .chapter-layout-combined h1.chapter-title { font-size:${studio.chapterTitleSizeEm}em; font-weight:${studio.chapterTitleWeight}; letter-spacing:${studio.chapterTitleLetterSpacingEm}em; text-transform:${studio.chapterTitleTransform}; }
 .chapter-label { display:block; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif; font-size:${studio.chapterLabelSizeEm}em; line-height:1.1; font-weight:400; letter-spacing:.025em; text-transform:uppercase; }
 .chapter-name { display:block; margin-top:${studio.chapterNameGapEm}em; font-size:${studio.chapterNameSizeEm}em; line-height:1.25; font-weight:400; font-style:${studio.chapterNameItalic ? 'italic' : 'normal'}; text-transform:none; letter-spacing:0; }
-.chapter-source-hidden { display:none; }
+${previewMode ? '.chapter-source-hidden { display:none; }' : ''}
 .chapter-divider { display:block; width:100%; margin:.35em auto 1.6em; text-align:center; letter-spacing:.12em; }
 .chapter-divider-line { width:28%; max-width:7em; height:.08em; background:currentColor; opacity:.55; }
 .chapter-heading-artwork { display:block; max-width:8em; max-height:4.5em; width:auto; height:auto; margin:1em auto; }
@@ -560,7 +571,7 @@ h2.matter-heading { margin:1.8em 0 1em; font-size:1.3em; line-height:1.2; font-w
 p.matter-body { text-indent:0; }
 .matter-clean { max-width:38em; margin:0 auto; }
 .matter-flow { margin:0 0 .78em; text-indent:0; }
-.matter-source-blank { display:none; }
+${previewMode ? '.matter-source-blank { display:none; }' : ''}
 .matter-title-page { text-align:center; padding-top:4.5em; }
 .matter-title-page p { text-indent:0; }
 .matter-title-primary { margin:0 0 .45em; font-size:1.65em; font-weight:700; }
@@ -587,9 +598,9 @@ p.matter-body { text-indent:0; }
 .matter-book1-dedication .matter-flow.matter-after-blank { margin-top:0; }
 .matter-book1-dedication .matter-dedication-lead { margin-bottom:2em; font-size:1em; line-height:1.35; font-weight:400; }
 .matter-book1-dedication strong, .matter-book1-dedication .matter-dedication-lead strong { font-weight:400; }
-body.front p.blank, body.back p.blank { display:none; min-height:0; height:0; margin:0; padding:0; }
+${previewMode ? 'body.front p.blank, body.back p.blank { display:none; min-height:0; height:0; margin:0; padding:0; }' : ''}
 p.scene-break { margin:${design.sceneBreakSpaceEm}em 0; text-indent:0; text-align:center; }
-.scene-source-hidden { display:none; }
+${previewMode ? '.scene-source-hidden { display:none; }' : ''}
 .scene-ornament { letter-spacing:.12em; }
 .scene-whitespace { display:block; min-height:.4em; }
 .scene-break-artwork { display:block; width:auto; max-width:${studio.sceneBreakArtworkWidthEm}em; max-height:2.5em; margin:0 auto; }
@@ -613,7 +624,7 @@ p.media-caption { text-indent:0; text-align:center; font-size:.92em; }
 .note-backref { margin-right:.35em; text-decoration:none; font-weight:700; }
 p.blank { min-height:.7em; }
 p.blank.normalized { display:block; min-height:${design.bodyBlankSpaceEm}em; height:${design.bodyBlankSpaceEm}em; margin:0; padding:0; }
-p.blank.collapsed { display:none; min-height:0; height:0; margin:0; padding:0; }
+${previewMode ? 'p.blank.collapsed { display:none; min-height:0; height:0; margin:0; padding:0; }' : ''}
 p.blank.preserved { min-height:.7em; }
 .small-caps { font-variant:small-caps; }
 .underline { text-decoration:underline; }
@@ -862,7 +873,7 @@ export function buildEbookPreviewHtml({ project, sectionIndex = 0, inspectMode =
     sections: items,
     sourceSections,
     toc,
-    css: stylesheet(design),
+    css: stylesheet(design, true),
     html,
   };
 }
@@ -887,7 +898,7 @@ export function buildDevicePreviewHtml({ project } = {}) {
   const nav = items.map((item, index) => `<button type="button" data-go="${index}">${escapeXml(item.title)}</button>`).join('');
   const pages = items.map((item, index) => `<article class="reader-item ${index === 0 ? 'active' : ''}" data-item="${index}" data-type="${escapeXml(item.type)}" data-href="${escapeXml(item.href || '')}">${item.html}</article>`).join('\n');
   const title = escapeXml(project.title || 'YasReady Kindle Preview');
-  const baseCss = stylesheet(design);
+  const baseCss = stylesheet(design, true);
   return `<!doctype html>
 <html lang="en">
 <head>
