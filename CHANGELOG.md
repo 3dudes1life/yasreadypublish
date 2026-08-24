@@ -1,3 +1,14 @@
+## 1.0.26 — Kindle Previewer Compatibility
+
+- Separates the EPUB 3 logical navigation document from the visible Contents page so Kindle navigation metadata no longer shares the reader-facing TOC spine item.
+- Removes hidden/display-none navigation from the TOC path and adds regression checks for Kindle conversion compatibility.
+- Adds Kindle-friendly OPF guide targets for cover, contents, and Begin Reading while retaining EPUB 3 navigation.
+- Declares the internal cover with both EPUB 3 `cover-image` properties and legacy Kindle cover metadata when a cover exists.
+- Removes private YasReady/Story Lock metadata from the publishable OPF; Story Lock remains enforced inside YasReady and its release report.
+- Restricts Kindle-bound manuscript and Theme Studio artwork to JPEG/PNG and blocks unsupported image types before export.
+- Adds dedicated Kindle package tests covering nav/spine separation, visible Contents links, guide/cover metadata, private metadata exclusion, and image compatibility.
+- Story-Locked manuscript text, order, notes, media fingerprints, semantic decisions, and Book Brain interpretations remain unchanged by migration.
+
 ## 1.0.25 — Book Brain · Smart eBook Interpretation
 
 - Added Book Brain v1, a Story-Lock-safe semantic interpretation layer for messy/underformatted DOCX manuscripts.

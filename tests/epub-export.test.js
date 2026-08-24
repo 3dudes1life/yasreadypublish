@@ -59,10 +59,10 @@ test('EPUB XHTML escapes markup without changing source characters semantically'
   assert.match(chapter, /\[Michael\]: Keep every word\./);
 });
 
-test('EPUB package embeds Story Lock hash in package metadata', () => {
+test('publishable EPUB keeps YasReady Story Lock metadata out of the OPF', () => {
   const opf = buildEpubPackageData({ project: sampleProject() }).files.get('OEBPS/package.opf');
-  assert.match(opf, /yasready:storyLockSha256/);
-  assert.match(opf, /abc123/);
+  assert.doesNotMatch(opf, /yasready:/);
+  assert.doesNotMatch(opf, /abc123/);
 });
 
 test('EPUB preflight blocks image omission and failed Story Lock', () => {

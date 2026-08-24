@@ -23,7 +23,7 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
 }
 const main = readFileSync('src/main.js', 'utf8');
 for (const marker of [
-  "const VERSION = '1.0.25'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
+  "const VERSION = '1.0.26'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
   'Amazon KDP · Reflowable EPUB 3', 'Kindle Preview Studio', 'Adjust Layout', 'preview-studio-grid-v110',
   'Kindle Pro consistency scan', '3-View Torture Test', '11 pt reference', 'Semantic Style Palette', 'Content style',
   'saveEbookSemanticStyles', 'Kindle Intelligence', 'Compare Chapters', 'compareKindleChaptersButton', 'Undo', 'Redo',
@@ -31,7 +31,7 @@ for (const marker of [
   'Kindle Production Console · v1.0.14', 'Polish Queue', 'NEXT BEST ACTION', 'ebookNavigatorSearch',
   'data-kindle-command', 'data-kindle-review-source', 'data-inspector-preset', 'Focus Preview',
 ]) {
-  if (!main.includes(marker)) throw new Error(`1.0.25 production workspace is missing: ${marker}`);
+  if (!main.includes(marker)) throw new Error(`1.0.26 production workspace is missing: ${marker}`);
 }
 const printModel = readFileSync('src/lib/print-model.js', 'utf8');
 if (!printModel.includes("tocTitle: 'Table of Contents'") || !printModel.includes('printToc: true') || !printModel.includes("tocStartSide: 'left'") || !printModel.includes('paragraphGap: 0.12,') || !printModel.includes("bodyBlankPolicy: 'collapse'")) {
@@ -52,8 +52,8 @@ for (const dynamicBinding of [
 }
 
 const project = readFileSync('src/lib/project.js', 'utf8');
-if (!project.includes("appVersion: '1.0.25'") || !project.includes('version: 26') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
-  throw new Error('Project app version was not migrated to 1.0.25 with Book Brain schema 26 state.');
+if (!project.includes("appVersion: '1.0.26'") || !project.includes('version: 26') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
+  throw new Error('Project app version was not migrated to 1.0.26 with Book Brain schema 26 state.');
 }
 const editions = readFileSync('src/lib/editions.js', 'utf8');
 if (!editions.includes('reviewDecisions:')) throw new Error('Edition normalization does not preserve Kindle review decisions.');
@@ -62,7 +62,7 @@ for (const marker of ['buildKindleProductionFlow','markKindleReviewIntentional',
   if (!productionFlow.includes(marker)) throw new Error(`Kindle Production Flow is missing: ${marker}`);
 }
 const epub = readFileSync('src/lib/epub-export.js', 'utf8');
-for (const marker of ['epub:type="landmarks"','properties="cover-image"','itemref idref="nav"','Table of Contents']) {
+for (const marker of ['epub:type="landmarks"','properties="cover-image"','itemref idref="visible-toc"','text/contents.xhtml','<guide>','Table of Contents']) {
   if (!epub.includes(marker)) throw new Error(`Kindle EPUB hardening is missing: ${marker}`);
 }
 for (const marker of ['chapter-layout-${layout}','chapter-label','chapter-name','splitChapterHeading']) {
@@ -90,7 +90,7 @@ for (const marker of ['theme-artwork','paragraph-after-break','scene-source-hidd
   if (!epub.includes(marker)) throw new Error(`Theme Studio EPUB renderer is missing: ${marker}`);
 }
 for (const marker of ['Step 1 · Book','Step 2 · Style','Step 3 · Preview','Step 4 · Export','Advanced Tools','simpleKindleExport','simpleBookStyle']) {
-  if (!main.includes(marker)) throw new Error(`1.0.25 Simple Mode is missing: ${marker}`);
+  if (!main.includes(marker)) throw new Error(`1.0.26 Simple Mode is missing: ${marker}`);
 }
 for (const marker of ['chapterTopEm: 8.0','chapterAfterEm: 5.5']) {
   if (!readFileSync('src/lib/ebook-model.js', 'utf8').includes(marker)) throw new Error(`1.0.22 Book 1 Kindle rhythm is missing: ${marker}`);
@@ -119,4 +119,4 @@ const brain = readFileSync('src/lib/book-brain.js', 'utf8');
 for (const marker of ['analyzeBookBrain','applyBookBrain','bookBrainReviewItems','decideBookBrainInterpretation','BOOK_BRAIN_AUTO_THRESHOLD']) if (!brain.includes(marker)) throw new Error(`Book Brain engine is missing: ${marker}`);
 for (const marker of ['BOOK BRAIN','YasReady understood the book.','Review ${reviews.length}','Analyze again']) if (!main.includes(marker)) throw new Error(`Book Brain Simple Mode UI is missing: ${marker}`);
 if (!project.includes('applyBookBrain(project)') || !readFileSync('src/lib/ebook-model.js','utf8').includes('bookBrainMatterStart')) throw new Error('Book Brain is not wired into import/migration and ebook sections.');
-console.log('YasReady Publish v1.0.25 static verification passed.');
+console.log('YasReady Publish v1.0.26 static verification passed.');

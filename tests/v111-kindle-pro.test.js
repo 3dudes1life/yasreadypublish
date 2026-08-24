@@ -87,12 +87,13 @@ test('1.0.11 Enhanced Typesetting audit verifies flexible body CSS and reflowabl
   assert.equal(audit.checks.find(x=>x.id==='no-fixed-position').ok,true);
 });
 
-test('1.0.11 finished EPUB autopsy verifies Story Lock metadata, nav targets, and spine targets', () => {
+test('1.0.26 finished EPUB autopsy keeps private metadata out and verifies Kindle navigation targets', () => {
   const audit=auditEpubPackage({project:project()});
-  assert.equal(audit.storyLockMetaOk,true);
   assert.equal(audit.navTargetsOk,true);
+  assert.equal(audit.visibleTocTargetsOk,true);
   assert.equal(audit.spineTargetsOk,true);
-  assert.equal(audit.checks.find(x=>x.id==='audit-story-lock-meta').ok,true);
+  assert.equal(audit.checks.find(x=>x.id==='audit-kindle-private-meta').ok,true);
+  assert.equal(audit.checks.find(x=>x.id==='audit-nav-hidden').ok,true);
 });
 
 test('1.0.11 UI exposes Kindle Pro scan, calibrated 11pt reference, and 3-view torture test', () => {
@@ -113,6 +114,6 @@ test('1.0.11 migration advances safely while preserving manuscript blocks exactl
   const before=JSON.stringify(p.manuscript.blocks);
   const migrated=migrateProject(p);
   assert.equal(migrated.version, 26);
-  assert.equal(migrated.appVersion, '1.0.25');
+  assert.equal(migrated.appVersion, '1.0.26');
   assert.equal(JSON.stringify(migrated.manuscript.blocks),before);
 });

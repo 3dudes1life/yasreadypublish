@@ -62,7 +62,7 @@ import {
   kindleReleaseReport, markAllCurrentReviewsIntentional, markKindleVisualProofComplete,
 } from './lib/kindle-release-gate.js';
 
-const VERSION = '1.0.25';
+const VERSION = '1.0.26';
 // Legacy capability labels retained for regression discovery only (not default UI): Amazon KDP · Reflowable EPUB 3 · Kindle Preview Studio · Semantic Style Palette · Kindle Release Gate · v1.0.16
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
@@ -1912,7 +1912,7 @@ function renderThemeStudio(project, design, preview, intelligence) {
             ${themeStudioNumber('themeChapterTracking','Letter spacing',studio.chapterTitleLetterSpacingEm,{min:0,max:.16,step:.005})}
             ${themeStudioSelect('themeChapterTransform','Capitalization',studio.chapterTitleTransform,[{value:'none',label:'As written'},{value:'uppercase',label:'UPPERCASE'},{value:'lowercase',label:'lowercase'}])}
             ${themeStudioSelect('themeChapterDivider','Divider / ornament',studio.chapterDivider,[{value:'none',label:'None'},{value:'line',label:'Fine line'},{value:'dots',label:'• • •'},{value:'diamond',label:'◆'},{value:'flourish',label:'✦'}])}
-          </div><div class="theme-artwork-row"><input id="themeChapterArtworkInput" type="file" accept="image/jpeg,image/png,image/gif,image/svg+xml,image/webp" hidden><button class="btn secondary" id="chooseThemeChapterArtwork" type="button">${studio.chapterArtwork ? 'Replace heading artwork' : 'Add heading artwork'}</button>${studio.chapterArtwork ? `<button class="btn danger" data-remove-theme-artwork="chapter" type="button">Remove artwork</button><span>${escapeHtml(studio.chapterArtwork.fileName)}</span>` : '<span>Optional · packaged inside the EPUB</span>'}${themeStudioSelect('themeChapterArtworkPosition','Artwork position',studio.chapterArtworkPosition,[{value:'above',label:'Above heading'},{value:'below',label:'Below divider'}])}</div></div>
+          </div><div class="theme-artwork-row"><input id="themeChapterArtworkInput" type="file" accept="image/jpeg,image/png" hidden><button class="btn secondary" id="chooseThemeChapterArtwork" type="button">${studio.chapterArtwork ? 'Replace heading artwork' : 'Add heading artwork'}</button>${studio.chapterArtwork ? `<button class="btn danger" data-remove-theme-artwork="chapter" type="button">Remove artwork</button><span>${escapeHtml(studio.chapterArtwork.fileName)}</span>` : '<span>Optional · packaged inside the EPUB</span>'}${themeStudioSelect('themeChapterArtworkPosition','Artwork position',studio.chapterArtworkPosition,[{value:'above',label:'Above heading'},{value:'below',label:'Below divider'}])}</div></div>
 
           <div class="theme-control-group"><h5>First Paragraph + Body</h5><div class="semantic-style-controls">
             ${themeStudioSelect('themeFirstParagraph','First paragraph',studio.firstParagraphTreatment,[{value:'flush',label:'Flush / clean'},{value:'small-caps',label:'Small-caps opening line'},{value:'drop-cap',label:'Drop cap'}])}
@@ -1936,7 +1936,7 @@ function renderThemeStudio(project, design, preview, intelligence) {
             <label class="design-field"><span>Custom glyph / text</span><input id="themeSceneCustomText" maxlength="24" value="${escapeHtml(studio.sceneBreakCustomText)}" placeholder="✦"></label>
             ${themeStudioNumber('themeSceneSpace','Vertical spacing',design.sceneBreakSpaceEm,{min:0,max:4,step:.05})}
             ${themeStudioNumber('themeSceneArtworkWidth','Artwork width',studio.sceneBreakArtworkWidthEm,{min:1,max:10,step:.1})}
-          </div><div class="theme-artwork-row"><input id="themeSceneArtworkInput" type="file" accept="image/jpeg,image/png,image/gif,image/svg+xml,image/webp" hidden><button class="btn secondary" id="chooseThemeSceneArtwork" type="button">${studio.sceneBreakArtwork ? 'Replace scene artwork' : 'Add scene artwork'}</button>${studio.sceneBreakArtwork ? `<button class="btn danger" data-remove-theme-artwork="scene-break" type="button">Remove artwork</button><span>${escapeHtml(studio.sceneBreakArtwork.fileName)}</span>` : '<span>Optional · used when Custom artwork is selected</span>'}</div></div>
+          </div><div class="theme-artwork-row"><input id="themeSceneArtworkInput" type="file" accept="image/jpeg,image/png" hidden><button class="btn secondary" id="chooseThemeSceneArtwork" type="button">${studio.sceneBreakArtwork ? 'Replace scene artwork' : 'Add scene artwork'}</button>${studio.sceneBreakArtwork ? `<button class="btn danger" data-remove-theme-artwork="scene-break" type="button">Remove artwork</button><span>${escapeHtml(studio.sceneBreakArtwork.fileName)}</span>` : '<span>Optional · used when Custom artwork is selected</span>'}</div></div>
 
           <div class="theme-control-group"><h5>Text Conversation + Contents</h5><div class="semantic-style-controls">
             ${themeStudioSelect('themeTextMessageStyle','Text conversation',design.textMessageStyle,[{value:'transcript',label:'Clean transcript'},{value:'bubbles',label:'Subtle bubbles'},{value:'left-right',label:'Left / right conversation'},{value:'compact',label:'Compact'},{value:'inset',label:'Readable inset'}])}
@@ -3143,7 +3143,7 @@ async function resetThemeChapterOverride() {
 
 async function importThemeArtwork(file, kind) {
   if (!state.project || !file) return;
-  const allowed = ['image/jpeg','image/png','image/gif','image/svg+xml','image/webp'];
+  const allowed = ['image/jpeg','image/png'];
   if (!allowed.includes(file.type)) {
     alert('Choose JPEG, PNG, GIF, SVG, or WebP artwork.');
     return;

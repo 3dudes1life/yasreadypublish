@@ -582,7 +582,6 @@ nav[epub\\:type="toc"] h1 { margin:1.2em 0; text-align:${studio.contentsAlignmen
 nav[epub\\:type="toc"] ol { padding-left:${studio.contentsAlignment === 'center' ? '0' : '1.2em'}; ${studio.contentsAlignment === 'center' ? 'list-style-position:inside;text-align:center;' : ''} }
 nav[epub\\:type="toc"] li { margin:.5em 0; }
 nav a { color:inherit; text-decoration:none; }
-.hidden-nav { display:none; }
 @media amzn-kf8 { .chapter-heading-wrap { page-break-before:always; } }
 `;
 }
@@ -616,10 +615,11 @@ function navXhtml(project, design, toc, sections) {
   const bodymatter = firstChapter
     ? `<li><a epub:type="bodymatter" href="${escapeXml(firstChapter.href)}">Begin Reading</a></li>`
     : '';
+  const tocTarget = design.visibleToc ? 'text/contents.xhtml' : 'nav.xhtml#toc';
   return `<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="${escapeXml(design.language)}" lang="${escapeXml(design.language)}">
-<head><meta charset="utf-8" /><title>Table of Contents</title><link rel="stylesheet" type="text/css" href="styles.css" /></head>
+<head><meta charset="utf-8" /><title>Navigation</title></head>
 <body>
 <nav epub:type="toc" id="toc" role="doc-toc" aria-label="Table of Contents">
   <h1>Table of Contents</h1>
@@ -627,12 +627,34 @@ function navXhtml(project, design, toc, sections) {
       ${items}
   </ol>
 </nav>
-<nav epub:type="landmarks" class="hidden-nav" hidden="hidden" aria-label="Landmarks">
+<nav epub:type="landmarks" aria-label="Landmarks">
+  <h2>Landmarks</h2>
   <ol>
-    <li><a epub:type="toc" href="nav.xhtml#toc">Table of Contents</a></li>
+    <li><a epub:type="toc" href="${tocTarget}">Table of Contents</a></li>
     ${bodymatter}
   </ol>
 </nav>
+</body>
+</html>`;
+}
+
+function visibleTocXhtml(project, design, toc) {
+  const items = toc.map((entry) => `<li><a href="${escapeXml(String(entry.href || '').replace(/^text\//, ''))}">${escapeXml(entry.label)}</a></li>`).join('\n      ');
+  return `<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="${escapeXml(design.language)}" lang="${escapeXml(design.language)}">
+<head>
+  <meta charset="utf-8" />
+  <title>Table of Contents</title>
+  <link rel="stylesheet" type="text/css" href="../styles.css" />
+</head>
+<body class="front visible-contents-page">
+<section class="visible-contents" aria-label="Table of Contents">
+  <h1>Table of Contents</h1>
+  <ol>
+      ${items}
+  </ol>
+</section>
 </body>
 </html>`;
 }
@@ -666,40 +688,48 @@ function packageOpf(project, design, sections, generatedAt, cover = null, manusc
   const manifestSections = sections.map((section, index) => `    <item id="s${index + 1}" href="${escapeXml(section.href)}" media-type="application/xhtml+xml"/>`).join('\n');
   const creator = author ? `\n    <dc:creator>${author}</dc:creator>` : '';
   const publisherMeta = publisher ? `\n    <dc:publisher>${publisher}</dc:publisher>` : '';
+  const legacyCoverMeta = cover ? `\n    <meta name="cover" content="cover-image"/>` : '';
   const coverManifest = cover ? `\n    <item id="cover-image" href="${escapeXml(cover.href)}" media-type="${escapeXml(cover.mimeType)}" properties="cover-image"/>` : '';
+  const visibleTocManifest = design.visibleToc ? `\n    <item id="visible-toc" href="text/contents.xhtml" media-type="application/xhtml+xml"/>` : '';
   const manuscriptMediaManifest = manuscriptMedia.map((asset) => `\n    <item id="${escapeXml(asset.manifestId)}" href="${escapeXml(asset.href)}" media-type="${escapeXml(asset.mimeType)}"/>`).join('');
   const themeMediaManifest = themeAssets.map((asset) => `\n    <item id="${escapeXml(asset.id)}" href="${escapeXml(asset.href)}" media-type="${escapeXml(asset.mimeType)}"/>`).join('');
   const firstChapterIndex = sections.findIndex((section) => section.type === 'chapter');
+  const firstChapter = firstChapterIndex >= 0 ? sections[firstChapterIndex] : null;
   const spineRows = [];
   sections.forEach((section, index) => {
-    if (design.visibleToc && index === firstChapterIndex) spineRows.push('    <itemref idref="nav"/>');
+    if (design.visibleToc && index === firstChapterIndex) spineRows.push('    <itemref idref="visible-toc"/>');
     spineRows.push(`    <itemref idref="s${index + 1}"/>`);
   });
-  if (design.visibleToc && firstChapterIndex < 0) spineRows.push('    <itemref idref="nav"/>');
+  if (design.visibleToc && firstChapterIndex < 0) spineRows.push('    <itemref idref="visible-toc"/>');
+  const guideRows = [];
+  if (cover) guideRows.push(`    <reference type="cover" title="Cover" href="${escapeXml(cover.href)}"/>`);
+  if (design.visibleToc) guideRows.push('    <reference type="toc" title="Table of Contents" href="text/contents.xhtml"/>');
+  if (firstChapter) guideRows.push(`    <reference type="text" title="Beginning" href="${escapeXml(firstChapter.href)}"/>`);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id" xml:lang="${escapeXml(design.language)}" prefix="yasready: https://yasready.com/vocab/# schema: https://schema.org/ rendition: http://www.idpf.org/vocab/rendition/#">
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id" xml:lang="${escapeXml(design.language)}" prefix="schema: https://schema.org/ rendition: http://www.idpf.org/vocab/rendition/#">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
     <dc:identifier id="book-id">${identifier}</dc:identifier>
     <dc:title>${title}</dc:title>${creator}
-    <dc:language>${escapeXml(design.language)}</dc:language>${publisherMeta}
+    <dc:language>${escapeXml(design.language)}</dc:language>${publisherMeta}${legacyCoverMeta}
     <meta property="dcterms:modified">${modified}</meta>
     <meta property="rendition:layout">reflowable</meta>
     <meta property="schema:accessMode">textual</meta>
     <meta property="schema:accessibilityFeature">tableOfContents</meta>
     <meta property="schema:accessibilityFeature">readingOrder</meta>
-    <meta property="yasready:storyLockSha256">${escapeXml(project.source?.manuscriptHash || '')}</meta>
-    <meta property="yasready:sourceFile">${escapeXml(project.source?.fileName || '')}</meta>
   </metadata>
   <manifest>
     <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
     <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
-    <item id="css" href="styles.css" media-type="text/css"/>${coverManifest}${manuscriptMediaManifest}${themeMediaManifest}
+    <item id="css" href="styles.css" media-type="text/css"/>${visibleTocManifest}${coverManifest}${manuscriptMediaManifest}${themeMediaManifest}
 ${manifestSections}
   </manifest>
   <spine toc="ncx">
 ${spineRows.join('\n')}
   </spine>
+  <guide>
+${guideRows.join('\n')}
+  </guide>
 </package>`;
 }
 
@@ -728,6 +758,7 @@ export function buildEpubPackageData({ project } = {}) {
   files.set('META-INF/container.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`);
   files.set('OEBPS/styles.css', stylesheet(design));
   files.set('OEBPS/nav.xhtml', navXhtml(project, design, toc, sections));
+  if (design.visibleToc) files.set('OEBPS/text/contents.xhtml', visibleTocXhtml(project, design, toc));
   files.set('OEBPS/toc.ncx', ncx(project, toc));
   for (const section of sections) files.set(`OEBPS/${section.href}`, sectionXhtml(section, project, design));
   if (cover) files.set(`OEBPS/${cover.href}`, dataUrlBytes(cover.dataUrl));
@@ -776,7 +807,7 @@ export function buildEbookPreviewHtml({ project, sectionIndex = 0, inspectMode =
   }
   if (design.visibleToc) {
     const firstChapter = items.findIndex((item) => item.type === 'chapter');
-    const tocItem = { id: 'visible-toc', type: 'toc', title: 'Table of Contents', href: 'nav.xhtml', blocks: [], wordCount: 0, startBlockIndex: null, endBlockIndex: null, synthetic: true };
+    const tocItem = { id: 'visible-toc', type: 'toc', title: 'Table of Contents', href: 'text/contents.xhtml', blocks: [], wordCount: 0, startBlockIndex: null, endBlockIndex: null, synthetic: true };
     items.splice(firstChapter >= 0 ? firstChapter : items.length, 0, tocItem);
   }
   const index = Math.max(0, Math.min(Math.max(0, items.length - 1), Number(sectionIndex) || 0));

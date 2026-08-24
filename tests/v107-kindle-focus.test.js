@@ -33,7 +33,7 @@ test('1.0.7 migration makes Kindle reader defaults authoritative without changin
   const before = JSON.stringify(p.manuscript.blocks);
   migrateProject(p);
   assert.equal(p.version, 26);
-  assert.equal(p.appVersion, '1.0.25');
+  assert.equal(p.appVersion, '1.0.26');
   assert.equal(p.editions.ebook.design.fontFamily,'reader');
   assert.equal(p.editions.ebook.design.bodyAlignment,'reader');
   assert.equal(p.editions.ebook.design.visibleToc,true);
@@ -65,7 +65,9 @@ test('Kindle EPUB keeps visible linked Contents in spine and internal cover meta
   const data = buildEpubPackageData({project:p});
   const opf = data.files.get('OEBPS/package.opf');
   const nav = data.files.get('OEBPS/nav.xhtml');
-  assert.match(opf,/itemref idref="nav"/);
+  assert.doesNotMatch(opf,/itemref idref="nav"/);
+  assert.match(opf,/itemref idref="visible-toc"/);
+  assert.equal(data.files.has('OEBPS/text/contents.xhtml'), true);
   assert.match(opf,/properties="cover-image"/);
   assert.match(nav,/epub:type="toc"/);
   assert.match(nav,/Chapter 1: Home/);

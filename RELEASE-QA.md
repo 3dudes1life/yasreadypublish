@@ -1,18 +1,32 @@
-# YasReady Publish v1.0.17 — Superman QA
+# YasReady Publish v1.0.26 — Kindle Previewer Compatibility QA
 
-**Automated release gate:** 173 automated tests passing + static verification + Superman audit.
+**Automated release gate:** 208 automated tests passing + static verification + Superman audit.
 
 ## Release target
 
-Make the mature publishing engine feel obvious to a first-time author without deleting or weakening any advanced production capability. Default UX is **Book → Style → Preview → Export**; expert systems remain behind **Advanced Tools**.
+Produce a Kindle-bound EPUB whose package structure follows the compatibility rules YasReady can verify before the author performs the final external test in Amazon Kindle Previewer. Generic EPUB validity alone is not considered sufficient.
 
 ## Automated release gate
 
-- 173 automated tests
-- 173 pass
+- 208 automated tests
+- 208 pass
 - 0 fail
 - static verification PASS
 - Superman audit PASS
+- ZIP/XML compatibility audit PASS
+
+## v1.0.26 regressions covered
+
+- `mimetype` remains the first stored/uncompressed ZIP entry
+- logical `nav.xhtml` is not placed in the reading-order spine
+- visible `text/contents.xhtml` is a separate spine item
+- navigation files contain no hidden/display-none TOC markup
+- OPF guide contains Contents and Begin Reading targets
+- cover metadata uses EPUB 3 cover-image declaration plus legacy Kindle cover metadata when a cover exists
+- publishable OPF contains no private `yasready:` Story Lock/source-file metadata
+- Kindle-bound image preflight allows JPEG/PNG and blocks unsupported image types
+- all XML/XHTML/OPF/NCX files parse successfully in the package audit
+- migration to 1.0.26 leaves Story Lock source content unchanged
 
 ## v1.0.17 regressions covered
 
@@ -35,12 +49,11 @@ Make the mature publishing engine feel obvious to a first-time author without de
 
 ## Manual acceptance before a production freeze
 
-1. import the real production DOCX and confirm the four-step workflow feels obvious
-2. choose a theme from Style and verify the preview changes without source-text changes
-3. read early, middle, and late sections in Preview
-4. confirm Export reports issues in plain language and safe fixes behave correctly
-5. open Advanced Tools once and verify the production diagnostics are still available
-6. export the exact EPUB and inspect it in Amazon Kindle Previewer before KDP submission
+1. export the exact production EPUB from YasReady
+2. drag/open that EPUB in Amazon Kindle Previewer 3 on macOS
+3. confirm Kindle Previewer converts it without an internal conversion error
+4. inspect title/copyright/dedication, Contents navigation, first/middle/last chapters, text conversations, scene breaks, and cover
+5. inspect Kindle Previewer's Conversion Log for warnings before KDP submission
 
 ## v1.0.23 format-first flow + dedication spacing
 

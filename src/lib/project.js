@@ -19,7 +19,7 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
   const project = {
     id: crypto.randomUUID(),
     version: 26,
-    appVersion: '1.0.25',
+    appVersion: '1.0.26',
     title: baseName,
     author: '',
     createdAt: now,
@@ -374,7 +374,7 @@ export function migrateProject(project) {
     }
   }
   project.version = Math.max(oldVersion, 26);
-  project.appVersion = '1.0.25';
+  project.appVersion = '1.0.26';
   return project;
 }
 

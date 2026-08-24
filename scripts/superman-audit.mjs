@@ -3,7 +3,7 @@ import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const VERSION = '1.0.25';
+const VERSION = '1.0.26';
 
 function walk(dir) {
   const out = [];
@@ -74,7 +74,7 @@ for (const marker of ['proof-ownership','even-page-count','top-bottom-margins','
 }
 
 const epub = readFileSync(join(ROOT, 'src/lib/epub-export.js'), 'utf8');
-for (const marker of ['epub:type="landmarks"','properties="cover-image"','itemref idref="nav"']) {
+for (const marker of ['epub:type="landmarks"','properties="cover-image"','itemref idref="visible-toc"','text/contents.xhtml','<guide>']) {
   if (!epub.includes(marker)) throw new Error(`Missing Kindle EPUB marker: ${marker}`);
 }
 for (const marker of ['usesTresAmigosMatterMatch','matter-book1-title','matter-book1-copyright','matter-book1-dedication']) {

@@ -38,7 +38,7 @@ test('1.0.6 migration enables visible chapters-only TOC and clean front matter w
   const before = JSON.stringify(p.manuscript.blocks);
   migrateProject(p);
   assert.equal(p.version, 26);
-  assert.equal(p.appVersion, '1.0.25');
+  assert.equal(p.appVersion, '1.0.26');
   assert.equal(p.editions.ebook.design.visibleToc,true);
   assert.equal(p.editions.ebook.design.tocScope,'chapters');
   assert.equal(p.editions.ebook.design.frontMatterMode,'clean');
@@ -64,15 +64,19 @@ test('visible Table of Contents is inserted in preview immediately before Chapte
   assert.doesNotMatch(tocPreview.html,/\bpage\s*1\b/i);
 });
 
-test('EPUB spine contains visible nav TOC before first chapter and landmarks identify TOC and bodymatter', () => {
+test('EPUB keeps logical nav out of the spine and places a separate visible Contents before Chapter 1', () => {
   const p = sample(); migrateProject(p);
   const data = buildEpubPackageData({project:p});
   const opf = data.files.get('OEBPS/package.opf');
   const nav = data.files.get('OEBPS/nav.xhtml');
-  assert.ok(opf.indexOf('idref="nav"') < opf.indexOf('idref="s3"') || /<itemref idref="nav"\/>[\s\S]*<itemref idref="s\d+"\/>/.test(opf));
+  const visible = data.files.get('OEBPS/text/contents.xhtml');
+  assert.doesNotMatch(opf,/itemref idref="nav"/);
+  assert.ok(opf.indexOf('idref="visible-toc"') < opf.indexOf('idref="s3"'));
   assert.match(nav,/epub:type="landmarks"/);
-  assert.match(nav,/epub:type="toc" href="nav.xhtml#toc"/);
+  assert.match(nav,/epub:type="toc" href="text\/contents.xhtml"/);
   assert.match(nav,/epub:type="bodymatter" href="text\/chapter-001.xhtml"/);
+  assert.match(visible,/href="chapter-001.xhtml"/);
+  assert.doesNotMatch(nav,/hidden=|display\s*:\s*none/i);
 });
 
 test('Kindle EPUB packages one internal cover-image and no duplicate HTML cover page', () => {

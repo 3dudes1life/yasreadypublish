@@ -1,6 +1,12 @@
 # YasReady Publish
 
-**Current release: v1.0.25 — Book Brain · Smart eBook Interpretation**
+**Current release: v1.0.26 — Kindle Previewer Compatibility**
+
+## v1.0.26 — Kindle Previewer Compatibility
+
+YasReady now packages Kindle EPUBs around stricter Kindle conversion rules rather than relying only on generic EPUB validity. Logical navigation is separated from the visible Contents page; hidden/display-none TOC navigation is removed; the OPF includes Kindle-friendly guide and cover declarations; private YasReady Story Lock metadata stays inside YasReady instead of the publishable OPF; and Kindle image export is restricted to JPEG/PNG. The internal release audit fails if these compatibility rules regress.
+
+Kindle Previewer remains the final external acceptance test. YasReady can validate the package structure locally, but the production EPUB should still be opened in Amazon Kindle Previewer before KDP submission.
 
 ## v1.0.25 — Book Brain · Smart eBook Interpretation
 

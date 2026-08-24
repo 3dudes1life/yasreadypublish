@@ -2,6 +2,7 @@ import { buildEbookSections, detectEbookPlaceholders, ebookTocEntries, normalize
 import { auditEpubPackage } from './epub-audit.js';
 import { effectiveStats } from './structure-overrides.js';
 import { enhancedTypesettingAudit } from './kindle-quality.js';
+import { themeArtworkAssets } from './ebook-theme-studio.js';
 
 const check = (id, label, status, message) => ({ id, label, status, message });
 
@@ -48,8 +49,9 @@ export function runEpubPreflight({ project, storyLockOk = true } = {}) {
   const mediaById = new Set(mediaAssets.map((asset) => asset.id));
   const imageRefs = (project?.manuscript?.blocks || []).flatMap((block) => block.mediaRefs || []);
   const missingImageRefs = imageRefs.filter((ref) => !mediaById.has(ref.mediaId));
-  const supportedImageTypes = new Set(['image/jpeg','image/png','image/gif','image/svg+xml']);
-  const unsupportedImages = mediaAssets.filter((asset) => !supportedImageTypes.has(String(asset.mimeType || '').toLowerCase()));
+  const supportedImageTypes = new Set(['image/jpeg','image/png']);
+  const themeAssets = themeArtworkAssets(design);
+  const unsupportedImages = [...mediaAssets, ...themeAssets].filter((asset) => !supportedImageTypes.has(String(asset.mimeType || '').toLowerCase()));
   const missingAltText = imageRefs.filter((ref) => !String(ref.altText || '').trim());
   const notes = project?.manuscript?.notes || [];
   const noteKeys = new Set(notes.map((note) => `${note.type}:${note.id}`));
@@ -90,7 +92,7 @@ export function runEpubPreflight({ project, storyLockOk = true } = {}) {
     check('paragraph-separation', 'Paragraph separation', paragraphSeparationOk ? 'pass' : 'error', paragraphSeparationOk ? 'Body paragraphs remain visually distinguishable with relative-unit spacing/indentation.' : 'Kindle body paragraphs need either an indent or paragraph spacing.'),
     check('html-file-count', 'Kindle HTML file count', fileCountOk ? 'pass' : 'error', `${htmlFileCount} XHTML reading-order/navigation file(s); Amazon requires fewer than 300.`),
     check('html-file-size', 'Kindle section size', sectionSizeOk ? 'pass' : 'error', sectionSizeOk ? 'Largest source section is safely below Amazon’s 30 MB per-HTML-file ceiling.' : 'A source section is too large for Kindle and must be split.'),
-    check('images', 'DOCX image assets', imageCount === 0 ? 'pass' : (mediaAssets.length === imageCount && missingImageRefs.length === 0 && unsupportedImages.length === 0 ? 'pass' : 'error'), imageCount === 0 ? 'No manuscript image assets need packaging.' : (mediaAssets.length === imageCount && missingImageRefs.length === 0 && unsupportedImages.length === 0 ? `${imageCount} embedded image asset${imageCount === 1 ? '' : 's'} are preserved and packaged in the Kindle EPUB.` : `${imageCount} DOCX image asset(s) detected, but ${missingImageRefs.length} reference(s) are unresolved and ${unsupportedImages.length} asset(s) use unsupported Kindle image types.`)),
+    check('images', 'DOCX image assets', imageCount === 0 ? 'pass' : (mediaAssets.length === imageCount && missingImageRefs.length === 0 && unsupportedImages.length === 0 ? 'pass' : 'error'), imageCount === 0 ? 'No manuscript image assets need packaging.' : (mediaAssets.length === imageCount && missingImageRefs.length === 0 && unsupportedImages.length === 0 ? `${imageCount} embedded image asset${imageCount === 1 ? '' : 's'} are preserved and packaged in the Kindle EPUB.` : `${imageCount} DOCX image asset(s) detected, but ${missingImageRefs.length} reference(s) are unresolved and ${unsupportedImages.length} asset(s) use image types Kindle conversion does not accept. Use JPEG or PNG.`)),
     check('image-alt', 'Image accessibility text', missingAltText.length ? 'warning' : 'pass', missingAltText.length ? `${missingAltText.length} embedded image placement${missingAltText.length === 1 ? '' : 's'} have no Word alt text. The images are preserved, but add alt text in the final DOCX when the image conveys meaning.` : imageRefs.length ? `All ${imageRefs.length} embedded image placement${imageRefs.length === 1 ? '' : 's'} include alt text.` : 'No embedded manuscript images require alt text.'),
     check('notes', 'Footnotes / endnotes', unresolvedNoteRefs.length ? 'error' : 'pass', unresolvedNoteRefs.length ? `${unresolvedNoteRefs.length} note reference${unresolvedNoteRefs.length === 1 ? '' : 's'} do not resolve to imported note text.` : notes.length ? `${notes.length} footnote/endnote${notes.length === 1 ? '' : 's'} are Story-Locked and packaged with linked note references.` : 'No footnotes or endnotes detected.'),
     check('structure-overrides', 'Structure repair metadata', 'pass', `${stats.structureOverrides || 0} paragraph classification override(s) are applied outside Story Lock; source wording is unchanged.`),
