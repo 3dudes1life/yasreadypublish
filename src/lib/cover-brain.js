@@ -1,4 +1,5 @@
 import { normalizePrintProduction } from './print-brain.js';
+import { barcodeRoundTrip, normalizeBarcodeBrain, normalizePrintIsbn } from './barcode-brain.js';
 
 export const COVER_BRAIN_VERSION = 1;
 export const COVER_DPI = 300;
@@ -161,9 +162,12 @@ export function coverGeometry({ type = 'paperback', production:productionInput =
   };
 }
 
-export function coverBrainChecks({ type = 'paperback', production = {}, pageCount = 0, cover = {}, ebookCover = null } = {}) {
+export function coverBrainChecks({ type = 'paperback', production = {}, pageCount = 0, cover = {}, ebookCover = null, barcodeBrain = {}, isbnMode = 'kdp-free', isbn = '' } = {}) {
   const geometry = coverGeometry({ type, production, pageCount, cover });
   const c = geometry.cover;
+  const barcode = normalizeBarcodeBrain(barcodeBrain || {});
+  const normalizedIsbn = normalizePrintIsbn(isbn);
+  const barcodeRound = normalizedIsbn.valid ? barcodeRoundTrip(normalizedIsbn.digits) : { ok:false };
   const front = c.frontArt || (c.source === 'ebook-cover' ? ebookCover : null);
   const frontDpi = front?.width && geometry.trimWidth ? front.width / geometry.trimWidth : 0;
   const checks = [
@@ -171,10 +175,17 @@ export function coverBrainChecks({ type = 'paperback', production = {}, pageCoun
     { id:'front-art', status:front ? 'pass' : 'warning', label:'Front cover artwork', message:front ? `${front.fileName || 'Front cover'} is attached.` : 'No front-cover art is attached; Cover Brain can still build a generated text cover.' },
     { id:'front-resolution', status:!front ? 'warning' : frontDpi >= 300 ? 'pass' : 'error', label:'Front cover resolution', message:!front ? 'Attach artwork to verify 300 DPI at final trim size.' : `${Math.round(frontDpi)} effective PPI at ${geometry.trimWidth} in width; KDP minimum is 300 DPI.` },
     { id:'spine-text', status:geometry.spineTextAllowed || !c.spineTitle ? 'pass' : 'error', label:'Spine text eligibility', message:geometry.spineTextAllowed ? 'Final page count is high enough for spine text.' : c.spineTitle ? 'Spine title must be removed for this page count.' : 'No spine text will be printed.' },
-    { id:'barcode', status:c.amazonBarcode ? 'pass' : 'warning', label:'Barcode handling', message:c.amazonBarcode ? 'Amazon-placed barcode is recommended; Cover Brain reserves a 2 × 1.2 in clear zone on the back cover.' : 'Custom barcode mode needs a separate barcode asset/audit before final production.' },
+    { id:'barcode',
+      status:barcode.coverPlacement === 'yasready' ? (isbnMode === 'own' && normalizedIsbn.valid && barcodeRound.ok ? 'pass' : 'error') : barcode.coverPlacement === 'amazon' ? 'pass' : 'warning',
+      label:'Barcode handling',
+      message:barcode.coverPlacement === 'yasready'
+        ? (isbnMode === 'own' && normalizedIsbn.valid && barcodeRound.ok ? `YasReady will place vector EAN-13 ${normalizedIsbn.digits} in the 2 × 1.2 in KDP-safe zone.` : 'YasReady barcode placement needs a valid known print ISBN first.')
+        : barcode.coverPlacement === 'amazon'
+          ? 'Amazon barcode mode: Cover Brain reserves a 2 × 1.2 in clear white zone on the back cover.'
+          : 'No ISBN barcode will be placed on the cover; confirm this is intentional before release.' },
     { id:'geometry', status:geometry.exact ? 'pass' : 'error', label:type === 'hardcover' ? 'Amazon hardcover geometry' : 'KDP cover geometry', message:geometry.note },
   ];
   const errors = checks.filter((item) => item.status === 'error').length;
   const warnings = checks.filter((item) => item.status === 'warning').length;
-  return { ready:errors === 0, checks, geometry, summary:{ errors, warnings, passes:checks.length-errors-warnings, total:checks.length }, frontArt:front, frontDpi };
+  return { ready:errors === 0, checks, geometry, barcodeBrain:barcode, barcodeIsbn:normalizedIsbn.valid ? normalizedIsbn.digits : '', summary:{ errors, warnings, passes:checks.length-errors-warnings, total:checks.length }, frontArt:front, frontDpi };
 }

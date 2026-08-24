@@ -37,8 +37,8 @@ test('1.0.6 migration enables visible chapters-only TOC and clean front matter w
   const p = sample();
   const before = JSON.stringify(p.manuscript.blocks);
   migrateProject(p);
-  assert.equal(p.version, 33);
-  assert.equal(p.appVersion, '1.0.33');
+  assert.equal(p.version, 34);
+  assert.equal(p.appVersion, '1.0.34');
   assert.equal(p.editions.ebook.design.visibleToc,true);
   assert.equal(p.editions.ebook.design.tocScope,'chapters');
   assert.equal(p.editions.ebook.design.frontMatterMode,'clean');

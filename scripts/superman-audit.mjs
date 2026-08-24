@@ -3,7 +3,7 @@ import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const VERSION = '1.0.33';
+const VERSION = '1.0.34';
 
 function walk(dir) {
   const out = [];
@@ -33,7 +33,7 @@ const project = readFileSync(join(ROOT, 'src/lib/project.js'), 'utf8');
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 if (pkg.version !== VERSION) throw new Error(`package.json version is ${pkg.version}, expected ${VERSION}`);
 if (!main.includes(`const VERSION = '${VERSION}'`)) throw new Error('main.js version mismatch');
-if (!project.includes(`appVersion: '${VERSION}'`) || !project.includes(`project.appVersion = '${VERSION}'`) || !project.includes('version: 33')) throw new Error('project schema appVersion/schema mismatch');
+if (!project.includes(`appVersion: '${VERSION}'`) || !project.includes(`project.appVersion = '${VERSION}'`) || !project.includes('version: 34')) throw new Error('project schema appVersion/schema mismatch');
 
 const buttonIds = [...main.matchAll(/<button\b[^>]*\s+id="([^"]+)"/g)].map((m) => m[1]);
 const boundIds = new Set([...main.matchAll(/querySelector\(['"]#([^'"]+)['"]\)/g)].map((m) => m[1]));
@@ -91,7 +91,7 @@ const coverPdf = readFileSync(join(ROOT, 'src/lib/cover-pdf.js'), 'utf8');
 for (const marker of ['renderCoverPdf','buildRasterPdf','auditPrintPdfBytes','AMAZON BARCODE RESERVED']) {
   if (!coverPdf.includes(marker)) throw new Error(`Missing Cover PDF marker: ${marker}`);
 }
-if (!main.includes('COVER BRAIN · v1.0.30') || !main.includes('buildCoverPdf')) throw new Error('Cover Brain UI/runtime wiring is missing.');
+if (!main.includes('COVER BRAIN + BARCODE BRAIN · v1.0.34') || !main.includes('buildCoverPdf')) throw new Error('Cover Brain UI/runtime wiring is missing.');
 
 
 const printMatter = readFileSync(join(ROOT, 'src/lib/print-matter.js'), 'utf8');
@@ -99,11 +99,16 @@ for (const marker of ['buildPrintMatterIndex','printMatterPagePolicy','matter-ti
 const printCoverUpload = readFileSync(join(ROOT, 'src/lib/print-cover-upload.js'), 'utf8');
 for (const marker of ['parsePrintCoverPdfBytes','auditUploadedPrintCoverPdf','uploaded-cover-geometry']) if (!printCoverUpload.includes(marker)) throw new Error(`Missing v1.0.33 cover intake marker: ${marker}`);
 for (const marker of ['YOUR COVER','printCoverMode','printFullWrapCoverInput','I already have a full-wrap KDP cover PDF','Build my cover in YasReady']) if (!main.includes(marker)) throw new Error(`Missing v1.0.33 print cover UI marker: ${marker}`);
+const barcodeBrain = readFileSync(join(ROOT, 'src/lib/barcode-brain.js'), 'utf8');
+for (const marker of ['encodeEan13','decodeEan13Bits','barcodeRoundTrip','appendInteriorBarcodePages','barcodePdfVectorCommands','barcodeFingerprint']) if (!barcodeBrain.includes(marker)) throw new Error(`Missing v1.0.34 Barcode Brain marker: ${marker}`);
+const barcodeStamp = readFileSync(join(ROOT, 'src/lib/barcode-cover-stamp.js'), 'utf8');
+for (const marker of ['stampBarcodeOnUploadedCoverPdf','pdf-lib@1.17.1']) if (!barcodeStamp.includes(marker)) throw new Error(`Missing v1.0.34 barcode cover stamping marker: ${marker}`);
+for (const marker of ['BARCODE BRAIN · v1.0.34','downloadBarcodeSvg','downloadBarcodePng','Stamp barcode + download KDP cover PDF']) if (!main.includes(marker)) throw new Error(`Missing v1.0.34 Barcode Brain UI marker: ${marker}`);
 const printReleaseGate = readFileSync(join(ROOT, 'src/lib/print-release-gate.js'), 'utf8');
 for (const marker of ['buildPrintReleaseGate','printReleaseToken','freezePrintRelease','setPrintExternalConfirmation','physicalProofApproved']) {
   if (!printReleaseGate.includes(marker)) throw new Error(`Missing Amazon Print Gate marker: ${marker}`);
 }
-for (const marker of ['AMAZON PRINT GATE · v1.0.33','Confirm KDP Print Previewer','Physical proof approved','NEXT PRINT ACTION']) {
+for (const marker of ['AMAZON PRINT GATE · v1.0.34','Confirm KDP Print Previewer','Physical proof approved','NEXT PRINT ACTION']) {
   if (!main.includes(marker)) throw new Error(`Missing Amazon Print Gate UI marker: ${marker}`);
 }
 

@@ -885,3 +885,10 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .print-full-cover-upload small{color:#6f6f78;line-height:1.35}.print-full-cover-upload.is-muted{opacity:.55}
 .uploaded-cover-summary,.uploaded-cover-card{display:grid;gap:5px;padding:13px;border:1px solid #dfdfe7;border-radius:13px;background:#fafafd}.uploaded-cover-summary strong,.uploaded-cover-card strong{font-size:12px}.uploaded-cover-summary small,.uploaded-cover-card small{color:#777;line-height:1.4}
 @media(max-width:760px){.print-cover-choice-head{display:grid}.print-cover-mode-grid{grid-template-columns:1fr}}
+
+/* 1.0.34 Barcode Brain */
+.print-barcode-choice{margin:18px 0;padding:18px;border:1px solid #d8e2dc;border-radius:18px;background:linear-gradient(180deg,#fbfefc,#fff);display:grid;gap:14px}
+.barcode-brain-grid{margin:0}.barcode-brain-mini-checks{display:flex;gap:8px;flex-wrap:wrap}.barcode-asset-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.barcode-asset-actions.wide{grid-column:1/-1}
+.isbn-barcode-preview-page{position:absolute;z-index:2;background:#fff;display:grid;place-items:center}.isbn-barcode-preview-page svg{display:block;width:100%;height:100%}
+.cover-barcode-zone.is-yasready{padding:0;border-color:#bbb;overflow:hidden}.cover-barcode-zone.is-yasready svg{display:block;width:100%;height:100%}
+@media(max-width:760px){.barcode-asset-actions.wide{grid-column:auto}}

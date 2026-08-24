@@ -44,8 +44,8 @@ test('1.0.28 migration reanalyzes stale Book Brain inferred chapter state withou
   p.bookBrain={ reviewDecisions:{}, inferredKinds:{back2:'chapter-title'}, semanticRoles:{}, pageStarts:{}, interpretations:[], summary:{} };
   const before=JSON.stringify(p.manuscript.blocks);
   const migrated=migrateProject(p);
-  assert.equal(migrated.version, 33);
-  assert.equal(migrated.appVersion,'1.0.33');
+  assert.equal(migrated.version, 34);
+  assert.equal(migrated.appVersion,'1.0.34');
   assert.equal(JSON.stringify(migrated.manuscript.blocks),before);
   assert.equal(migrated.bookBrain.inferredKinds.back2,undefined);
   assert.equal(effectiveStats(migrated).chapters,2);

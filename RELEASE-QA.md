@@ -1,4 +1,16 @@
-# YasReady Publish v1.0.33 Release QA
+# YasReady Publish v1.0.34 Release QA
+
+## v1.0.34 Barcode Brain
+
+- ISBN check digit validates for the selected physical edition.
+- EAN-13 generated pattern is 95 modules and scanner round-trip matches the ISBN.
+- Interior barcode page, when enabled, is the true final left/even physical page and keeps the expected folio.
+- Final page count includes any Barcode Brain spacer/barcode pages before spine math.
+- Generated cover barcode is vector black-on-white in the KDP-safe 2 × 1.2 inch zone.
+- Uploaded full-wrap cover can be stamped, re-read, re-hashed, and certified without changing source cover dimensions.
+- Standalone SVG and 300-PPI PNG barcode downloads work.
+- Changing ISBN, barcode placement, or pagination invalidates the current print release token.
+- 1.0.33 → 1.0.34 migration invalidates print proof state but preserves Kindle proof/release state and Story Lock manuscript bytes.
 
 ## v1.0.33 paperback front matter + cover intake
 
@@ -11,7 +23,7 @@
 - Browser preview and 300-DPI production PDF use the same semantic print-matter style rules.
 - Migration invalidates stale print page count, preflight, interior PDF audit, cover audit, visual proof, freeze, and Amazon print confirmations; Kindle manuscript/source is not rewritten.
 
-- Run `npm run verify`; **239 automated tests must pass**, followed by static verification and Superman audit.
+- Run `npm run verify`; **254 automated tests must pass**, followed by static verification and Superman audit.
 - Reproduce a trailing Heading-1-style `BOOK TWO` author page and confirm it remains back matter rather than becoming an extra chapter.
 - Confirm both supported orderings—About the Authors → Join the Journey and Join the Journey → About the Authors—produce separate semantic back-matter sections.
 - Confirm a missing About-the-Authors source heading is supplied only as generated presentation; Story Lock manuscript blocks remain byte-identical through migration.

@@ -6,6 +6,7 @@ import { ensureEditions, invalidateAllEditionProofs } from './editions.js';
 import { ensurePresentationOverrides } from './presentation-overrides.js';
 import { canonicalizeManuscriptV2 } from './manuscript-rules.js';
 import { applyBookBrain, reanalyzeBookBrain } from './book-brain.js';
+import { detectLabeledPrintIsbn, normalizeBarcodeBrain } from './barcode-brain.js';
 
 export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
   const [sourceFileHash, manuscriptHash] = await Promise.all([
@@ -18,8 +19,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   const project = {
     id: crypto.randomUUID(),
-    version: 33,
-    appVersion: '1.0.33',
+    version: 34,
+    appVersion: '1.0.34',
     title: baseName,
     author: '',
     createdAt: now,
@@ -75,7 +76,13 @@ export function migrateProject(project) {
   if (!project) return project;
   const oldVersion = Number(project.version) || 1;
   const priorAppVersion = String(project.appVersion || '');
-  const alreadyCurrent = oldVersion >= 33 && priorAppVersion === '1.0.33';
+  const alreadyCurrent = oldVersion >= 34 && priorAppVersion === '1.0.34';
+  // 1.0.34 is a print-only renderer/pagination upgrade. Preserve the exact
+  // Kindle release proof when upgrading a real 1.0.33 project so a paperback
+  // barcode change cannot erase already-confirmed Kindle Previewer work.
+  const priorEbookReleaseGateFor134 = oldVersion >= 33 && project.editions?.ebook?.releaseGate
+    ? JSON.parse(JSON.stringify(project.editions.ebook.releaseGate))
+    : null;
   const preNormalizePrintCollapse = project.design?.print?.collapseBodyBlankParagraphs;
   const preNormalizeEbookCollapse = project.design?.ebook?.collapseBodyBlankParagraphs;
   const priorPrintCoverChoice = Object.fromEntries(['paperback','hardcover'].map((type) => [type, {
@@ -450,7 +457,7 @@ export function migrateProject(project) {
   // 1.0.32 makes trailing back matter content-aware, removes stale inferred
   // chapter starts such as BOOK TWO on an author-bio page, and hardens the
   // Kindle package sanitizer. Reanalyze semantics only; source bytes stay exact.
-  if (oldVersion < 32 || priorAppVersion !== '1.0.32') {
+  if (oldVersion < 32) {
     reanalyzeBookBrain(project);
     ensureEditions(project);
     if (project.editions?.ebook) {
@@ -472,7 +479,7 @@ export function migrateProject(project) {
   // the print-cover decision into Print Brain and supports an attached full-wrap
   // KDP cover PDF whose canvas is re-certified against the final page count.
   // The renderer changed, so every prior print proof/PDF/cover token is stale.
-  if (oldVersion < 33 || priorAppVersion !== '1.0.33') {
+  if (oldVersion < 33) {
     ensureEditions(project);
     for (const type of ['paperback','hardcover']) {
       const edition = project.editions?.[type];
@@ -492,8 +499,53 @@ export function migrateProject(project) {
     }
   }
 
-  project.version = Math.max(oldVersion, 33);
-  project.appVersion = '1.0.33';
+
+  // 1.0.34 adds Barcode Brain at the only safe point in a print workflow:
+  // after story pagination rules are known but before final interior/cover files
+  // are certified. The optional interior ISBN page becomes part of physical
+  // pagination, so it can change final page count/spine geometry. Existing print
+  // proofs are invalidated; Kindle proof/release state is deliberately untouched.
+  if (oldVersion < 34) {
+    ensureEditions(project);
+    for (const type of ['paperback','hardcover']) {
+      const edition = project.editions?.[type];
+      if (!edition) continue;
+      const hadBarcodeBrain = Boolean(edition.barcodeBrain && typeof edition.barcodeBrain === 'object');
+      const ownKnownIsbn = edition.kdpMetadata?.isbnMode === 'own' && Boolean(edition.kdpMetadata?.isbn);
+      edition.barcodeBrain = normalizeBarcodeBrain(hadBarcodeBrain ? edition.barcodeBrain : {
+        enabled:ownKnownIsbn,
+        includeInterior:ownKnownIsbn,
+        coverPlacement:ownKnownIsbn ? 'yasready' : 'amazon',
+      });
+      const detected = detectLabeledPrintIsbn(project, type);
+      if (detected && !edition.kdpMetadata?.isbn) {
+        edition.barcodeBrain.detectedIsbn = detected.isbn;
+        edition.barcodeBrain.detectedIsbnBlockId = detected.blockId || null;
+        // A labeled physical-edition ISBN in the Story-Locked copyright matter is
+        // enough to prime the one-click Book 1 workflow, but it remains visible
+        // for author confirmation in Print Brain before export.
+        edition.barcodeBrain.enabled = true;
+        edition.barcodeBrain.includeInterior = true;
+        edition.barcodeBrain.coverPlacement = 'yasready';
+      }
+      edition.lastPageCount = null;
+      edition.lastBuiltAt = null;
+      edition.lastPreflight = null;
+      edition.lastPdfAudit = null;
+      edition.lastCoverAudit = null;
+      if (edition.printGate && typeof edition.printGate === 'object') {
+        edition.printGate.visualProof = null;
+        edition.printGate.freeze = null;
+        edition.printGate.external = {};
+      }
+    }
+  }
+
+  if (priorEbookReleaseGateFor134 && project.editions?.ebook) {
+    project.editions.ebook.releaseGate = priorEbookReleaseGateFor134;
+  }
+  project.version = Math.max(oldVersion, 34);
+  project.appVersion = '1.0.34';
   return project;
 }
 

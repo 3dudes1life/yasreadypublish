@@ -1,5 +1,6 @@
 import { fontStack, normalizePrintDesign } from './print-model.js';
 import { runningHeaderText } from './structure-model.js';
+import { barcodeSvg } from './barcode-brain.js';
 
 function escapeHtml(value = '') {
   return String(value)
@@ -56,7 +57,9 @@ function renderPage(page, design, project, blocksById) {
     ? `${design.topMargin}in ${design.insideMargin}in ${design.bottomMargin}in ${design.outsideMargin}in`
     : `${design.topMargin}in ${design.outsideMargin}in ${design.bottomMargin}in ${design.insideMargin}in`;
 
-  const fragments = page.intentionalBlank ? '' : (page.fragments || []).map((fragment) => {
+  const fragments = page.intentionalBlank ? '' : page.barcodePage && page.isbn
+    ? `<div class="fragment isbn-barcode-page">${barcodeSvg(page.isbn,{widthIn:1.55,heightIn:0.95,showIsbnLabel:true})}</div>`
+    : (page.fragments || []).map((fragment) => {
     if (fragment.kind === 'blank') {
       const h = Math.max(0, Number(fragment.measuredHeight || 0) / 96);
       return `<div class="fragment blank ${fragment.collapsedBlank ? 'collapsed' : ''}" style="height:${h}in"></div>`;
@@ -139,6 +142,8 @@ export function buildPrintMasterHtml({ project, preview, manuscriptHash = '', au
   .generated-toc-entry .toc-leader { flex:1 1 auto; min-width:.16in; border-bottom:1px dotted currentColor; transform:translateY(-.08em); }
   .generated-toc-entry .toc-page { flex:0 0 auto; text-align:right; font-variant-numeric:tabular-nums; }
   .fragment.scene-break { text-align:center; }
+  .isbn-barcode-page { position:absolute; left:.75in; bottom:.72in; width:1.55in; height:.95in; }
+  .isbn-barcode-page svg { display:block; width:1.55in; height:.95in; }
   .folio { position:absolute; line-height:1; }
   .running-header { position:absolute; max-width:44%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; line-height:1; color:#333; }
   .running-header.left { text-align:left; } .running-header.right { text-align:right; }

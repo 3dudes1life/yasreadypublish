@@ -1,26 +1,12 @@
-# YasReady Publish v1.0.33
+# YasReady Publish v1.0.34
 
-**Paperback Front Matter + Cover Intake**
+**Barcode Brain**
 
-1.0.33 fixes the first real paperback proof problems found with Book 2. Print front matter is now semantic: the title page, copyright/legal page, and dedication page are isolated as independent physical pages instead of flowing through one continuous pagination stream. Presentation-only whitespace cleanup and Book-1-calibrated print styles apply without changing Story Lock source text.
-
-Paperback/Hardcover Print Brain now requires an explicit cover path before continuing: attach an existing full-wrap KDP PDF or build the cover in YasReady. Attached full-wrap PDFs are parsed for their actual PDF MediaBox and re-certified against the final page-count-dependent cover geometry; a stale spine/canvas is blocked instead of silently accepted.
-
-
-
-## Kindle Back Matter + Actionable QA
-
-1.0.32 fixes the real Book 2 back-matter failure surfaced in Preview Studio. Book Brain v2 treats author-bio and reader-CTA pages as semantic back matter instead of allowing a stylized line such as `BOOK TWO` to become a phantom chapter. About the Authors and Join the Journey now keep their source paragraph boundaries and receive dedicated reflowable Kindle presentation. If an About-the-Authors heading was lost in the DOCX structure, YasReady may generate that heading in the presentation layer without modifying Story Lock source text.
-
-The Kindle package audit is now actionable: production EPUB files are sanitized against hidden-content CSS/markup before packaging, and any surviving Amazon E21018-style finding offers **Rebuild package**. Quality caches include the running app version and current Book Brain analysis so stale red findings cannot persist across this upgrade. The 1.0.31 Amazon Print Gate remains intact.
-
-## Amazon Print Gate
-
-1.0.31 binds the exact finished interior PDF, cover PDF, final page count, print-production settings, KDP handoff metadata, and manual proof state into one release token. YasReady now stops at **Ready for KDP Print Previewer** until the author confirms Amazon's own Print Previewer passed for that exact package. A physical proof can then be marked approved for YasReady proof certification. The Print Gate itself is preserved through 1.0.32; Kindle visual/external confirmations are deliberately invalidated once because the 1.0.32 EPUB renderer and Book Brain semantics changed.
+1.0.34 closes the ISBN/barcode loop inside the physical-book workflow. YasReady validates the edition ISBN, generates and scanner-round-trips a standards-correct EAN-13, makes the optional Book-1-style final interior barcode page part of pagination before spine math, and can place the same certified code on the back cover. Existing full-wrap PDF covers can be stamped at download time; generated covers receive vector barcode commands directly in the production PDF. Standalone SVG and 300-PPI PNG barcode assets are available for outside designers. Story Lock manuscript text is never rewritten.
 
 # YasReady Publish
 
-**Current release: v1.0.33 — Paperback Front Matter + Cover Intake**
+**Current release: v1.0.34 — Barcode Brain**
 
 ## v1.0.30 — Cover Brain + Kindle E21018 Fix
 

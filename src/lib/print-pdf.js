@@ -2,6 +2,7 @@ import { fontStack, normalizePrintDesign } from './print-model.js';
 import { normalizePrintProduction } from './print-brain.js';
 import { runningHeaderText } from './structure-model.js';
 import { printMatterStyleSpec } from './print-matter.js';
+import { drawBarcodeToCanvas } from './barcode-brain.js';
 
 export const PRINT_PDF_VERSION = 1;
 export const PRINT_PDF_DPI = 300;
@@ -47,8 +48,9 @@ function pdfImageObject(id, jpegBytes, widthPx, heightPx) {
   ];
 }
 
-function pdfContentObject(id, imageId, widthPt, heightPt) {
-  const content = `q\n${formatPdfNumber(widthPt)} 0 0 ${formatPdfNumber(heightPt)} 0 0 cm\n/Im0 Do\nQ\n`;
+function pdfContentObject(id, imageId, widthPt, heightPt, overlayPdf = '') {
+  const overlay = String(overlayPdf || '').trim();
+  const content = `q\n${formatPdfNumber(widthPt)} 0 0 ${formatPdfNumber(heightPt)} 0 0 cm\n/Im0 Do\nQ\n${overlay ? `${overlay}\n` : ''}`;
   const bytes = ascii(content);
   return [ascii(`${id} 0 obj\n<< /Length ${bytes.length} >>\nstream\n`), bytes, ascii(`endstream\nendobj\n`)];
 }
@@ -87,7 +89,7 @@ export function buildRasterPdf({ pages = [], pageWidthIn, pageHeightIn, dpi = PR
     const pageId = 5 + index * 3;
     if (!(page?.jpegBytes instanceof Uint8Array) || !page.jpegBytes.length) throw new Error(`Raster page ${index + 1} has no JPEG data.`);
     pushObjectParts(imageId, pdfImageObject(imageId, page.jpegBytes, page.widthPx, page.heightPx));
-    pushObjectParts(contentId, pdfContentObject(contentId, imageId, widthPt, heightPt));
+    pushObjectParts(contentId, pdfContentObject(contentId, imageId, widthPt, heightPt, page.overlayPdf || ''));
     pushObjectParts(pageId, [pdfPageObject(pageId, pagesId, imageId, contentId, widthPt, heightPt)]);
   });
 
@@ -388,7 +390,18 @@ function renderPreviewPageToCanvas(ctx, canvas, { page, design, project, product
   const contentWidth = Math.max(1, (design.trimWidth - design.insideMargin - design.outsideMargin) * dpi);
   let y = contentY;
 
-  if (!page.intentionalBlank) {
+  if (!page.intentionalBlank && page.barcodePage && page.isbn) {
+    // Match the established Tres Amigos print convention: the ISBN barcode is
+    // the final left/even interior page, low on the outside edge, with the folio
+    // continuing normally beneath it. This generated page is presentation-only.
+    drawBarcodeToCanvas(ctx, page.isbn, {
+      x:trimOffsetX + 0.75*dpi,
+      y:trimOffsetY + Math.max(0.5, design.trimHeight - 1.95)*dpi,
+      width:1.55*dpi,
+      height:0.95*dpi,
+      showIsbnLabel:true,
+    });
+  } else if (!page.intentionalBlank) {
     for (const fragment of page.fragments || []) {
       const heightPx = fragmentInches(fragment) * dpi;
       if (fragment.kind === 'blank') { y += heightPx; continue; }

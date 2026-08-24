@@ -1,3 +1,15 @@
+## 1.0.34 — Barcode Brain
+
+- Added Story-Lock-safe ISBN/EAN-13 Barcode Brain for paperback and hardcover production.
+- Validates ISBN-13 check digits (and legacy ISBN-10 conversion), generates the exact 95-module EAN-13 pattern, and scanner-round-trips the generated code back to the expected ISBN before certification.
+- Makes the optional Book-1-style interior ISBN barcode a real pagination step: it lands on the true final left/even physical page with the normal folio continuing underneath, inserting a numbered spacer only when parity requires it.
+- Runs Barcode Brain before final cover/spine certification so the barcode page participates in final page count, gutter, spine width, and full-wrap geometry.
+- Cover Brain can place a vector 2 × 1.2 in black-on-white ISBN barcode on YasReady-generated covers, reserve the zone for Amazon, or intentionally place none.
+- Existing full-wrap PDF covers can be stamped at download time with the certified vector EAN-13; YasReady re-reads and re-hashes the stamped PDF before Print Gate accepts it. The PDF stamping engine loads pdf-lib 1.17.1 on demand; manuscript text and source files are never transmitted by YasReady.
+- Added standalone barcode exports: vector SVG and 600 × 360 PNG (2 × 1.2 in at 300 PPI).
+- v1.0.34 migration detects labeled paperback/hardcover ISBNs from the locked copyright matter, primes the two-placement workflow when a matching ISBN is present, invalidates stale print proofs only, and preserves existing Kindle release proof state.
+- Added regression coverage for ISBN validation, EAN-13 encoding/decoding, final-page parity, Book 1 placement, vector output, migration safety, and release-token invalidation.
+
 ## 1.0.33 — Paperback Front Matter + Cover Intake
 
 - Rebuilt print front matter as semantic physical pages: Title, Copyright, and Dedication no longer leak or split into one another.

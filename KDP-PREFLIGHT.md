@@ -75,3 +75,12 @@ Theme Studio does not relax any KDP release gate. Theme CSS, semantic wrappers, 
 ## 1.0.31 Amazon Print Gate
 
 The print gate binds the final interior and cover PDF hashes to the exact print configuration and KDP metadata. KDP Print Previewer confirmation is external/manual and only counts for the current release token. Physical proof approval is recommended for YasReady proof certification.
+
+## Barcode Brain (v1.0.34)
+
+- Own-ISBN mode must contain a mathematically valid ISBN-13 (legacy ISBN-10 may be converted).
+- YasReady-generated EAN-13 must decode back to the exact expected ISBN before certification.
+- When the interior ISBN page is enabled, final pagination must place it on the true last left/even physical page; its folio remains part of normal book numbering.
+- Final page count including Barcode Brain pages drives gutter/spine/full-wrap geometry. Any pagination change invalidates the cover and Print Gate token.
+- YasReady cover placement uses a 2 × 1.2 inch black-on-white barcode zone; Amazon-placement mode reserves the zone instead.
+- Uploaded full-wrap covers are geometry-checked before stamping and re-hashed after the vector barcode is applied.

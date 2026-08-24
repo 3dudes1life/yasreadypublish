@@ -4,6 +4,7 @@ import { normalizePrintProduction } from './print-brain.js';
 import { normalizeCoverBrain } from './cover-brain.js';
 import { normalizeUploadedPrintCoverPdf } from './print-cover-upload.js';
 import { ensurePrintReleaseState, normalizePrintKdpMetadata } from './print-release-gate.js';
+import { normalizeBarcodeBrain } from './barcode-brain.js';
 
 export const EDITION_TYPES = Object.freeze(['paperback', 'hardcover', 'ebook']);
 export const PRINT_EDITION_TYPES = Object.freeze(['paperback', 'hardcover']);
@@ -43,6 +44,7 @@ export function ensureEditions(project) {
     uploadedCoverPdf: normalizeUploadedPrintCoverPdf(project.editions.paperback?.uploadedCoverPdf || null),
     lastCoverAudit: project.editions.paperback?.lastCoverAudit || null,
     kdpMetadata: normalizePrintKdpMetadata(project.editions.paperback?.kdpMetadata || {}, { language:legacyEbook.language || 'en', publisher:legacyEbook.publisher || '' }),
+    barcodeBrain: normalizeBarcodeBrain(project.editions.paperback?.barcodeBrain || {}),
     printGate: project.editions.paperback?.printGate && typeof project.editions.paperback.printGate === 'object' ? project.editions.paperback.printGate : null,
   };
   project.editions.hardcover = {
@@ -59,6 +61,7 @@ export function ensureEditions(project) {
     uploadedCoverPdf: normalizeUploadedPrintCoverPdf(project.editions.hardcover?.uploadedCoverPdf || null),
     lastCoverAudit: project.editions.hardcover?.lastCoverAudit || null,
     kdpMetadata: normalizePrintKdpMetadata(project.editions.hardcover?.kdpMetadata || {}, { language:legacyEbook.language || 'en', publisher:legacyEbook.publisher || '' }),
+    barcodeBrain: normalizeBarcodeBrain(project.editions.hardcover?.barcodeBrain || {}),
     printGate: project.editions.hardcover?.printGate && typeof project.editions.hardcover.printGate === 'object' ? project.editions.hardcover.printGate : null,
   };
   project.editions.ebook = {

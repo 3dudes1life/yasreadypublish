@@ -1,5 +1,6 @@
 import { buildRasterPdf, auditPrintPdfBytes, PRINT_PDF_DPI } from './print-pdf.js';
 import { coverBrainChecks, coverGeometry, COVER_FILE_LIMIT_BYTES } from './cover-brain.js';
+import { barcodePdfVectorCommands, normalizeBarcodeBrain } from './barcode-brain.js';
 
 function loadImage(dataUrl) {
   return new Promise((resolve, reject) => {
@@ -53,7 +54,10 @@ function dataUrlToBytes(dataUrl) {
 }
 
 export async function renderCoverPdf({ project, editionType = 'paperback', production = {}, pageCount = 0, cover = {}, dpi = PRINT_PDF_DPI } = {}) {
-  const brain = coverBrainChecks({ type:editionType, production, pageCount, cover, ebookCover:project?.editions?.ebook?.cover || null });
+  const edition = project?.editions?.[editionType] || {};
+  const barcodeBrain = normalizeBarcodeBrain(edition.barcodeBrain || {});
+  const metadata = edition.kdpMetadata || {};
+  const brain = coverBrainChecks({ type:editionType, production, pageCount, cover, ebookCover:project?.editions?.ebook?.cover || null, barcodeBrain, isbnMode:metadata.isbnMode || 'kdp-free', isbn:metadata.isbn || '' });
   if (!brain.ready) throw new Error('Cover Brain blocked the production cover PDF. Resolve the cover checks first.');
   const geometry = brain.geometry;
   const widthPx = Math.round(geometry.width * dpi);
@@ -99,7 +103,7 @@ export async function renderCoverPdf({ project, editionType = 'paperback', produ
     const outer = editionType === 'paperback' ? geometry.bleed : geometry.wrap;
     coverDrawImage(ctx, image, 0, 0, px(back.width + outer), heightPx);
   }
-  const clearRight = geometry.cover.amazonBarcode ? 2.3 : 0.55;
+  const clearRight = barcodeBrain.coverPlacement !== 'none' ? 2.3 : 0.55;
   if (geometry.cover.backCopy) {
     ctx.save();
     ctx.fillStyle = hexTextColor(geometry.cover.textColor);
@@ -120,11 +124,14 @@ export async function renderCoverPdf({ project, editionType = 'paperback', produ
     ctx.restore();
   }
 
-  if (geometry.cover.amazonBarcode) {
+  if (barcodeBrain.coverPlacement !== 'none') {
     const b = geometry.barcode;
     ctx.save(); ctx.fillStyle='#ffffff'; ctx.fillRect(px(b.x), px(b.y), px(b.width), px(b.height));
-    ctx.fillStyle='#777777'; ctx.font=`400 ${Math.round(0.055*dpi)}px Arial, sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText('AMAZON BARCODE RESERVED', px(b.x+b.width/2), px(b.y+b.height/2), px(b.width-0.12)); ctx.restore();
+    if (barcodeBrain.coverPlacement === 'amazon') {
+      ctx.fillStyle='#777777'; ctx.font=`400 ${Math.round(0.055*dpi)}px Arial, sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('AMAZON BARCODE RESERVED', px(b.x+b.width/2), px(b.y+b.height/2), px(b.width-0.12));
+    }
+    ctx.restore();
   }
 
   if (geometry.spineTextAllowed && geometry.cover.spineTitle) {
@@ -142,7 +149,10 @@ export async function renderCoverPdf({ project, editionType = 'paperback', produ
   }
 
   const jpegBytes = dataUrlToBytes(canvas.toDataURL('image/jpeg', 0.94));
-  const pdf = buildRasterPdf({ pages:[{ jpegBytes, widthPx, heightPx }], pageWidthIn:geometry.width, pageHeightIn:geometry.height, dpi });
+  const overlayPdf = barcodeBrain.coverPlacement === 'yasready'
+    ? barcodePdfVectorCommands(brain.barcodeIsbn, { xIn:geometry.barcode.x, yTopIn:geometry.barcode.y, widthIn:geometry.barcode.width, heightIn:geometry.barcode.height, pageHeightIn:geometry.height })
+    : '';
+  const pdf = buildRasterPdf({ pages:[{ jpegBytes, widthPx, heightPx, overlayPdf }], pageWidthIn:geometry.width, pageHeightIn:geometry.height, dpi });
   const baseAudit = auditPrintPdfBytes(pdf.bytes, { pageCount:1, pageWidthIn:geometry.width, pageHeightIn:geometry.height, dpi });
   const coverChecks = [...brain.checks];
   if (pdf.bytes.length > COVER_FILE_LIMIT_BYTES) coverChecks.push({ id:'cover-file-size',status:'error',label:'Cover file size',message:'Cover PDF exceeds KDP’s 650 MB ceiling.' });
@@ -153,6 +163,7 @@ export async function renderCoverPdf({ project, editionType = 'paperback', produ
     bytes:pdf.bytes,
     blob:new Blob([pdf.bytes], { type:'application/pdf' }),
     geometry,
+    barcode:{ placement:barcodeBrain.coverPlacement, isbn:brain.barcodeIsbn || '', vectorOverlay:Boolean(overlayPdf) },
     audit:{ ready:errors===0, checks:[...baseAudit.checks,...coverChecks], summary:{errors,warnings,passes:baseAudit.checks.length+coverChecks.length-errors-warnings}, fileSize:pdf.bytes.length },
   };
 }
