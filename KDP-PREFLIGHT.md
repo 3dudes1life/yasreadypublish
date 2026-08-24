@@ -74,7 +74,7 @@ Theme Studio does not relax any KDP release gate. Theme CSS, semantic wrappers, 
 
 ## 1.0.31 Amazon Print Gate
 
-The print gate binds the final interior and cover PDF hashes to the exact print configuration and KDP metadata. KDP Print Previewer confirmation is external/manual and only counts for the current release token. Physical proof approval is recommended for YasReady proof certification.
+The print gate binds the final interior and cover PDF hashes to the exact print configuration and KDP metadata. KDP Print Previewer confirmation is external/manual and only counts for the current release token. As of v1.0.35, physical proof ordering/inspection is author-owned and is not a YasReady release-gate requirement.
 
 ## Barcode Brain (v1.0.34)
 
@@ -84,3 +84,35 @@ The print gate binds the final interior and cover PDF hashes to the exact print 
 - Final page count including Barcode Brain pages drives gutter/spine/full-wrap geometry. Any pagination change invalidates the cover and Print Gate token.
 - YasReady cover placement uses a 2 × 1.2 inch black-on-white barcode zone; Amazon-placement mode reserves the zone instead.
 - Uploaded full-wrap covers are geometry-checked before stamping and re-hashed after the vector barcode is applied.
+
+
+## Amazon Paperback Hard Mode (v1.0.35)
+
+YasReady re-checks the finished Amazon paperback package rather than treating a successful PDF export as release-ready.
+
+### Interior
+
+- single physical pages, never two-up/spreads
+- physical odd/right and even/left parity plus printed-folio parity
+- trim/ink/paper-specific KDP page-count eligibility
+- page-count-aware inside margin and bleed-aware outside/top/bottom margins
+- minimum active print text size of 7 pt
+- exact finished MediaBox/page count and 300-DPI rendered-page geometry
+- no encryption, annotations/comments, forms, scripts, open actions, or bookmark outlines
+- crop/trim/page-box findings surfaced for review and suspicious 3+ blank-page runs warned
+
+### Cover
+
+- one continuous PDF containing back + spine + front
+- final canvas bound to the exact interior page count, trim, paper, ink, and cover bleed
+- spine text eligibility/safe-edge model checked before certification
+- uploaded PDF security/interactive structures, fonts/outlined text, image signals, page boxes, and file size audited
+- transparency signatures are warnings for external preview, not automatic rejection, because valid production PDFs can contain such structures
+
+### Barcode replacement
+
+When YasReady owns barcode placement, the final ISBN must validate and scanner-round-trip. The cover receives a 2.05 × 1.65 inch solid-white knockout first, then the 2 × 1.2 inch black-on-white vector EAN-13 is centered inside it. This allows an old placeholder barcode block to be replaced cleanly without redesigning the full wrap.
+
+### External Amazon confirmation
+
+YasReady's only external print release confirmation is **KDP Print Previewer passed** for the exact frozen release token. Any production change invalidates that confirmation. Physical proof ordering and inspection are intentionally outside the software gate and remain the author's decision/responsibility.

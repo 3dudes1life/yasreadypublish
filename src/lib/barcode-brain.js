@@ -5,6 +5,13 @@ export const KDP_BARCODE_HEIGHT_IN = 1.2;
 export const KDP_BARCODE_MIN_WIDTH_IN = 1.4;
 export const KDP_BARCODE_MIN_HEIGHT_IN = 0.8;
 export const KDP_BARCODE_SAFE_IN = 0.25;
+// Replacement knockout is deliberately larger than the barcode itself so an
+// existing placeholder ISBN/price/human-readable digits cannot ghost around the
+// new code when YasReady stamps an already-designed full-wrap cover. The size
+// mirrors the Book 2 placeholder reference (about 2.05 × 1.65 in) while the
+// actual KDP barcode remains the recommended 2 × 1.2 in.
+export const KDP_BARCODE_KNOCKOUT_WIDTH_IN = 2.05;
+export const KDP_BARCODE_KNOCKOUT_HEIGHT_IN = 1.65;
 
 const L = Object.freeze({
   0:'0001101',1:'0011001',2:'0010011',3:'0111101',4:'0100011',

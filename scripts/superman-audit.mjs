@@ -3,7 +3,7 @@ import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const VERSION = '1.0.34';
+const VERSION = '1.0.35';
 
 function walk(dir) {
   const out = [];
@@ -33,7 +33,7 @@ const project = readFileSync(join(ROOT, 'src/lib/project.js'), 'utf8');
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 if (pkg.version !== VERSION) throw new Error(`package.json version is ${pkg.version}, expected ${VERSION}`);
 if (!main.includes(`const VERSION = '${VERSION}'`)) throw new Error('main.js version mismatch');
-if (!project.includes(`appVersion: '${VERSION}'`) || !project.includes(`project.appVersion = '${VERSION}'`) || !project.includes('version: 34')) throw new Error('project schema appVersion/schema mismatch');
+if (!project.includes(`appVersion: '${VERSION}'`) || !project.includes(`project.appVersion = '${VERSION}'`) || !project.includes('version: 35')) throw new Error('project schema appVersion/schema mismatch');
 
 const buttonIds = [...main.matchAll(/<button\b[^>]*\s+id="([^"]+)"/g)].map((m) => m[1]);
 const boundIds = new Set([...main.matchAll(/querySelector\(['"]#([^'"]+)['"]\)/g)].map((m) => m[1]));
@@ -77,7 +77,7 @@ for (const marker of ['cream:776','requiredPrintInsideMargin','printEligibility'
   if (!printBrain.includes(marker)) throw new Error(`Missing Print Brain hardening: ${marker}`);
 }
 const printPdf = readFileSync(join(ROOT, 'src/lib/print-pdf.js'), 'utf8');
-for (const marker of ['renderProductionPrintPdf','buildRasterPdf','auditPrintPdfBytes','PRINT_PDF_DPI = 300','KDP_PRINT_FILE_LIMIT_BYTES']) {
+for (const marker of ['renderProductionPrintPdf','buildRasterPdf','auditPrintPdfBytes','PRINT_PDF_DPI = 300','KDP_PRINT_FILE_LIMIT_BYTES',"'interactive'"]) {
   if (!printPdf.includes(marker)) throw new Error(`Missing Print PDF Hard Mode marker: ${marker}`);
 }
 if (!main.includes('PRINT PDF HARD MODE · v1.0.29') || !main.includes('renderProductionPrintPdf')) throw new Error('Print PDF Hard Mode UI/runtime wiring is missing.');
@@ -91,7 +91,7 @@ const coverPdf = readFileSync(join(ROOT, 'src/lib/cover-pdf.js'), 'utf8');
 for (const marker of ['renderCoverPdf','buildRasterPdf','auditPrintPdfBytes','AMAZON BARCODE RESERVED']) {
   if (!coverPdf.includes(marker)) throw new Error(`Missing Cover PDF marker: ${marker}`);
 }
-if (!main.includes('COVER BRAIN + BARCODE BRAIN · v1.0.34') || !main.includes('buildCoverPdf')) throw new Error('Cover Brain UI/runtime wiring is missing.');
+if (!main.includes('COVER BRAIN + BARCODE BRAIN · v1.0.35') || !main.includes('buildCoverPdf')) throw new Error('Cover Brain UI/runtime wiring is missing.');
 
 
 const printMatter = readFileSync(join(ROOT, 'src/lib/print-matter.js'), 'utf8');
@@ -103,12 +103,14 @@ const barcodeBrain = readFileSync(join(ROOT, 'src/lib/barcode-brain.js'), 'utf8'
 for (const marker of ['encodeEan13','decodeEan13Bits','barcodeRoundTrip','appendInteriorBarcodePages','barcodePdfVectorCommands','barcodeFingerprint']) if (!barcodeBrain.includes(marker)) throw new Error(`Missing v1.0.34 Barcode Brain marker: ${marker}`);
 const barcodeStamp = readFileSync(join(ROOT, 'src/lib/barcode-cover-stamp.js'), 'utf8');
 for (const marker of ['stampBarcodeOnUploadedCoverPdf','pdf-lib@1.17.1']) if (!barcodeStamp.includes(marker)) throw new Error(`Missing v1.0.34 barcode cover stamping marker: ${marker}`);
-for (const marker of ['BARCODE BRAIN · v1.0.34','downloadBarcodeSvg','downloadBarcodePng','Stamp barcode + download KDP cover PDF']) if (!main.includes(marker)) throw new Error(`Missing v1.0.34 Barcode Brain UI marker: ${marker}`);
+for (const marker of ['BARCODE BRAIN · v1.0.35','downloadBarcodeSvg','downloadBarcodePng','Stamp barcode + download KDP cover PDF']) if (!main.includes(marker)) throw new Error(`Missing v1.0.34 Barcode Brain UI marker: ${marker}`);
+const amazonPrintHardMode = readFileSync(join(ROOT, 'src/lib/amazon-print-hard-mode.js'), 'utf8');
+for (const marker of ['runAmazonPrintHardMode','amazon-page-range','amazon-inside-margin','amazon-outside-margins','amazon-physical-parity','amazon-interior-security','amazon-interior-fonts','amazon-cover-geometry','amazon-cover-images','amazon-barcode-geometry','amazon-no-physical-proof']) if (!amazonPrintHardMode.includes(marker)) throw new Error(`Missing v1.0.35 Amazon Paperback Hard Mode marker: ${marker}`);
 const printReleaseGate = readFileSync(join(ROOT, 'src/lib/print-release-gate.js'), 'utf8');
-for (const marker of ['buildPrintReleaseGate','printReleaseToken','freezePrintRelease','setPrintExternalConfirmation','physicalProofApproved']) {
+for (const marker of ['buildPrintReleaseGate','printReleaseToken','freezePrintRelease','setPrintExternalConfirmation','physicalProofResponsibility']) {
   if (!printReleaseGate.includes(marker)) throw new Error(`Missing Amazon Print Gate marker: ${marker}`);
 }
-for (const marker of ['AMAZON PRINT GATE · v1.0.34','Confirm KDP Print Previewer','Physical proof approved','NEXT PRINT ACTION']) {
+for (const marker of ['AMAZON PRINT GATE · v1.0.35','Amazon Paperback Hard Mode','Confirm KDP Print Previewer','NEXT PRINT ACTION']) {
   if (!main.includes(marker)) throw new Error(`Missing Amazon Print Gate UI marker: ${marker}`);
 }
 

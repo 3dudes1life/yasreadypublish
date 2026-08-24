@@ -19,8 +19,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   const project = {
     id: crypto.randomUUID(),
-    version: 34,
-    appVersion: '1.0.34',
+    version: 35,
+    appVersion: '1.0.35',
     title: baseName,
     author: '',
     createdAt: now,
@@ -76,7 +76,7 @@ export function migrateProject(project) {
   if (!project) return project;
   const oldVersion = Number(project.version) || 1;
   const priorAppVersion = String(project.appVersion || '');
-  const alreadyCurrent = oldVersion >= 34 && priorAppVersion === '1.0.34';
+  const alreadyCurrent = oldVersion >= 35 && priorAppVersion === '1.0.35';
   // 1.0.34 is a print-only renderer/pagination upgrade. Preserve the exact
   // Kindle release proof when upgrading a real 1.0.33 project so a paperback
   // barcode change cannot erase already-confirmed Kindle Previewer work.
@@ -541,11 +541,35 @@ export function migrateProject(project) {
     }
   }
 
+  // 1.0.35 hardens the finished paperback package against Amazon's current
+  // print requirements. Cover-barcode knockout geometry and the external gate
+  // changed, so print PDF/cover/Previewer proof is stale. Kindle release proof
+  // remains completely independent and is restored below.
+  if (oldVersion < 35) {
+    ensureEditions(project);
+    for (const type of ['paperback','hardcover']) {
+      const edition = project.editions?.[type];
+      if (!edition) continue;
+      edition.lastPageCount = null;
+      edition.lastBuiltAt = null;
+      edition.lastPreflight = null;
+      edition.lastPdfAudit = null;
+      edition.lastCoverAudit = null;
+      if (edition.printGate && typeof edition.printGate === 'object') {
+        edition.printGate.visualProof = null;
+        edition.printGate.freeze = null;
+        // KDP Print Previewer must be reconfirmed against the newly hardened
+        // package. Physical proof is intentionally not a YasReady gate.
+        edition.printGate.external = { kdpPrintPreviewApproved:false };
+      }
+    }
+  }
+
   if (priorEbookReleaseGateFor134 && project.editions?.ebook) {
     project.editions.ebook.releaseGate = priorEbookReleaseGateFor134;
   }
-  project.version = Math.max(oldVersion, 34);
-  project.appVersion = '1.0.34';
+  project.version = Math.max(oldVersion, 35);
+  project.appVersion = '1.0.35';
   return project;
 }
 

@@ -1,9 +1,10 @@
 import { normalizePrintProduction } from './print-brain.js';
 import { normalizeCoverBrain } from './cover-brain.js';
 import { barcodeBrainChecks, barcodeFingerprint, normalizeBarcodeBrain, normalizePrintIsbn } from './barcode-brain.js';
+import { runAmazonPrintHardMode } from './amazon-print-hard-mode.js';
 
-export const PRINT_RELEASE_GATE_VERSION = 1;
-export const PRINT_EXTERNAL_CHECKS = Object.freeze(['kdpPrintPreviewApproved','physicalProofApproved']);
+export const PRINT_RELEASE_GATE_VERSION = 2;
+export const PRINT_EXTERNAL_CHECKS = Object.freeze(['kdpPrintPreviewApproved']);
 
 function stableStringify(value) {
   if (value == null || typeof value !== 'object') return JSON.stringify(value);
@@ -66,7 +67,7 @@ export function printReleaseToken(project, type = 'paperback') {
     barcode:normalizeBarcodeBrain(edition.barcodeBrain || {}),
     barcodeFingerprint:barcodeFingerprint({ isbn:edition.kdpMetadata?.isbn || '', pageCount:Number(edition.lastPageCount)||0, brain:edition.barcodeBrain || {} }),
   };
-  return `p34-${fnv1a(stableStringify(payload))}`;
+  return `p35-${fnv1a(stableStringify(payload))}`;
 }
 
 export function printExternalStatus(project, type = 'paperback') {
@@ -146,14 +147,15 @@ export function buildPrintReleaseGate({ project, type = 'paperback', preflight =
   });
   const barcodeRequired = Boolean(storedBarcodeBrain && normalizeBarcodeBrain(storedBarcodeBrain).enabled);
   const barcodeReady = !barcodeRequired || barcode.ready;
-  const technicalReady = Boolean(preflight?.ready && interiorCurrent && coverCurrent && metadataReady && barcodeReady);
+  const hardMode = runAmazonPrintHardMode({ project, type, preview, interiorAudit:interior, coverAudit:cover });
+  const technicalReady = Boolean(preflight?.ready && interiorCurrent && coverCurrent && metadataReady && barcodeReady && hardMode.ready);
   const visualProof = printVisualProofStatus(project, type);
   const state = ensurePrintReleaseState(project, type);
   const frozen = Boolean(state.freeze?.token === visualProof.token && state.freeze?.status === 'frozen');
   const external = printExternalStatus(project, type);
   const readyForKdpPreviewer = technicalReady && visualProof.current && frozen;
   const kdpPublishReady = readyForKdpPreviewer && external.kdpPrintPreviewApproved;
-  const proofCertified = kdpPublishReady && external.physicalProofApproved;
+  const proofCertified = kdpPublishReady;
 
   const checks = [
     { id:'print-gate-preflight', status:preflight?.ready ? 'pass' : 'error', label:'Print Brain / KDP preflight', message:preflight?.ready ? `${pageCount} pages passed the physical-book gate.` : 'Resolve print preflight blockers first.' },
@@ -161,6 +163,7 @@ export function buildPrintReleaseGate({ project, type = 'paperback', preflight =
     { id:'print-gate-cover', status:coverCurrent ? 'pass' : 'error', label:'Finished cover PDF', message:coverCurrent ? `Current cover ${String(cover.sha256).slice(0,12)}… matches ${pageCount} interior pages.` : 'Build the cover PDF again after the final interior page count is known.' },
     ...metadata,
     ...barcode.checks,
+    ...hardMode.checks,
   ];
 
   let nextAction = { type:'preflight', label:'Resolve print blockers', detail:'Clear Print Brain/KDP preflight errors first.' };
@@ -171,11 +174,10 @@ export function buildPrintReleaseGate({ project, type = 'paperback', preflight =
   else if (preflight?.ready && interiorCurrent && coverCurrent && (!metadataReady || !barcodeReady)) nextAction = { type:'metadata', label:'Finish ISBN / Barcode Brain', detail:'Complete the physical-edition ISBN and barcode certification before external review.' };
   else if (technicalReady && !visualProof.current) nextAction = { type:'visual-proof', label:'Complete final print proof', detail:'Review early, middle, late, blank, TOC, and chapter-opening spreads.' };
   else if (technicalReady && visualProof.current && !frozen) nextAction = { type:'freeze', label:'Lock this print package', detail:'Lock the exact interior + cover + metadata package for Amazon testing.' };
-  else if (readyForKdpPreviewer && !external.kdpPrintPreviewApproved) nextAction = { type:'kdp-previewer', label:'Upload to KDP Print Previewer', detail:'Upload this exact interior PDF and cover PDF, then confirm Amazon reports no blocking errors.' };
-  else if (kdpPublishReady && !external.physicalProofApproved) nextAction = { type:'proof-copy', label:'Order a physical proof · Recommended', detail:'You are KDP-ready. A physical proof is the final YasReady quality certification step.' };
-  else if (proofCertified) nextAction = { type:'complete', label:'Print pipeline complete', detail:'KDP Print Previewer and physical proof are confirmed for this exact print package.' };
+  else if (readyForKdpPreviewer && !external.kdpPrintPreviewApproved) nextAction = { type:'kdp-previewer', label:'Upload to KDP Print Previewer', detail:'Upload this exact interior PDF and cover PDF, review Amazon’s automated checks, and confirm there are no blocking errors.' };
+  else if (proofCertified) nextAction = { type:'complete', label:'Amazon print package complete', detail:'KDP Print Previewer is confirmed for this exact package. Physical proof inspection is intentionally left to the author.' };
 
-  return { type, pageCount, technicalReady, interiorCurrent, coverCurrent, metadataReady, barcodeReady, barcode, checks, visualProof, frozen, external, readyForKdpPreviewer, kdpPublishReady, proofCertified, nextAction, releaseToken:visualProof.token };
+  return { type, pageCount, technicalReady, interiorCurrent, coverCurrent, metadataReady, barcodeReady, barcode, hardMode, hardModeReady:hardMode.ready, checks, visualProof, frozen, external, readyForKdpPreviewer, kdpPublishReady, proofCertified, nextAction, releaseToken:visualProof.token };
 }
 
 export function freezePrintRelease(project, type, gate) {
@@ -199,7 +201,8 @@ export function printReleaseReport({ project, type = 'paperback', preflight = nu
     metadata:edition.kdpMetadata || {},
     barcode:normalizeBarcodeBrain(edition.barcodeBrain || {}),
     barcodeFingerprint:barcodeFingerprint({ isbn:edition.kdpMetadata?.isbn || '', pageCount:Number(edition.lastPageCount)||0, brain:edition.barcodeBrain || {} }),
-    amazonPipeline:{ readyForKdpPrintPreviewer:g.readyForKdpPreviewer, kdpPrintPreviewApproved:Boolean(g.external?.kdpPrintPreviewApproved), kdpPublishReady:g.kdpPublishReady, physicalProofApproved:Boolean(g.external?.physicalProofApproved), yasreadyProofCertified:g.proofCertified },
+    amazonPipeline:{ readyForKdpPrintPreviewer:g.readyForKdpPreviewer, kdpPrintPreviewApproved:Boolean(g.external?.kdpPrintPreviewApproved), kdpPublishReady:g.kdpPublishReady, physicalProofResponsibility:'author', yasreadyAmazonPackageCertified:g.proofCertified },
+    amazonPrintHardMode:g.hardMode || null,
     checks:g.checks, nextAction:g.nextAction,
   };
 }

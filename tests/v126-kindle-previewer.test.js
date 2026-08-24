@@ -56,7 +56,7 @@ test('1.0.26 Kindle preflight blocks image types Amazon says can fail conversion
 test('1.0.26 migration changes app compatibility state without changing Story Lock source', () => {
   const p=project();
   const before=JSON.stringify(p.manuscript.blocks);
-  assert.equal(p.appVersion, '1.0.34');
-  assert.equal(p.version, 34);
+  assert.equal(p.appVersion, '1.0.35');
+  assert.equal(p.version, 35);
   assert.equal(JSON.stringify(p.manuscript.blocks),before);
 });

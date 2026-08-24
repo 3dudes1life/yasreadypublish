@@ -126,7 +126,11 @@ export async function renderCoverPdf({ project, editionType = 'paperback', produ
 
   if (barcodeBrain.coverPlacement !== 'none') {
     const b = geometry.barcode;
-    ctx.save(); ctx.fillStyle='#ffffff'; ctx.fillRect(px(b.x), px(b.y), px(b.width), px(b.height));
+    const knockout = b.knockout || b;
+    ctx.save();
+    ctx.fillStyle='#ffffff';
+    ctx.fillRect(px(knockout.x), px(knockout.y), px(knockout.width), px(knockout.height));
+    ctx.fillRect(px(b.x), px(b.y), px(b.width), px(b.height));
     if (barcodeBrain.coverPlacement === 'amazon') {
       ctx.fillStyle='#777777'; ctx.font=`400 ${Math.round(0.055*dpi)}px Arial, sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
       ctx.fillText('AMAZON BARCODE RESERVED', px(b.x+b.width/2), px(b.y+b.height/2), px(b.width-0.12));

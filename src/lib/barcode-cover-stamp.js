@@ -62,11 +62,20 @@ export async function stampBarcodeOnUploadedCoverPdf({ asset, geometry, isbn } =
   if (Math.abs(widthPt-expectedW) > 1.5 || Math.abs(heightPt-expectedH) > 1.5) throw new Error(`Attached cover canvas is ${(widthPt/72).toFixed(4)} × ${(heightPt/72).toFixed(4)} in; final interior needs ${Number(geometry?.width||0).toFixed(4)} × ${Number(geometry?.height||0).toFixed(4)} in.`);
 
   const box = geometry.barcode;
+  const knockout = box?.knockout || box;
+  const kx = Number(knockout.x)*72;
+  const ky = heightPt - (Number(knockout.y)+Number(knockout.height))*72;
+  const kw = Number(knockout.width)*72;
+  const kh = Number(knockout.height)*72;
   const x = Number(box.x)*72;
   const y = heightPt - (Number(box.y)+Number(box.height))*72;
   const w = Number(box.width)*72;
   const h = Number(box.height)*72;
   const white = rgb(1,1,1); const black = rgb(0,0,0);
+  // Knock out the entire legacy placeholder footprint first, then draw the new
+  // vector code inside it. This prevents an old ISBN label/digit line from
+  // remaining visible around a newly-stamped barcode.
+  page.drawRectangle({ x:kx, y:ky, width:kw, height:kh, color:white, borderWidth:0 });
   page.drawRectangle({ x, y, width:w, height:h, color:white, borderWidth:0 });
   const quiet = w*0.05; const topPad=h*0.16; const digitArea=h*0.23; const barH=h-topPad-digitArea;
   const module=(w-quiet*2)/95;

@@ -1,3 +1,18 @@
+# YasReady Publish v1.0.35 Release QA
+
+## Amazon Paperback Hard Mode
+
+- Run `npm run verify`; **260 automated tests must pass**, followed by static verification and Superman audit.
+- Confirm physical odd pages are right/recto and even pages are left/verso; printed folios must follow the same odd/right-even/left rule.
+- Confirm the selected trim/ink/paper page-count range and page-count-aware inside/outside/top/bottom margins are independently checked in Amazon Hard Mode.
+- Confirm the finished interior PDF audit blocks encryption, annotations/comments, forms, scripts, open actions, bookmarks, incorrect MediaBox/page count, non-300-DPI rendered pages, or oversized uploads.
+- Confirm uploaded full-wrap PDFs hard-block wrong dimensions, multiple pages, encryption, or interactive structures while transparency and extra page-box signatures remain review warnings for KDP Print Previewer.
+- Confirm Book 2-style legacy barcode replacement paints a 2.05 × 1.65 inch white knockout before placing the certified 2 × 1.2 inch vector EAN-13.
+- Confirm changing pagination, ISBN/barcode settings, interior PDF, cover PDF, metadata, or production settings invalidates the current print release token and prior KDP Print Previewer confirmation.
+- Confirm the only YasReady external print release confirmation is **KDP Print Previewer passed**. There is no physical-proof approval button or software blocker; physical proof inspection is author-owned.
+- Confirm migration from 1.0.34 invalidates print artifacts/Previewer confirmation but preserves the exact Kindle release proof and Story Lock manuscript data.
+- Sanity-check a previously accepted real full-wrap cover: warnings may appear for transparency/page-box/image-analysis limits, but the file must not be falsely rejected when geometry/security are valid.
+
 # YasReady Publish v1.0.34 Release QA
 
 ## v1.0.34 Barcode Brain

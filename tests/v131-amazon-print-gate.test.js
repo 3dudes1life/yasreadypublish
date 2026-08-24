@@ -19,9 +19,14 @@ function baseProject() {
 
 function readyFixture() {
   const project=baseProject();
-  const preview={ proofSignature:'proof-400', pages:Array.from({length:400},(_,i)=>({physicalNumber:i+1})) };
-  project.editions.paperback.lastPdfAudit={ ready:true,sha256:'interior-sha',proofSignature:'proof-400',pageCount:400,fileSize:1000 };
-  project.editions.paperback.lastCoverAudit={ ready:true,sha256:'cover-sha',proofSignature:'proof-400',pageCount:400,fileSize:500 };
+  const preview={ proofSignature:'proof-400', pages:Array.from({length:400},(_,i)=>({number:i+1,physicalNumber:i+1,side:(i+1)%2?'right':'left'})) };
+  project.editions.paperback.coverMode='build';
+  project.editions.paperback.lastPdfAudit={ ready:true,sha256:'interior-sha',proofSignature:'proof-400',pageCount:400,fileSize:1000,checks:[
+    {id:'pdf-header',status:'pass',message:'PDF 1.4'}, {id:'page-count',status:'pass',message:'400 pages'}, {id:'page-size',status:'pass',message:'6 × 9'},
+    {id:'page-images',status:'pass',message:'300 DPI'}, {id:'fonts',status:'pass',message:'No live font objects; rasterized at 300 DPI'}, {id:'encryption',status:'pass',message:'No encryption'}, {id:'annotations',status:'pass',message:'No annotations'},
+    {id:'interactive',status:'pass',message:'No forms/scripts/bookmarks'}, {id:'trim-marks',status:'pass',message:'No crop marks'}, {id:'file-size',status:'pass',message:'Within limit'}
+  ] };
+  project.editions.paperback.lastCoverAudit={ ready:true,sha256:'cover-sha',proofSignature:'proof-400',pageCount:400,fileSize:500,checks:[{id:'page-size',status:'pass',message:'exact geometry'}] };
   savePrintKdpMetadata(project,'paperback',{language:'en',publisher:'3Dudes1Life Creative',isbnMode:'kdp-free'});
   const preflight={ ready:true,summary:{errors:0,warnings:0,passes:12} };
   return {project,preview,preflight};
@@ -50,10 +55,8 @@ test('1.0.31 Amazon confirmations only count after visual proof and package lock
   setPrintExternalConfirmation(project,'paperback','kdpPrintPreviewApproved',true);
   gate=buildPrintReleaseGate({project,type:'paperback',preflight,preview});
   assert.equal(gate.kdpPublishReady,true);
-  assert.equal(gate.proofCertified,false);
-  setPrintExternalConfirmation(project,'paperback','physicalProofApproved',true);
-  gate=buildPrintReleaseGate({project,type:'paperback',preflight,preview});
   assert.equal(gate.proofCertified,true);
+  assert.throws(()=>setPrintExternalConfirmation(project,'paperback','physicalProofApproved',true),/Unknown print external confirmation/);
   project.editions.paperback.lastPdfAudit.sha256='changed';
   gate=buildPrintReleaseGate({project,type:'paperback',preflight,preview});
   assert.equal(gate.kdpPublishReady,false);
@@ -78,8 +81,8 @@ test('1.0.32 migration preserves Print Gate while invalidating stale Kindle rend
   project.editions.ebook.releaseGate={ visualProof:{token:'kindle-proof'}, freeze:{token:'kindle-freeze'}, external:{kindlePreviewerOpened:{value:true,token:'k'},enhancedTypesetting:{value:true,token:'k'}} };
   const before=JSON.stringify(project.manuscript);
   const migrated=migrateProject(project);
-  assert.equal(migrated.version,34);
-  assert.equal(migrated.appVersion,'1.0.34');
+  assert.equal(migrated.version,35);
+  assert.equal(migrated.appVersion,'1.0.35');
   assert.ok(migrated.editions.paperback.printGate);
   assert.equal(migrated.editions.ebook.releaseGate.visualProof, null);
   assert.equal(migrated.editions.ebook.releaseGate.freeze, null);

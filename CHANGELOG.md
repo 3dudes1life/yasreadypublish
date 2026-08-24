@@ -1,3 +1,11 @@
+## 1.0.35 — Amazon Paperback Hard Mode
+
+- Adds a finished-package Amazon paperback audit for page parity, page-count eligibility, page-count-aware margins, minimum text size, exact interior geometry, 300-DPI rendering, PDF security/interactive structures, cover geometry/bleed/spine eligibility, and barcode safety.
+- Uploaded full-wrap PDF inspection now checks one-page structure, MediaBox geometry, encryption, annotations/forms/XFA/scripts/open actions, font embedding/outlined text, raster-image signals, extra page boxes, file size, and object-stream limitations. Transparency/page-box signatures are review warnings rather than false hard blockers.
+- Barcode Brain replaces legacy placeholder codes with a 2.05 × 1.65 inch solid-white knockout before centering the certified 2 × 1.2 inch vector EAN-13.
+- Print Gate external confirmations are reduced to the exact KDP Print Previewer result for the current release token. Physical proof ordering/inspection is explicitly author-owned and is not required for YasReady Amazon-package certification.
+- Schema 35 invalidates stale paperback/hardcover pagination, PDF/cover audits, visual proof, freeze, and KDP Print Previewer confirmation while preserving Kindle release proof and Story Lock manuscript data.
+
 ## 1.0.34 — Barcode Brain
 
 - Added Story-Lock-safe ISBN/EAN-13 Barcode Brain for paperback and hardcover production.

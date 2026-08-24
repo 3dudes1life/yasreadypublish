@@ -1,5 +1,5 @@
 import { normalizePrintProduction } from './print-brain.js';
-import { barcodeRoundTrip, normalizeBarcodeBrain, normalizePrintIsbn } from './barcode-brain.js';
+import { barcodeRoundTrip, KDP_BARCODE_HEIGHT_IN, KDP_BARCODE_KNOCKOUT_HEIGHT_IN, KDP_BARCODE_KNOCKOUT_WIDTH_IN, KDP_BARCODE_SAFE_IN, KDP_BARCODE_WIDTH_IN, normalizeBarcodeBrain, normalizePrintIsbn } from './barcode-brain.js';
 
 export const COVER_BRAIN_VERSION = 1;
 export const COVER_DPI = 300;
@@ -115,8 +115,18 @@ export function coverGeometry({ type = 'paperback', production:productionInput =
     const backX = bleed;
     const spineX = backX + trimWidth;
     const frontX = spineX + spineWidth;
-    const safeInset = 0.25; // exceeds KDP's minimum front/back text inset.
-    const barcode = { width:2, height:1.2, x:backX + trimWidth - safeInset - 2, y:bleed + trimHeight - safeInset - 1.2 };
+    const safeInset = 0.25; // KDP minimum for non-bleed critical cover content.
+    const knockout = {
+      width:KDP_BARCODE_KNOCKOUT_WIDTH_IN, height:KDP_BARCODE_KNOCKOUT_HEIGHT_IN,
+      x:backX + trimWidth - KDP_BARCODE_SAFE_IN - KDP_BARCODE_KNOCKOUT_WIDTH_IN,
+      y:bleed + trimHeight - KDP_BARCODE_SAFE_IN - KDP_BARCODE_KNOCKOUT_HEIGHT_IN,
+    };
+    const barcode = {
+      width:KDP_BARCODE_WIDTH_IN, height:KDP_BARCODE_HEIGHT_IN,
+      x:knockout.x + (knockout.width-KDP_BARCODE_WIDTH_IN)/2,
+      y:knockout.y + (knockout.height-KDP_BARCODE_HEIGHT_IN)/2,
+      knockout,
+    };
     return {
       type:resolvedType, exact:true, production, cover, pageCount:pages, trimWidth, trimHeight,
       bleed, wrap:0, hinge:0, width, height, spineWidth,
@@ -143,7 +153,8 @@ export function coverGeometry({ type = 'paperback', production:productionInput =
   const backX = wrap;
   const spineX = backX + trimWidth;
   const frontX = spineX + spineWidth;
-  const barcode = { width:2, height:1.2, x:backX + trimWidth - hinge - 0.25 - 2, y:wrap + trimHeight - 0.76 - 1.2 };
+  const knockout = { width:KDP_BARCODE_KNOCKOUT_WIDTH_IN, height:KDP_BARCODE_KNOCKOUT_HEIGHT_IN, x:backX + trimWidth - hinge - KDP_BARCODE_SAFE_IN - KDP_BARCODE_KNOCKOUT_WIDTH_IN, y:wrap + trimHeight - 0.76 - KDP_BARCODE_KNOCKOUT_HEIGHT_IN };
+  const barcode = { width:KDP_BARCODE_WIDTH_IN, height:KDP_BARCODE_HEIGHT_IN, x:knockout.x + (knockout.width-KDP_BARCODE_WIDTH_IN)/2, y:knockout.y + (knockout.height-KDP_BARCODE_HEIGHT_IN)/2, knockout };
   return {
     type:resolvedType, exact, production, cover, pageCount:pages, trimWidth, trimHeight,
     bleed:0, wrap, hinge, width, height, spineWidth,

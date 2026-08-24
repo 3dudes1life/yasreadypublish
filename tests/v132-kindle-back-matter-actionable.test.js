@@ -102,8 +102,8 @@ test('1.0.32 migration repairs stale Chapter 56 inference without changing Story
   p.editions.ebook.releaseGate={version:2,visualProof:{token:'old'},freeze:{token:'old'},external:{kindlePreviewerOpened:true,enhancedTypesetting:true,kdpOnlinePreviewApproved:false}};
   const before=JSON.stringify(p.manuscript.blocks);
   const migrated=migrateProject(p);
-  assert.equal(migrated.version,34);
-  assert.equal(migrated.appVersion,'1.0.34');
+  assert.equal(migrated.version,35);
+  assert.equal(migrated.appVersion,'1.0.35');
   assert.equal(JSON.stringify(migrated.manuscript.blocks),before);
   assert.equal(migrated.bookBrain.inferredKinds['book-two'],undefined);
   assert.equal(effectiveStats(migrated).chapters,1);

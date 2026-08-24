@@ -44,8 +44,8 @@ test('1.0.19 migrates only the untouched 1.0.18 Tres Amigos spacing pair', () =>
   const legacy=v118Project();
   const before=JSON.stringify(legacy.manuscript.blocks);
   const migrated=migrateProject(legacy);
-  assert.equal(migrated.appVersion, '1.0.34');
-  assert.equal(migrated.version, 34);
+  assert.equal(migrated.appVersion, '1.0.35');
+  assert.equal(migrated.version, 35);
   assert.equal(migrated.editions.ebook.design.chapterTopEm,8.0);
   assert.equal(migrated.editions.ebook.design.chapterAfterEm,5.5);
   assert.equal(JSON.stringify(migrated.manuscript.blocks),before);

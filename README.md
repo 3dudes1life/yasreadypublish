@@ -1,12 +1,12 @@
-# YasReady Publish v1.0.34
+# YasReady Publish v1.0.35
 
-**Barcode Brain**
+**Amazon Paperback Hard Mode**
 
-1.0.34 closes the ISBN/barcode loop inside the physical-book workflow. YasReady validates the edition ISBN, generates and scanner-round-trips a standards-correct EAN-13, makes the optional Book-1-style final interior barcode page part of pagination before spine math, and can place the same certified code on the back cover. Existing full-wrap PDF covers can be stamped at download time; generated covers receive vector barcode commands directly in the production PDF. Standalone SVG and 300-PPI PNG barcode assets are available for outside designers. Story Lock manuscript text is never rewritten.
+Version 1.0.35 turns the physical-book release path into an Amazon-aware package audit. The exact interior, cover, page count, manufacturing settings, ISBN/barcode, and KDP metadata are checked together before YasReady asks for the one external production confirmation it cannot perform itself: KDP Print Previewer. Physical proof ordering/inspection is deliberately the author's responsibility, not a software gate.
 
-# YasReady Publish
+For existing full-wrap covers, Barcode Brain now places the 2 × 1.2 inch certified EAN-13 over a larger 2.05 × 1.65 inch solid-white knockout. This is designed to replace an old/placeholder barcode block cleanly—including its ISBN label and human-readable digits—without rebuilding the cover artwork.
 
-**Current release: v1.0.34 — Barcode Brain**
+**Current release: v1.0.35 — Amazon Paperback Hard Mode**
 
 ## v1.0.30 — Cover Brain + Kindle E21018 Fix
 

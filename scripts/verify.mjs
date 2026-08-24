@@ -7,7 +7,7 @@ const required = [
   'src/lib/navigator-model.js', 'src/lib/theme-store.js', 'src/lib/preflight-model.js', 'src/lib/print-export.js',
   'src/lib/ebook-model.js', 'src/lib/ebook-preflight.js', 'src/lib/epub-export.js', 'src/lib/structure-overrides.js',
   'src/lib/print-toc.js', 'src/lib/project-backup.js', 'src/lib/readiness-model.js', 'src/lib/spacing-policy.js',
-  'src/lib/editions.js', 'src/lib/print-release-gate.js', 'src/lib/print-matter.js', 'src/lib/print-cover-upload.js', 'src/lib/barcode-brain.js', 'src/lib/barcode-cover-stamp.js', 'src/lib/proof-integrity.js', 'src/lib/presentation-overrides.js', 'src/lib/semantic-styles.js', 'src/lib/print-brain.js', 'src/lib/print-pdf.js', 'src/lib/cover-brain.js', 'src/lib/cover-pdf.js',
+  'src/lib/editions.js', 'src/lib/print-release-gate.js', 'src/lib/amazon-print-hard-mode.js', 'src/lib/print-matter.js', 'src/lib/print-cover-upload.js', 'src/lib/barcode-brain.js', 'src/lib/barcode-cover-stamp.js', 'src/lib/proof-integrity.js', 'src/lib/presentation-overrides.js', 'src/lib/semantic-styles.js', 'src/lib/print-brain.js', 'src/lib/print-pdf.js', 'src/lib/cover-brain.js', 'src/lib/cover-pdf.js',
   'src/lib/kindle-preview-model.js', 'src/lib/kindle-quality.js', 'src/lib/kindle-intelligence.js',
   'src/lib/kindle-production-flow.js', 'src/lib/epub-audit.js', 'src/lib/ebook-theme-studio.js', 'src/lib/kindle-release-gate.js', 'src/lib/bug-log.js', 'src/lib/book-brain.js', 'public/vendor/jszip.min.js',
   'STORY-LOCK-SPEC.md', 'KDP-PREFLIGHT.md', 'EPUB-PREFLIGHT.md', 'KINDLE-STANDARDS.md', 'RELEASE-QA.md',
@@ -23,7 +23,7 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
 }
 const main = readFileSync('src/main.js', 'utf8');
 for (const marker of [
-  "const VERSION = '1.0.34'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
+  "const VERSION = '1.0.35'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
   'Amazon KDP · Reflowable EPUB 3', 'Kindle Preview Studio', 'Adjust Layout', 'preview-studio-grid-v110',
   'Kindle Pro consistency scan', '3-View Torture Test', '11 pt reference', 'Semantic Style Palette', 'Content style',
   'saveEbookSemanticStyles', 'Kindle Intelligence', 'Compare Chapters', 'compareKindleChaptersButton', 'Undo', 'Redo',
@@ -52,8 +52,8 @@ for (const dynamicBinding of [
 }
 
 const project = readFileSync('src/lib/project.js', 'utf8');
-if (!project.includes("appVersion: '1.0.34'") || !project.includes('version: 34') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
-  throw new Error('Project app version was not migrated to 1.0.34 with Barcode Brain schema 34 state.');
+if (!project.includes("appVersion: '1.0.35'") || !project.includes('version: 35') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
+  throw new Error('Project app version was not migrated to 1.0.35 with Amazon Paperback Hard Mode schema 35 state.');
 }
 const editions = readFileSync('src/lib/editions.js', 'utf8');
 if (!editions.includes('reviewDecisions:')) throw new Error('Edition normalization does not preserve Kindle review decisions.');
@@ -125,7 +125,7 @@ const printBrain = readFileSync('src/lib/print-brain.js', 'utf8');
 for (const marker of ['PRINT_BRAIN_VERSION','printTrimOptions','normalizePrintProduction','printEligibility','applyPrintBrainToDesign']) {
   if (!printBrain.includes(marker)) throw new Error(`Print Brain engine is missing: ${marker}`);
 }
-for (const marker of ['PRINT BRAIN · v1.0.34','Use Recommended','Save & style the book','data-quality-action','PRINT PDF HARD MODE · v1.0.29','Build ${escapeHtml(editionLabel(currentPrintEditionType()))} PDF']) {
+for (const marker of ['PRINT BRAIN · v1.0.35','Use Recommended','Save & style the book','data-quality-action','PRINT PDF HARD MODE · v1.0.29','Build ${escapeHtml(editionLabel(currentPrintEditionType()))} PDF']) {
   if (!main.includes(marker)) throw new Error(`1.0.28 Print Brain / actionable QA UI is missing: ${marker}`);
 }
 if (!readFileSync('src/lib/book-brain.js','utf8').includes('outsideKnownBody')) throw new Error('1.0.28 Book Brain boundary guard is missing.');
@@ -137,7 +137,7 @@ const coverBrain = readFileSync('src/lib/cover-brain.js', 'utf8');
 for (const marker of ['coverGeometry','coverBrainChecks','paperbackSpineWidth','hardcoverGeometryConfirmed','0.0025','0.51','0.4','0.635']) if (!coverBrain.includes(marker)) throw new Error(`1.0.30 Cover Brain is missing: ${marker}`);
 const coverPdf = readFileSync('src/lib/cover-pdf.js', 'utf8');
 for (const marker of ['renderCoverPdf','buildRasterPdf','auditPrintPdfBytes','AMAZON BARCODE RESERVED']) if (!coverPdf.includes(marker)) throw new Error(`1.0.30 Cover PDF pipeline is missing: ${marker}`);
-for (const marker of ['COVER BRAIN + BARCODE BRAIN · v1.0.34','buildCoverPdf','Save Cover Brain']) if (!main.includes(marker)) throw new Error(`1.0.30 Cover Brain UI is missing: ${marker}`);
+for (const marker of ['COVER BRAIN + BARCODE BRAIN · v1.0.35','buildCoverPdf','Save Cover Brain']) if (!main.includes(marker)) throw new Error(`1.0.30 Cover Brain UI is missing: ${marker}`);
 for (const marker of ['renderBackMatterFeatureSection','matter-about-authors','matter-join-journey','sanitizeKindleProductionXhtml','sanitizeKindleProductionCss']) {
   if (!epub.includes(marker)) throw new Error(`1.0.32 Kindle back-matter/package repair is missing: ${marker}`);
 }
@@ -153,16 +153,22 @@ const barcodeStamp = readFileSync('src/lib/barcode-cover-stamp.js', 'utf8');
 for (const barcodeMarker of ['stampBarcodeOnUploadedCoverPdf','PDF_LIB_ESM_URL','pdf-lib@1.17.1']) {
   if (!barcodeStamp.includes(barcodeMarker)) throw new Error(`1.0.34 uploaded-cover barcode stamping is missing: ${barcodeMarker}`);
 }
-for (const barcodeMarker of ['BARCODE BRAIN · v1.0.34','printBrainIncludeInteriorBarcode','printBrainCoverBarcode','downloadBarcodeSvg','downloadBarcodePng','Stamp barcode + download KDP cover PDF']) {
+for (const barcodeMarker of ['BARCODE BRAIN · v1.0.35','printBrainIncludeInteriorBarcode','printBrainCoverBarcode','downloadBarcodeSvg','downloadBarcodePng','Stamp barcode + download KDP cover PDF']) {
   if (!main.includes(barcodeMarker)) throw new Error(`1.0.34 Barcode Brain UI is missing: ${barcodeMarker}`);
 }
-console.log('YasReady Publish v1.0.34 static verification passed.');
+console.log('YasReady Publish v1.0.35 static verification passed.');
 
 
+const amazonPrintHardMode = readFileSync('src/lib/amazon-print-hard-mode.js', 'utf8');
+for (const marker of ['runAmazonPrintHardMode','amazon-page-range','amazon-inside-margin','amazon-outside-margins','amazon-physical-parity','amazon-interior-security','amazon-interior-fonts','amazon-cover-geometry','amazon-cover-images','amazon-barcode-geometry','amazon-no-physical-proof']) {
+  if (!amazonPrintHardMode.includes(marker)) throw new Error(`1.0.35 Amazon Paperback Hard Mode is missing: ${marker}`);
+}
 const printGate = readFileSync('src/lib/print-release-gate.js', 'utf8');
-for (const marker of ['buildPrintReleaseGate','printReleaseToken','freezePrintRelease','setPrintExternalConfirmation','printReleaseReport','physicalProofApproved']) {
+for (const marker of ['buildPrintReleaseGate','printReleaseToken','freezePrintRelease','setPrintExternalConfirmation','printReleaseReport','physicalProofResponsibility']) {
   if (!printGate.includes(marker)) throw new Error(`Amazon Print Gate is missing: ${marker}`);
 }
-for (const marker of ['AMAZON PRINT GATE · v1.0.34','Ready for KDP Print Previewer','Confirm KDP Print Previewer','Physical proof approved','Download Print Gate report','NEXT PRINT ACTION']) {
+if (main.includes('id="confirmPhysicalProof"') || main.includes('Physical proof approved')) throw new Error('1.0.35 must not make physical proof a YasReady release-gate control.');
+if (!printGate.includes("PRINT_EXTERNAL_CHECKS = Object.freeze(['kdpPrintPreviewApproved'])")) throw new Error('1.0.35 external print gate must contain only KDP Print Previewer confirmation.');
+for (const marker of ['AMAZON PRINT GATE · v1.0.35','Amazon Paperback Hard Mode','Ready for KDP Print Previewer','Confirm KDP Print Previewer','Download Print Gate report','NEXT PRINT ACTION']) {
   if (!main.includes(marker)) throw new Error(`1.0.32 Amazon Print Gate UI is missing: ${marker}`);
 }
