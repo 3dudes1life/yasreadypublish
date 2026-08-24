@@ -50,6 +50,7 @@ import {
   setEbookEditionDesign, setPrintEditionDesign, invalidateAllEditionProofs, invalidateEditionProof,
   getEbookCover, setEbookCover, clearEbookCover,
 } from './lib/editions.js';
+import { capturePrintSetupState, planPrintSetupInvalidation } from './lib/print-state-invalidation.js';
 import {
   clearBlockPresentationOverride, countPresentationOverrides, ensurePresentationOverrides,
   getBlockPresentationOverride, setBlockPresentationOverride,
@@ -2527,6 +2528,7 @@ async function savePrintBrainSetup(useRecommended = false) {
   const type = currentPrintEditionType();
   const production = useRecommended ? { ...recommendedPrintProduction(type), configured:true } : readPrintBrainForm(type);
   const edition = state.project.editions[type];
+  const setupBefore = capturePrintSetupState(edition, type);
   const coverMode = readPrintCoverMode();
   const isbnMode = document.querySelector('#printBrainIsbnMode')?.value === 'own' ? 'own' : 'kdp-free';
   const isbnRaw = document.querySelector('#printBrainIsbn')?.value || '';
@@ -2565,14 +2567,24 @@ async function savePrintBrainSetup(useRecommended = false) {
   savePrintKdpMetadata(state.project, type, { ...(edition.kdpMetadata || {}), isbnMode, isbn:normalizedIsbn.valid ? normalizedIsbn.digits : '' });
   edition.design = applyPrintBrainToDesign(edition.design, production, type, Number(edition.lastPageCount || 0));
   state.project.design.print = { ...edition.design };
+  const setupAfter = capturePrintSetupState(edition, type);
+  const setupInvalidation = planPrintSetupInvalidation(setupBefore, setupAfter);
   edition.lastPreflight = null;
-  edition.lastPdfAudit = null;
-  edition.lastCoverAudit = null;
-  state.printPdfReport = null;
-  state.coverPdfReport = null;
-  edition.lastPageCount = null;
-  edition.lastBuiltAt = null;
-  state.preview = null;
+
+  if (setupInvalidation.interiorChanged) {
+    // Pagination-affecting changes invalidate the complete physical package.
+    edition.lastPdfAudit = null;
+    edition.lastCoverAudit = null;
+    state.printPdfReport = null;
+    state.coverPdfReport = null;
+    edition.lastPageCount = null;
+    edition.lastBuiltAt = null;
+    state.preview = null;
+  } else if (setupInvalidation.coverChanged) {
+    // Cover-only changes preserve the finished interior PDF, preview and page count.
+    edition.lastCoverAudit = null;
+    state.coverPdfReport = null;
+  }
   state.finalCheck = null;
   state.project.updatedAt = new Date().toISOString();
   state.editionMessage = `${editionLabel(type)} Print Brain + Barcode Brain saved. YasReady will recalculate pagination, the final ISBN page, gutter, and spine as one physical package.`;

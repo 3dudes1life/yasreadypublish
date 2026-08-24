@@ -21,14 +21,14 @@ function maxBlankRun(pages = []) {
   return { count:best, start:bestStart, end:bestStart ? bestStart + best - 1 : null };
 }
 
-function pageParityReport(pages = []) {
+export function pageParityReport(pages = []) {
   const physical = [];
   const folios = [];
   pages.forEach((page, index) => {
     const physicalNumber = index + 1;
     const expectedSide = physicalNumber % 2 ? 'right' : 'left';
     if (Number(page?.number) !== physicalNumber || page?.side !== expectedSide) physical.push({ physicalNumber, actualNumber:page?.number, expectedSide, actualSide:page?.side });
-    if (Number.isFinite(Number(page?.bookPageNumber))) {
+    if (page?.bookPageNumber != null && Number.isFinite(Number(page.bookPageNumber))) {
       const folio = Number(page.bookPageNumber);
       const folioSide = folio % 2 ? 'right' : 'left';
       if (page.side !== folioSide) folios.push({ physicalNumber, folio, side:page.side, expectedSide:folioSide });
