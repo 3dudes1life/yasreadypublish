@@ -369,6 +369,53 @@ function renderTresAmigosMatterFlow(section, project, design, previewMode = fals
   return `<div class="matter-clean matter-${escapeXml(section.role || section.type)} matter-book1-${escapeXml(role)}">${out.join('\n')}</div>`;
 }
 
+function backMatterHeadingText(role = '') {
+  if (role === 'about-authors') return 'About the Authors';
+  if (role === 'join-journey') return 'Join the Journey!';
+  return '';
+}
+
+function renderBackMatterFeatureSection(section, project, design, previewMode = false) {
+  const role = section.role || 'back';
+  const blocks = section.blocks || [];
+  const out = [];
+  const expectedHeading = backMatterHeadingText(role);
+  const explicitHeading = blocks.find((block) => role === 'about-authors'
+    ? /^about the author(?:s)?\b/i.test(String(block.text || '').trim())
+    : /^join the journey\b/i.test(String(block.text || '').trim()));
+
+  if (expectedHeading && !explicitHeading) {
+    out.push(`<h1 class="matter-back-heading" data-yrp-generated="${escapeXml(role)}">${escapeXml(expectedHeading)}</h1>`);
+  }
+
+  let meaningfulIndex = 0;
+  for (const block of blocks) {
+    if (block.kind === 'blank') continue;
+    if (block.mediaRefs?.length) {
+      out.push(renderBlock(block, { blankMode:'collapse', sectionType:section.type, design, project, previewMode }));
+      continue;
+    }
+    const text = String(block.text || '').trim();
+    if (!text) continue;
+    const id = escapeXml(block.id || '');
+    const attrs = previewAttrs(block, previewMode);
+    const inspectClass = previewMode ? ' yrp-inspectable' : '';
+    const overrideStyle = presentationStyle(project, block, section.type);
+    if ((role === 'about-authors' && /^about the author(?:s)?\b/i.test(text)) || (role === 'join-journey' && /^join the journey\b/i.test(text))) {
+      out.push(`<h1 id="${id}" class="matter-back-heading${inspectClass}"${attrs}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${inlineRuns(block, project)}</h1>`);
+      continue;
+    }
+    const classes = ['matter-back-paragraph'];
+    if (role === 'about-authors' && meaningfulIndex === 0 && /^[A-Z][A-Z\s,.'&-]{3,32}:?$/.test(text)) classes.push('matter-back-kicker');
+    if (role === 'join-journey' && meaningfulIndex === 0 && text.length <= 80) classes.push('matter-back-subhead');
+    if (/^(?:follow|visit|tag us|use hashtag|follow their world|follow our world)\b/i.test(text)) classes.push('matter-back-cta');
+    if (/^(?:this series|this isn(?:’|'|)t|love doesn(?:’|'|)t|finding love)\b/i.test(text)) classes.push('matter-back-emphasis');
+    out.push(`<p id="${id}" class="${classes.join(' ')}${inspectClass}"${attrs}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${inlineRuns(block, project)}</p>`);
+    meaningfulIndex += 1;
+  }
+  return `<div class="matter-clean matter-back-feature matter-${escapeXml(role)}">${out.join('\n')}</div>`;
+}
+
 function renderCleanMatterSection(section, project, design, previewMode = false) {
   const blocks = section.blocks || [];
   const book1Match = usesTresAmigosMatterMatch(design);
@@ -400,6 +447,9 @@ function renderCleanMatterSection(section, project, design, previewMode = false)
   }
   if (book1Match && section.role === 'dedication') {
     return renderTresAmigosMatterFlow(section, project, design, previewMode, 'dedication');
+  }
+  if (section.role === 'about-authors' || section.role === 'join-journey') {
+    return renderBackMatterFeatureSection(section, project, design, previewMode);
   }
 
   const out = [];
@@ -599,6 +649,15 @@ ${previewMode ? '.matter-source-blank { display:none; }' : ''}
 .matter-book1-dedication .matter-dedication-lead { margin-bottom:2em; font-size:1em; line-height:1.35; font-weight:400; }
 .matter-book1-dedication strong, .matter-book1-dedication .matter-dedication-lead strong { font-weight:400; }
 ${previewMode ? 'body.front p.blank, body.back p.blank { display:none; min-height:0; height:0; margin:0; padding:0; }' : ''}
+.matter-back-feature { max-width:32em; margin:0 auto; padding-top:4.8em; text-indent:0; }
+.matter-back-heading { margin:0 0 2.1em; text-align:center; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif; font-size:1.42em; line-height:1.18; font-weight:700; letter-spacing:.02em; }
+.matter-back-paragraph { margin:0 0 .95em; text-indent:0; line-height:1.42; }
+.matter-about-authors .matter-back-paragraph { text-align:left; }
+.matter-about-authors .matter-back-kicker { margin:0 0 .9em; text-align:center; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif; font-size:1.06em; letter-spacing:.08em; font-weight:500; }
+.matter-about-authors .matter-back-emphasis { text-align:center; font-style:italic; }
+.matter-join-journey .matter-back-subhead { margin-top:.35em; margin-bottom:1.35em; text-align:center; font-weight:700; }
+.matter-back-cta { margin-top:1.15em; font-weight:700; }
+.matter-back-feature a { text-decoration:underline; }
 p.scene-break { margin:${design.sceneBreakSpaceEm}em 0; text-indent:0; text-align:center; }
 ${previewMode ? '.scene-source-hidden { display:none; }' : ''}
 .scene-ornament { letter-spacing:.12em; }
@@ -792,6 +851,23 @@ function dataUrlBytes(dataUrl = '') {
   return bytes;
 }
 
+function sanitizeKindleProductionCss(css = '') {
+  return String(css || '')
+    .replace(/(?:^|;)\s*display\s*:\s*none\s*;?/gim, ';')
+    .replace(/(?:^|;)\s*visibility\s*:\s*hidden\s*;?/gim, ';');
+}
+
+function sanitizeKindleProductionXhtml(xhtml = '') {
+  return String(xhtml || '')
+    .replace(/\s+hidden(?:=(?:"[^"]*"|'[^']*'|[^\s>]+))?/gi, '')
+    .replace(/\s+style=("([^"]*)"|'([^']*)')/gi, (match, quoted, dbl, single) => {
+      const raw = dbl ?? single ?? '';
+      const cleanStyle = raw.split(';').map((part) => part.trim()).filter(Boolean)
+        .filter((part) => !/^display\s*:\s*none$/i.test(part) && !/^visibility\s*:\s*hidden$/i.test(part)).join(';');
+      return cleanStyle ? ` style="${escapeXml(cleanStyle)}"` : '';
+    });
+}
+
 export function buildEpubPackageData({ project } = {}) {
   if (!project) throw new Error('A publishing project is required.');
   const design = normalizeEbookDesign(project.editions?.ebook?.design || project.design?.ebook || {});
@@ -806,11 +882,11 @@ export function buildEpubPackageData({ project } = {}) {
   const files = new Map();
   files.set('mimetype', 'application/epub+zip');
   files.set('META-INF/container.xml', `<?xml version="1.0" encoding="UTF-8"?>\n<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/package.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`);
-  files.set('OEBPS/styles.css', stylesheet(design));
+  files.set('OEBPS/styles.css', sanitizeKindleProductionCss(stylesheet(design)));
   files.set('OEBPS/nav.xhtml', navXhtml(project, design, toc, sections));
-  if (design.visibleToc) files.set('OEBPS/text/contents.xhtml', visibleTocXhtml(project, design, toc));
+  if (design.visibleToc) files.set('OEBPS/text/contents.xhtml', sanitizeKindleProductionXhtml(visibleTocXhtml(project, design, toc)));
   files.set('OEBPS/toc.ncx', ncx(project, toc));
-  for (const section of sections) files.set(`OEBPS/${section.href}`, sectionXhtml(section, project, design));
+  for (const section of sections) files.set(`OEBPS/${section.href}`, sanitizeKindleProductionXhtml(sectionXhtml(section, project, design)));
   if (cover) files.set(`OEBPS/${cover.href}`, dataUrlBytes(cover.dataUrl));
   for (const asset of manuscriptMedia) {
     if (asset?.dataUrl) files.set(`OEBPS/${asset.href}`, dataUrlBytes(asset.dataUrl));

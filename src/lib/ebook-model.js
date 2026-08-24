@@ -121,7 +121,11 @@ export function ebookMatterRole(section = {}) {
     if (section.ordinal === 1) return 'title';
     return 'front';
   }
-  if (section.type === 'back') return 'back';
+  if (section.type === 'back') {
+    if (/^about the author(?:s)?\b/i.test(text)) return 'about-authors';
+    if (/^join the journey\b/i.test(text)) return 'join-journey';
+    return 'back';
+  }
   return 'matter';
 }
 
@@ -182,6 +186,8 @@ export function buildEbookSections(project) {
     section.endBlockIndex = section.blocks.at(-1)?.index ?? null;
     section.wordCount = section.blocks.reduce((sum, block) => sum + (block.wordCount || 0), 0);
     section.role = section.roleHint || ebookMatterRole(section);
+    if (section.role === 'about-authors' && !section.blocks.some((block) => /^about the author(?:s)?\b/i.test(String(block.text || '').trim()))) section.title = 'About the Authors';
+    if (section.role === 'join-journey') section.title = 'Join the Journey';
   }
 
   return { sections, structure };

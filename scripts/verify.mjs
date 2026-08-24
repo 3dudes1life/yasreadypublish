@@ -23,7 +23,7 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
 }
 const main = readFileSync('src/main.js', 'utf8');
 for (const marker of [
-  "const VERSION = '1.0.31'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
+  "const VERSION = '1.0.32'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
   'Amazon KDP · Reflowable EPUB 3', 'Kindle Preview Studio', 'Adjust Layout', 'preview-studio-grid-v110',
   'Kindle Pro consistency scan', '3-View Torture Test', '11 pt reference', 'Semantic Style Palette', 'Content style',
   'saveEbookSemanticStyles', 'Kindle Intelligence', 'Compare Chapters', 'compareKindleChaptersButton', 'Undo', 'Redo',
@@ -52,8 +52,8 @@ for (const dynamicBinding of [
 }
 
 const project = readFileSync('src/lib/project.js', 'utf8');
-if (!project.includes("appVersion: '1.0.31'") || !project.includes('version: 31') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
-  throw new Error('Project app version was not migrated to 1.0.31 with Amazon Print Gate schema 31 state.');
+if (!project.includes("appVersion: '1.0.32'") || !project.includes('version: 32') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
+  throw new Error('Project app version was not migrated to 1.0.32 with Amazon Print Gate schema 32 state.');
 }
 const editions = readFileSync('src/lib/editions.js', 'utf8');
 if (!editions.includes('reviewDecisions:')) throw new Error('Edition normalization does not preserve Kindle review decisions.');
@@ -138,13 +138,20 @@ for (const marker of ['coverGeometry','coverBrainChecks','paperbackSpineWidth','
 const coverPdf = readFileSync('src/lib/cover-pdf.js', 'utf8');
 for (const marker of ['renderCoverPdf','buildRasterPdf','auditPrintPdfBytes','AMAZON BARCODE RESERVED']) if (!coverPdf.includes(marker)) throw new Error(`1.0.30 Cover PDF pipeline is missing: ${marker}`);
 for (const marker of ['COVER BRAIN · v1.0.30','buildCoverPdf','Save Cover Brain']) if (!main.includes(marker)) throw new Error(`1.0.30 Cover Brain UI is missing: ${marker}`);
-console.log('YasReady Publish v1.0.31 static verification passed.');
+for (const marker of ['renderBackMatterFeatureSection','matter-about-authors','matter-join-journey','sanitizeKindleProductionXhtml','sanitizeKindleProductionCss']) {
+  if (!epub.includes(marker)) throw new Error(`1.0.32 Kindle back-matter/package repair is missing: ${marker}`);
+}
+if (!main.includes('Rebuild package') || !main.includes("data-quality-action=\"package-rebuild\"")) throw new Error('1.0.32 actionable Kindle package QA is missing.');
+const bookBrain = readFileSync('src/lib/book-brain.js', 'utf8');
+for (const marker of ['BOOK_BRAIN_VERSION = 2','about-authors','join-journey','backMatterInterpretations']) if (!bookBrain.includes(marker)) throw new Error(`1.0.32 Book Brain back-matter marker missing: ${marker}`);
+
+console.log('YasReady Publish v1.0.32 static verification passed.');
 
 
 const printGate = readFileSync('src/lib/print-release-gate.js', 'utf8');
 for (const marker of ['buildPrintReleaseGate','printReleaseToken','freezePrintRelease','setPrintExternalConfirmation','printReleaseReport','physicalProofApproved']) {
   if (!printGate.includes(marker)) throw new Error(`Amazon Print Gate is missing: ${marker}`);
 }
-for (const marker of ['AMAZON PRINT GATE · v1.0.31','Ready for KDP Print Previewer','Confirm KDP Print Previewer','Physical proof approved','Download Print Gate report','NEXT PRINT ACTION']) {
-  if (!main.includes(marker)) throw new Error(`1.0.31 Amazon Print Gate UI is missing: ${marker}`);
+for (const marker of ['AMAZON PRINT GATE · v1.0.32','Ready for KDP Print Previewer','Confirm KDP Print Previewer','Physical proof approved','Download Print Gate report','NEXT PRINT ACTION']) {
+  if (!main.includes(marker)) throw new Error(`1.0.32 Amazon Print Gate UI is missing: ${marker}`);
 }

@@ -1,3 +1,15 @@
+## 1.0.32 — Kindle Back Matter + Actionable QA
+
+- Book Brain v2 now recognizes trailing **About the Authors** and **Join the Journey** pages from content/layout cues even when Word headings are missing or mis-styled.
+- Prevents a back-matter lead such as `BOOK TWO` from becoming a phantom chapter when the locked source already has trusted chapter boundaries.
+- Supports either back-matter order: About Authors → Join the Journey or Join the Journey → About Authors.
+- Adds dedicated back-matter EPUB renderers that preserve every source paragraph separately instead of merging author bios and reader calls-to-action into generic matter flow.
+- Generates a presentation-only **About the Authors** display heading when the source heading was lost; Story Lock manuscript text is not changed.
+- Production EPUB packaging now sanitizes hidden attributes and hidden-content CSS before files are written, while the Amazon audit still blocks any hidden content that somehow survives.
+- Kindle QA hidden-content failures now expose **Rebuild package** instead of a dead red error.
+- Kindle quality/intelligence caches are app-version and Book-Brain-analysis aware so stale findings cannot survive a renderer/semantic-engine upgrade.
+- Migration reanalyzes Book Brain, clears stale ebook package/proof confirmations affected by the renderer change, and preserves the 1.0.31 Amazon Print Gate and Story-Locked manuscript.
+
 ## 1.0.31 — Amazon Print Gate
 
 - Added release-token binding across the final interior PDF, cover PDF, page count, print settings, and KDP handoff metadata.

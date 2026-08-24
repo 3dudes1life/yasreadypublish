@@ -1,12 +1,19 @@
-# YasReady Publish v1.0.31
+# YasReady Publish v1.0.32
+
+
+## Kindle Back Matter + Actionable QA
+
+1.0.32 fixes the real Book 2 back-matter failure surfaced in Preview Studio. Book Brain v2 treats author-bio and reader-CTA pages as semantic back matter instead of allowing a stylized line such as `BOOK TWO` to become a phantom chapter. About the Authors and Join the Journey now keep their source paragraph boundaries and receive dedicated reflowable Kindle presentation. If an About-the-Authors heading was lost in the DOCX structure, YasReady may generate that heading in the presentation layer without modifying Story Lock source text.
+
+The Kindle package audit is now actionable: production EPUB files are sanitized against hidden-content CSS/markup before packaging, and any surviving Amazon E21018-style finding offers **Rebuild package**. Quality caches include the running app version and current Book Brain analysis so stale red findings cannot persist across this upgrade. The 1.0.31 Amazon Print Gate remains intact.
 
 ## Amazon Print Gate
 
-1.0.31 binds the exact finished interior PDF, cover PDF, final page count, print-production settings, KDP handoff metadata, and manual proof state into one release token. YasReady now stops at **Ready for KDP Print Previewer** until the author confirms Amazon's own Print Previewer passed for that exact package. A physical proof can then be marked approved for YasReady proof certification. Kindle state from 1.0.30 is preserved during migration.
+1.0.31 binds the exact finished interior PDF, cover PDF, final page count, print-production settings, KDP handoff metadata, and manual proof state into one release token. YasReady now stops at **Ready for KDP Print Previewer** until the author confirms Amazon's own Print Previewer passed for that exact package. A physical proof can then be marked approved for YasReady proof certification. The Print Gate itself is preserved through 1.0.32; Kindle visual/external confirmations are deliberately invalidated once because the 1.0.32 EPUB renderer and Book Brain semantics changed.
 
 # YasReady Publish
 
-**Current release: v1.0.30 — Cover Brain + Kindle E21018 Fix**
+**Current release: v1.0.32 — Kindle Back Matter + Actionable QA**
 
 ## v1.0.30 — Cover Brain + Kindle E21018 Fix
 

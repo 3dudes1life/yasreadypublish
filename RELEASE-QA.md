@@ -1,3 +1,15 @@
+# YasReady Publish v1.0.32 Release QA
+
+- Run `npm run verify`; **239 automated tests must pass**, followed by static verification and Superman audit.
+- Reproduce a trailing Heading-1-style `BOOK TWO` author page and confirm it remains back matter rather than becoming an extra chapter.
+- Confirm both supported orderings—About the Authors → Join the Journey and Join the Journey → About the Authors—produce separate semantic back-matter sections.
+- Confirm a missing About-the-Authors source heading is supplied only as generated presentation; Story Lock manuscript blocks remain byte-identical through migration.
+- Confirm author-bio and Join-the-Journey source paragraphs remain separate XHTML paragraphs and preserve inline bold/italic/link runs.
+- Confirm production EPUB CSS/XHTML contain no `display:none`, `visibility:hidden`, hidden attributes, or hidden source-marker helpers.
+- Confirm a package hidden-content finding exposes **Rebuild package** and a rebuild clears/recalculates the current package audit rather than leaving a dead error.
+- Confirm migration from 1.0.31 reanalyzes Book Brain and invalidates stale Kindle visual/Previewer confirmations because rendered EPUB output changed, while preserving Story Lock and the Amazon Print Gate.
+- Export the real Book 2 EPUB and test the exact file in Kindle Previewer; external Amazon conversion remains the authoritative final confirmation.
+
 # YasReady Publish v1.0.31 Release QA
 
 Amazon Print Gate requires: current KDP print preflight, current audited interior PDF, current audited cover PDF built for the same final page count/proof, valid KDP handoff metadata, a manual YasReady visual proof, then a locked release token. Only then can the author confirm KDP Print Previewer. Physical-proof approval is tracked separately as the final recommended proof-certification step.

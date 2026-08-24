@@ -94,8 +94,8 @@ test('1.0.22 invalidates stale ebook proof/freeze state without changing manuscr
   const raw=rawProject();
   const before=JSON.stringify(raw.manuscript.blocks);
   const p=migrateProject(raw);
-  assert.equal(p.appVersion, '1.0.31');
-  assert.equal(p.version, 31);
+  assert.equal(p.appVersion, '1.0.32');
+  assert.equal(p.version, 32);
   assert.equal(p.editions.ebook.lastPreflight,null);
   assert.equal(p.editions.ebook.releaseGate.visualProof,null);
   assert.equal(p.editions.ebook.releaseGate.freeze,null);

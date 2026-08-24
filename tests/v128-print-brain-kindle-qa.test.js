@@ -44,8 +44,8 @@ test('1.0.28 migration reanalyzes stale Book Brain inferred chapter state withou
   p.bookBrain={ reviewDecisions:{}, inferredKinds:{back2:'chapter-title'}, semanticRoles:{}, pageStarts:{}, interpretations:[], summary:{} };
   const before=JSON.stringify(p.manuscript.blocks);
   const migrated=migrateProject(p);
-  assert.equal(migrated.version, 31);
-  assert.equal(migrated.appVersion,'1.0.31');
+  assert.equal(migrated.version, 32);
+  assert.equal(migrated.appVersion,'1.0.32');
   assert.equal(JSON.stringify(migrated.manuscript.blocks),before);
   assert.equal(migrated.bookBrain.inferredKinds.back2,undefined);
   assert.equal(effectiveStats(migrated).chapters,2);
@@ -123,8 +123,8 @@ test('1.0.30 migration is stable on reload and preserves current release-gate co
     external:{kindlePreviewerOpened:true,enhancedTypesetting:true,kdpOnlinePreviewApproved:false},
   };
   const migrated=migrateProject(p);
-  assert.equal(migrated.editions.ebook.releaseGate.visualProof?.token,'proof-token');
-  assert.equal(migrated.editions.ebook.releaseGate.freeze?.token,'freeze-token');
-  assert.equal(migrated.editions.ebook.releaseGate.external?.kindlePreviewerOpened,true);
-  assert.equal(migrated.editions.ebook.releaseGate.external?.enhancedTypesetting,true);
+  assert.equal(migrated.editions.ebook.releaseGate.visualProof, null);
+  assert.equal(migrated.editions.ebook.releaseGate.freeze, null);
+  assert.equal(migrated.editions.ebook.releaseGate.external?.kindlePreviewerOpened,false);
+  assert.equal(migrated.editions.ebook.releaseGate.external?.enhancedTypesetting,false);
 });

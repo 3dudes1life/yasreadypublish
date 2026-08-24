@@ -18,8 +18,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   const project = {
     id: crypto.randomUUID(),
-    version: 31,
-    appVersion: '1.0.31',
+    version: 32,
+    appVersion: '1.0.32',
     title: baseName,
     author: '',
     createdAt: now,
@@ -75,7 +75,7 @@ export function migrateProject(project) {
   if (!project) return project;
   const oldVersion = Number(project.version) || 1;
   const priorAppVersion = String(project.appVersion || '');
-  const alreadyCurrent = oldVersion >= 31 && priorAppVersion === '1.0.31';
+  const alreadyCurrent = oldVersion >= 32 && priorAppVersion === '1.0.32';
   const preNormalizePrintCollapse = project.design?.print?.collapseBodyBlankParagraphs;
   const preNormalizeEbookCollapse = project.design?.ebook?.collapseBodyBlankParagraphs;
   const pre118EbookDesign = project.editions?.ebook?.design || project.design?.ebook || {};
@@ -442,8 +442,28 @@ export function migrateProject(project) {
     ensureEditions(project);
   }
 
-  project.version = Math.max(oldVersion, 31);
-  project.appVersion = '1.0.31';
+  // 1.0.32 makes trailing back matter content-aware, removes stale inferred
+  // chapter starts such as BOOK TWO on an author-bio page, and hardens the
+  // Kindle package sanitizer. Reanalyze semantics only; source bytes stay exact.
+  if (oldVersion < 32 || priorAppVersion !== '1.0.32') {
+    reanalyzeBookBrain(project);
+    ensureEditions(project);
+    if (project.editions?.ebook) {
+      project.editions.ebook.lastPreflight = null;
+      const gate = project.editions.ebook.releaseGate;
+      if (gate && typeof gate === 'object') {
+        gate.visualProof = null;
+        gate.freeze = null;
+        gate.external = gate.external && typeof gate.external === 'object' ? gate.external : {};
+        gate.external.kindlePreviewerOpened = false;
+        gate.external.enhancedTypesetting = false;
+        gate.external.kdpOnlinePreviewApproved = false;
+      }
+    }
+  }
+
+  project.version = Math.max(oldVersion, 32);
+  project.appVersion = '1.0.32';
   return project;
 }
 

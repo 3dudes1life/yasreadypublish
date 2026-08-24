@@ -71,16 +71,18 @@ test('1.0.31 own ISBN mode blocks until a valid 10- or 13-digit ISBN is supplied
   assert.equal(gate.metadataReady,true);
 });
 
-test('1.0.31 migration adds Print Gate without rerunning older migrations or altering Kindle confirmations', () => {
+test('1.0.32 migration preserves Print Gate while invalidating stale Kindle renderer confirmations', () => {
   const project=baseProject();
   project.version=30; project.appVersion='1.0.30';
   project.editions.ebook.enabled=true;
   project.editions.ebook.releaseGate={ visualProof:{token:'kindle-proof'}, freeze:{token:'kindle-freeze'}, external:{kindlePreviewerOpened:{value:true,token:'k'},enhancedTypesetting:{value:true,token:'k'}} };
   const before=JSON.stringify(project.manuscript);
   const migrated=migrateProject(project);
-  assert.equal(migrated.version,31);
-  assert.equal(migrated.appVersion,'1.0.31');
+  assert.equal(migrated.version,32);
+  assert.equal(migrated.appVersion,'1.0.32');
   assert.ok(migrated.editions.paperback.printGate);
-  assert.equal(migrated.editions.ebook.releaseGate.visualProof.token,'kindle-proof');
+  assert.equal(migrated.editions.ebook.releaseGate.visualProof, null);
+  assert.equal(migrated.editions.ebook.releaseGate.freeze, null);
+  assert.equal(migrated.editions.ebook.releaseGate.external?.kindlePreviewerOpened,false);
   assert.equal(JSON.stringify(migrated.manuscript),before);
 });

@@ -70,7 +70,7 @@ import {
   kindleReleaseReport, markAllCurrentReviewsIntentional, markKindleVisualProofComplete, setKindleExternalConfirmation,
 } from './lib/kindle-release-gate.js';
 
-const VERSION = '1.0.31';
+const VERSION = '1.0.32';
 // Legacy capability labels retained for regression discovery only (not default UI): Amazon KDP · Reflowable EPUB 3 · Kindle Preview Studio · Semantic Style Palette · Kindle Release Gate · v1.0.16
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
@@ -1103,7 +1103,7 @@ function renderPrintReleaseGate() {
         : gate.technicalReady ? 'Finish the final print proof' : 'Finish the production files';
   const checks = gate.checks.map((item) => `<div class="release-a11y-row ${item.status}"><span>${item.status === 'pass' ? '✓' : '×'}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.message)}</small></div></div>`).join('');
   return `<section class="kindle-release-gate ${gate.kdpPublishReady ? 'ready' : gate.readyForKdpPreviewer ? 'ready' : gate.technicalReady ? 'review' : 'blocked'}" id="printReleaseGate">
-    <div class="kindle-release-head"><div><div class="eyebrow">AMAZON PRINT GATE · v1.0.31</div><h3>${headline}</h3><p>YasReady binds the exact interior PDF, cover PDF, print settings, and KDP metadata into one release token. Amazon confirmations expire automatically if any production file changes.</p></div><div class="kindle-release-score"><strong>${gate.pageCount}</strong><span>pages</span></div></div>
+    <div class="kindle-release-head"><div><div class="eyebrow">AMAZON PRINT GATE · v1.0.32</div><h3>${headline}</h3><p>YasReady binds the exact interior PDF, cover PDF, print settings, and KDP metadata into one release token. Amazon confirmations expire automatically if any production file changes.</p></div><div class="kindle-release-score"><strong>${gate.pageCount}</strong><span>pages</span></div></div>
     ${state.printGateMessage ? `<div class="notice info">${escapeHtml(state.printGateMessage)}</div>` : ''}
     <div class="release-gate-steps">${steps}</div>
     <div class="release-gate-summary"><div><strong>${gate.interiorCurrent ? 'YES' : 'NO'}</strong><span>interior current</span></div><div><strong>${gate.coverCurrent ? 'YES' : 'NO'}</strong><span>cover current</span></div><div><strong>${gate.readyForKdpPreviewer ? 'YES' : 'NO'}</strong><span>Previewer ready</span></div><div><strong>${gate.kdpPublishReady ? 'YES' : 'NO'}</strong><span>KDP ready</span></div></div>
@@ -1578,7 +1578,7 @@ function updateKindlePreviewPreference(key, value) {
 
 
 function currentKindleQuality(project) {
-  const key = `${project?.updatedAt || ''}|${project?.storyLock?.status || ''}|${countPresentationOverrides(project, 'ebook')}`;
+  const key = `${VERSION}|${project?.updatedAt || ''}|${project?.storyLock?.status || ''}|${project?.bookBrain?.analyzedAt || ''}|${countPresentationOverrides(project, 'ebook')}`;
   if (state.kindleQualityCache && state.kindleQualityKey === key) return state.kindleQualityCache;
   state.kindleQualityCache = scanKindleQuality(project);
   state.kindleQualityKey = key;
@@ -1607,7 +1607,7 @@ function renderKindleQualityPanel(quality, preview) {
       <div class="kindle-quality-issues">${issues.length ? issues.map((item) => {
         const target = qualityIssueTargetIndex(item, preview);
         const reviewed = item.severity !== 'error' && Boolean(kindleReviewDecision(state.project, item));
-        return `<div class="kindle-quality-issue ${item.severity} ${reviewed ? 'acknowledged' : ''}"><span>${reviewed ? '✓' : icon(item.severity)}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.message)}</small>${reviewed ? '<em>Marked intentional for this exact finding.</em>' : ''}</div><div class="kindle-quality-actions">${target >= 0 ? `<button type="button" data-quality-section="${target}" data-quality-block="${escapeHtml(item.blockId || '')}">Go there</button>` : ''}${item.action === 'book-brain' ? `<button type="button" data-quality-action="book-brain">Review Book Brain</button>` : ''}${item.action === 'structure' ? `<button type="button" data-quality-action="structure">Open Structure Repair</button>` : ''}${item.severity === 'warning' ? `<button type="button" data-kindle-review-source="quality" data-kindle-review-id="${escapeHtml(item.id)}">${reviewed ? 'Unmark' : 'Intentional'}</button>` : ''}</div></div>`;
+        return `<div class="kindle-quality-issue ${item.severity} ${reviewed ? 'acknowledged' : ''}"><span>${reviewed ? '✓' : icon(item.severity)}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.message)}</small>${reviewed ? '<em>Marked intentional for this exact finding.</em>' : ''}</div><div class="kindle-quality-actions">${target >= 0 ? `<button type="button" data-quality-section="${target}" data-quality-block="${escapeHtml(item.blockId || '')}">Go there</button>` : ''}${item.action === 'book-brain' ? `<button type="button" data-quality-action="book-brain">Review Book Brain</button>` : ''}${item.action === 'structure' ? `<button type="button" data-quality-action="structure">Open Structure Repair</button>` : ''}${item.action === 'package-rebuild' ? `<button type="button" data-quality-action="package-rebuild">Rebuild package</button>` : ''}${item.severity === 'warning' ? `<button type="button" data-kindle-review-source="quality" data-kindle-review-id="${escapeHtml(item.id)}">${reviewed ? 'Unmark' : 'Intentional'}</button>` : ''}</div></div>`;
       }).join('') : `<div class="kindle-quality-clean"><span>✓</span><div><strong>No whole-book formatting anomalies detected.</strong><small>Keep doing the visual early/middle/late chapter check before final export.</small></div></div>`}</div>
       <div class="kindle-quality-footer"><span>Enhanced Typesetting safety: ${quality.enhanced.errors ? 'BLOCKED' : quality.enhanced.warnings ? 'REVIEW' : 'PASS'}</span><span>${quality.chapters} chapters scanned</span><span>${quality.tocChapters} Kindle chapter links</span></div>
     </div>
@@ -1628,7 +1628,7 @@ function jumpToKindleQualityIssue(index, blockId = '') {
 }
 
 function currentKindleIntelligence(project) {
-  const key = `${project?.updatedAt || ''}|${project?.storyLock?.status || ''}|${countPresentationOverrides(project, 'ebook')}`;
+  const key = `${VERSION}|${project?.updatedAt || ''}|${project?.storyLock?.status || ''}|${project?.bookBrain?.analyzedAt || ''}|${countPresentationOverrides(project, 'ebook')}`;
   if (state.kindleIntelligenceCache && state.kindleIntelligenceKey === key) return state.kindleIntelligenceCache;
   state.kindleIntelligenceCache = scanKindleIntelligence(project);
   state.kindleIntelligenceKey = key;
@@ -2644,6 +2644,14 @@ function bindDynamicEvents() {
       updateMain();
     } else if (action === 'structure') {
       state.activeView = 'repair';
+      updateMain();
+    } else if (action === 'package-rebuild') {
+      state.kindleQualityCache = null;
+      state.kindleQualityKey = '';
+      state.kindleIntelligenceCache = null;
+      state.kindleIntelligenceKey = '';
+      if (state.project?.editions?.ebook) state.project.editions.ebook.lastPreflight = null;
+      state.releaseGateMessage = 'Kindle package rebuilt and re-audited from the current Story-Locked manuscript.';
       updateMain();
     }
   }));

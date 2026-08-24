@@ -96,8 +96,8 @@ test('1.0.13 orphan presentation overrides are removable without manuscript muta
 test('1.0.13 migration advances schema without rewriting Story-Locked blocks', () => {
   const p=project();
   const before=JSON.stringify(p.manuscript.blocks);
-  assert.equal(p.version, 31);
-  assert.equal(p.appVersion, '1.0.31');
+  assert.equal(p.version, 32);
+  assert.equal(p.appVersion, '1.0.32');
   assert.equal(JSON.stringify(p.manuscript.blocks),before);
 });
 

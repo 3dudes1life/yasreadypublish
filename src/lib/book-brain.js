@@ -7,11 +7,11 @@ import { analyzeMatter } from './structure-model.js';
  * structure and edition presentation metadata.
  */
 
-export const BOOK_BRAIN_VERSION = 1;
+export const BOOK_BRAIN_VERSION = 2;
 export const BOOK_BRAIN_AUTO_THRESHOLD = 0.92;
 export const BOOK_BRAIN_REVIEW_THRESHOLD = 0.72;
 
-const MATTER_ROLES = new Set(['title','copyright','dedication','source-toc','acknowledgments','front','back']);
+const MATTER_ROLES = new Set(['title','copyright','dedication','source-toc','acknowledgments','front','back','about-authors','join-journey']);
 const SEMANTIC_ROLES = new Set(['subhead','block-quote','written-note','verse','text-message','scene-break']);
 
 const clean = (value = '') => String(value || '').trim();
@@ -126,7 +126,7 @@ function matterStartInterpretation(block, role, confidence, reason, sourceKind =
     category:'matter',
     blockId:block.id,
     suggestion:role,
-    label: role === 'source-toc' ? 'Table of Contents' : role[0].toUpperCase() + role.slice(1),
+    label: role === 'source-toc' ? 'Table of Contents' : role === 'about-authors' ? 'About the Authors' : role === 'join-journey' ? 'Join the Journey' : role[0].toUpperCase() + role.slice(1),
     confidence:roundedConfidence(confidence),
     reason,
     text:clean(block.text).slice(0, 180),
@@ -224,6 +224,62 @@ function frontMatterInterpretations(blocks, firstChapterIndex) {
   return out;
 }
 
+function backMatterInterpretations(blocks, sourceStructure) {
+  const start = sourceStructure?.backMatterStartIndex;
+  if (start == null) return [];
+  const back = blocks.filter((block) => block.index >= start);
+  const meaningful = back.filter((block) => clean(block.text) || block.mediaRefs?.length);
+  if (!meaningful.length) return [];
+  const out = [];
+  const textWindow = (from, count = 18) => back.slice(from, from + count).map((block) => clean(block.text)).filter(Boolean).join(' \n');
+  const authorCueScore = (text) => [/(?:daniel|caleb|will)\b/i, /when (?:they|we)(?:’|'|)re not writing/i, /follow (?:their|our) world|follow (?:them|us) on social/i, /@3dudes1life/i, /3dudes1life\.com/i, /about the author/i].reduce((sum,re)=>sum+(re.test(text)?1:0),0);
+  const journeyCueScore = (text) => [/join the journey/i, /you made book two happen/i, /tag us on social media/i, /#tresamigosunavida/i, /tresamigosunavida\.com/i, /recommend the books? to/i].reduce((sum,re)=>sum+(re.test(text)?1:0),0);
+
+  let aboutStart = null;
+  let journeyStart = null;
+  for (let i = 0; i < back.length; i += 1) {
+    const block = back[i];
+    const text = clean(block.text);
+    if (!text) continue;
+    if (!aboutStart && /^about the author(?:s)?\b/i.test(text)) aboutStart = block;
+    if (!journeyStart && /^join the journey\b/i.test(text)) journeyStart = block;
+  }
+
+  if (!aboutStart) {
+    // Find author-biography language first, then walk backward to the strongest
+    // page lead. This prevents an earlier Join-the-Journey page from stealing
+    // an About-the-Authors role merely because author cues appear later.
+    const cueIndex = back.findIndex((block, index) => clean(block.text) && authorCueScore(textWindow(index, 6)) >= 2);
+    if (cueIndex >= 0) {
+      let best = null;
+      for (let j = Math.max(0, cueIndex - 8); j <= cueIndex; j += 1) {
+        const block = back[j];
+        const text = clean(block.text);
+        if (!text || /^join the journey\b/i.test(text)) continue;
+        const style = styleName(block);
+        const previous = blocks[block.index - 1] || null;
+        let score = 0;
+        if (hardBoundaryBefore(block, previous)) score += 6;
+        if (block.kind === 'front-back-heading' || block.kind === 'heading') score += 5;
+        if (/heading\s*1|chapter|title/i.test(style)) score += 4;
+        if (text.length <= 64 && isCentered(block)) score += 1;
+        if (score && (!best || score > best.score || (score === best.score && block.index < best.block.index))) best = { block, score };
+      }
+      aboutStart = best?.block || back[cueIndex];
+    }
+  }
+  if (!journeyStart) {
+    for (let i = 0; i < back.length; i += 1) {
+      const block = back[i];
+      if (journeyCueScore(textWindow(i, 12)) >= 3) { journeyStart = block; break; }
+    }
+  }
+
+  if (aboutStart) out.push(matterStartInterpretation(aboutStart, 'about-authors', 0.97, 'Author-bio language and creator contact signals identify an About the Authors page.'));
+  if (journeyStart && (!aboutStart || journeyStart.index !== aboutStart.index)) out.push(matterStartInterpretation(journeyStart, 'join-journey', 0.99, 'Reader call-to-action/social language identifies Join the Journey back matter.'));
+  return out;
+}
+
 export function analyzeBookBrain(project) {
   const blocks = project?.manuscript?.blocks || [];
   const previous = project?.bookBrain || {};
@@ -237,19 +293,19 @@ export function analyzeBookBrain(project) {
     if (!candidate) continue;
     const explicitSourceChapter = block.kind === 'chapter-title';
     const explicitTextChapter = /^(chapter|part|book)\s+(?:\d+|[ivxlcdm]+|[a-z]+)\b|^(prologue|epilogue)\b/i.test(clean(block.text));
-    const outsideKnownBody = hasSourceChapters && (
-      block.index < sourceStructure.firstChapterIndex
-      || (sourceStructure.backMatterStartIndex != null && block.index >= sourceStructure.backMatterStartIndex)
-    );
-    // Once the source already gives us a trustworthy chapter body, Book Brain
-    // must not promote a title-page/back-matter Heading 1 into a new chapter.
-    // Explicit chapter/prologue/epilogue wording is still respected.
+    const inKnownBackMatter = hasSourceChapters && sourceStructure.backMatterStartIndex != null && block.index >= sourceStructure.backMatterStartIndex;
+    const outsideKnownBody = hasSourceChapters && (block.index < sourceStructure.firstChapterIndex || inKnownBackMatter);
+    // Once the source gives us a trustworthy body, a trailing Heading 1 such as
+    // "BOOK TWO" on an author page must never become Chapter 56. In known back
+    // matter only an explicit source chapter kind can override that protection.
+    if (inKnownBackMatter && !explicitSourceChapter) continue;
     if (outsideKnownBody && !explicitSourceChapter && !explicitTextChapter) continue;
     interpretations.push(structureInterpretation(block, 'chapter-title', candidate.confidence, candidate.reason));
   }
 
   const firstChapterIndex = inferredFirstChapterIndex(blocks, interpretations);
   interpretations.push(...frontMatterInterpretations(blocks, firstChapterIndex));
+  interpretations.push(...backMatterInterpretations(blocks, sourceStructure));
 
   for (const block of blocks) {
     if (firstChapterIndex == null || block.index < firstChapterIndex) continue;
@@ -285,6 +341,8 @@ export function analyzeBookBrain(project) {
       copyrightPages:matterRoles.has('copyright') ? 1 : 0,
       dedicationPages:matterRoles.has('dedication') ? 1 : 0,
       tocPages:matterRoles.has('source-toc') ? 1 : 0,
+      aboutAuthorsPages:matterRoles.has('about-authors') ? 1 : 0,
+      journeyPages:matterRoles.has('join-journey') ? 1 : 0,
       textMessages:countSuggestion('semantic','text-message'),
       sceneBreaks:countSuggestion('semantic','scene-break'),
       writtenNotes:countSuggestion('semantic','written-note'),
