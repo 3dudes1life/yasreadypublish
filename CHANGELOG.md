@@ -1,3 +1,12 @@
+## 1.0.31 — Amazon Print Gate
+
+- Added release-token binding across the final interior PDF, cover PDF, page count, print settings, and KDP handoff metadata.
+- Added KDP Print Previewer confirmation that becomes stale automatically when the package changes.
+- Added optional physical-proof approval for YasReady proof certification.
+- Added edition-specific KDP language, subtitle, series, publisher/imprint, and free-KDP-vs-own-ISBN handoff fields.
+- Fixed migration stability so moving beyond 1.0.30 does not rerun historical Kindle migrations or erase current Kindle confirmations.
+- Print Brain configuration changes now invalidate both the interior and cover audits because cover geometry depends on the final interior.
+
 # YasReady Publish 1.0.30 — Cover Brain + Kindle E21018 Fix
 
 - Fixes the Kindle Previewer `E21018` conversion failure reported against `OEBPS/text/front-001.xhtml` by removing `display:none`, `visibility:hidden`, hidden attributes, and source-blank helper markup from the **publishable EPUB**. Preview-only helpers remain confined to YasReady Preview Studio.

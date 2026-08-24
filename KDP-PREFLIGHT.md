@@ -70,3 +70,8 @@ The physical-edition rules above remain unchanged while Kindle work is being fin
 ## v1.0.15 Theme Studio alignment
 
 Theme Studio does not relax any KDP release gate. Theme CSS, semantic wrappers, chapter-heading treatments, conversation layouts, and optional theme artwork are generated presentation assets. Story Lock, source coverage, navigation, spine, cover, package, placeholder, finished-EPUB audit, Kindle Pro quality, and Kindle Intelligence checks remain authoritative.
+
+
+## 1.0.31 Amazon Print Gate
+
+The print gate binds the final interior and cover PDF hashes to the exact print configuration and KDP metadata. KDP Print Previewer confirmation is external/manual and only counts for the current release token. Physical proof approval is recommended for YasReady proof certification.

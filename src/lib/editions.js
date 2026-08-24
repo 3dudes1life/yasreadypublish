@@ -2,6 +2,7 @@ import { normalizePrintDesign } from './print-model.js';
 import { normalizeEbookDesign } from './ebook-model.js';
 import { normalizePrintProduction } from './print-brain.js';
 import { normalizeCoverBrain } from './cover-brain.js';
+import { ensurePrintReleaseState, normalizePrintKdpMetadata } from './print-release-gate.js';
 
 export const EDITION_TYPES = Object.freeze(['paperback', 'hardcover', 'ebook']);
 export const PRINT_EDITION_TYPES = Object.freeze(['paperback', 'hardcover']);
@@ -38,6 +39,8 @@ export function ensureEditions(project) {
     production: normalizePrintProduction(project.editions.paperback?.production || {}, 'paperback'),
     coverBrain: normalizeCoverBrain(project.editions.paperback?.coverBrain || {}, 'paperback'),
     lastCoverAudit: project.editions.paperback?.lastCoverAudit || null,
+    kdpMetadata: normalizePrintKdpMetadata(project.editions.paperback?.kdpMetadata || {}, { language:legacyEbook.language || 'en', publisher:legacyEbook.publisher || '' }),
+    printGate: project.editions.paperback?.printGate && typeof project.editions.paperback.printGate === 'object' ? project.editions.paperback.printGate : null,
   };
   project.editions.hardcover = {
     enabled: Boolean(project.editions.hardcover?.enabled),
@@ -50,6 +53,8 @@ export function ensureEditions(project) {
     production: normalizePrintProduction(project.editions.hardcover?.production || {}, 'hardcover'),
     coverBrain: normalizeCoverBrain(project.editions.hardcover?.coverBrain || {}, 'hardcover'),
     lastCoverAudit: project.editions.hardcover?.lastCoverAudit || null,
+    kdpMetadata: normalizePrintKdpMetadata(project.editions.hardcover?.kdpMetadata || {}, { language:legacyEbook.language || 'en', publisher:legacyEbook.publisher || '' }),
+    printGate: project.editions.hardcover?.printGate && typeof project.editions.hardcover.printGate === 'object' ? project.editions.hardcover.printGate : null,
   };
   project.editions.ebook = {
     enabled: project.editions.ebook?.enabled !== false,
@@ -60,7 +65,9 @@ export function ensureEditions(project) {
     releaseGate: project.editions.ebook?.releaseGate && typeof project.editions.ebook.releaseGate === 'object' ? project.editions.ebook.releaseGate : null,
     lastPreflight: project.editions.ebook?.lastPreflight || null,
   };
-  project.editions.activePrint = PRINT_EDITION_TYPES.includes(project.editions.activePrint) ? project.editions.activePrint : 'paperback';
+  ensurePrintReleaseState(project, 'paperback');
+  ensurePrintReleaseState(project, 'hardcover');
+    project.editions.activePrint = PRINT_EDITION_TYPES.includes(project.editions.activePrint) ? project.editions.activePrint : 'paperback';
   if (!project.editions[project.editions.activePrint]?.enabled) {
     project.editions.activePrint = project.editions.paperback.enabled ? 'paperback' : project.editions.hardcover.enabled ? 'hardcover' : 'paperback';
   }

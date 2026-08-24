@@ -1,3 +1,7 @@
+# YasReady Publish v1.0.31 Release QA
+
+Amazon Print Gate requires: current KDP print preflight, current audited interior PDF, current audited cover PDF built for the same final page count/proof, valid KDP handoff metadata, a manual YasReady visual proof, then a locked release token. Only then can the author confirm KDP Print Previewer. Physical-proof approval is tracked separately as the final recommended proof-certification step.
+
 # YasReady Publish 1.0.30 Release QA
 
 - Run `npm run verify`; **230 automated tests must pass**.

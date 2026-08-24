@@ -3,7 +3,7 @@ import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const VERSION = '1.0.30';
+const VERSION = '1.0.31';
 
 function walk(dir) {
   const out = [];
@@ -33,7 +33,7 @@ const project = readFileSync(join(ROOT, 'src/lib/project.js'), 'utf8');
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 if (pkg.version !== VERSION) throw new Error(`package.json version is ${pkg.version}, expected ${VERSION}`);
 if (!main.includes(`const VERSION = '${VERSION}'`)) throw new Error('main.js version mismatch');
-if (!project.includes(`appVersion: '${VERSION}'`) || !project.includes(`project.appVersion = '${VERSION}'`) || !project.includes('version: 30')) throw new Error('project schema appVersion/schema mismatch');
+if (!project.includes(`appVersion: '${VERSION}'`) || !project.includes(`project.appVersion = '${VERSION}'`) || !project.includes('version: 31')) throw new Error('project schema appVersion/schema mismatch');
 
 const buttonIds = [...main.matchAll(/<button\b[^>]*\s+id="([^"]+)"/g)].map((m) => m[1]);
 const boundIds = new Set([...main.matchAll(/querySelector\(['"]#([^'"]+)['"]\)/g)].map((m) => m[1]));
@@ -92,6 +92,15 @@ for (const marker of ['renderCoverPdf','buildRasterPdf','auditPrintPdfBytes','AM
   if (!coverPdf.includes(marker)) throw new Error(`Missing Cover PDF marker: ${marker}`);
 }
 if (!main.includes('COVER BRAIN · v1.0.30') || !main.includes('buildCoverPdf')) throw new Error('Cover Brain UI/runtime wiring is missing.');
+
+
+const printReleaseGate = readFileSync(join(ROOT, 'src/lib/print-release-gate.js'), 'utf8');
+for (const marker of ['buildPrintReleaseGate','printReleaseToken','freezePrintRelease','setPrintExternalConfirmation','physicalProofApproved']) {
+  if (!printReleaseGate.includes(marker)) throw new Error(`Missing Amazon Print Gate marker: ${marker}`);
+}
+for (const marker of ['AMAZON PRINT GATE · v1.0.31','Confirm KDP Print Previewer','Physical proof approved','NEXT PRINT ACTION']) {
+  if (!main.includes(marker)) throw new Error(`Missing Amazon Print Gate UI marker: ${marker}`);
+}
 
 const epub = readFileSync(join(ROOT, 'src/lib/epub-export.js'), 'utf8');
 for (const marker of ['epub:type="landmarks"','properties="cover-image"','itemref idref="visible-toc"','text/contents.xhtml','<guide>']) {

@@ -81,8 +81,8 @@ test('1.0.30 migration initializes Cover Brain and invalidates stale Kindle conf
   p.editions.ebook.releaseGate={external:{kindlePreviewerOpened:true,enhancedTypesetting:true,kdpOnlinePreviewApproved:true},visualProof:{token:'old'},freeze:{token:'old'}};
   p.version=29; p.appVersion='1.0.29';
   const migrated=migrateProject(p);
-  assert.equal(migrated.version,30);
-  assert.equal(migrated.appVersion,'1.0.30');
+  assert.equal(migrated.version,31);
+  assert.equal(migrated.appVersion,'1.0.31');
   assert.equal(migrated.editions.paperback.coverBrain?.version,1);
   assert.equal(migrated.editions.ebook.releaseGate.external.kindlePreviewerOpened,false);
   assert.equal(migrated.editions.ebook.releaseGate.visualProof,null);

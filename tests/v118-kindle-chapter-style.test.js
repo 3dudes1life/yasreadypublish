@@ -25,7 +25,7 @@ test('1.0.18 Tres Amigos defaults to Kindle-style number + title with generous o
   assert.equal(studio.chapterHeadingLayout,'number-title');
   assert.equal(studio.chapterNameItalic,true);
   const p=project();
-  assert.equal(p.appVersion, '1.0.30');
+  assert.equal(p.appVersion, '1.0.31');
   assert.ok(p.editions.ebook.design.chapterTopEm >= 6.2);
   assert.ok(p.editions.ebook.design.chapterAfterEm >= 5.4);
 });
@@ -50,7 +50,7 @@ test('1.0.18 exported EPUB contains separate label/title presentation and exact 
 
 test('1.0.18 upgrades only untouched old Tres Amigos chapter spacing and preserves custom spacing', () => {
   const legacy=project();
-  legacy.appVersion='1.0.17';
+  legacy.version=25; legacy.appVersion='1.0.17';
   legacy.editions.ebook.design.chapterTopEm=4.2;
   legacy.editions.ebook.design.chapterAfterEm=2.4;
   delete legacy.editions.ebook.design.themeStudio.chapterHeadingLayout;
@@ -61,7 +61,7 @@ test('1.0.18 upgrades only untouched old Tres Amigos chapter spacing and preserv
   assert.equal(JSON.stringify(migrated.manuscript.blocks),before);
 
   const custom=project();
-  custom.appVersion='1.0.17';
+  custom.version=25; custom.appVersion='1.0.17';
   custom.editions.ebook.design.chapterTopEm=7.1;
   custom.editions.ebook.design.chapterAfterEm=3.3;
   delete custom.editions.ebook.design.themeStudio.chapterHeadingLayout;

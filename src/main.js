@@ -23,6 +23,10 @@ import { buildPrintMasterHtml } from './lib/print-export.js';
 import { PRINT_PDF_DPI, renderProductionPrintPdf } from './lib/print-pdf.js';
 import { COVER_DPI, coverBrainChecks, coverGeometry, normalizeCoverBrain } from './lib/cover-brain.js';
 import { renderCoverPdf } from './lib/cover-pdf.js';
+import {
+  buildPrintReleaseGate, ensurePrintReleaseState, freezePrintRelease, markPrintVisualProofComplete,
+  printReleaseReport, savePrintKdpMetadata, setPrintExternalConfirmation,
+} from './lib/print-release-gate.js';
 import { normalizeEbookDesign } from './lib/ebook-model.js';
 import { runEpubPreflight } from './lib/ebook-preflight.js';
 import { buildEbookPreviewHtml, buildEpubBlob, buildDevicePreviewHtml } from './lib/epub-export.js';
@@ -66,7 +70,7 @@ import {
   kindleReleaseReport, markAllCurrentReviewsIntentional, markKindleVisualProofComplete, setKindleExternalConfirmation,
 } from './lib/kindle-release-gate.js';
 
-const VERSION = '1.0.30';
+const VERSION = '1.0.31';
 // Legacy capability labels retained for regression discovery only (not default UI): Amazon KDP · Reflowable EPUB 3 · Kindle Preview Studio · Semantic Style Palette · Kindle Release Gate · v1.0.16
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
@@ -121,6 +125,7 @@ const state = {
   bookBrainMessage: '',
   coverBrainMessage: '',
   coverPdfReport: null,
+  printGateMessage: '',
 };
 
 const app = document.querySelector('#app');
@@ -1072,6 +1077,58 @@ function renderPrintPdfReport() {
   return `<section class="print-pdf-result ${ready ? 'ready' : 'blocked'}"><div><div class="eyebrow">FINISHED PDF AUDIT</div><h3>${ready ? 'Production PDF passed.' : 'Finished PDF needs attention.'}</h3><p>${report.pageCount || metadata.pageCount || 0} pages · ${Number(metadata.pageWidthIn || report.pageWidthIn || 0).toFixed(3)} × ${Number(metadata.pageHeightIn || report.pageHeightIn || 0).toFixed(3)} in · ${report.dpi || metadata.dpi || PRINT_PDF_DPI} DPI · ${sizeMb.toFixed(1)} MB</p>${report.sha256 ? `<small>SHA-256 ${escapeHtml(shortHash(report.sha256, 16))}</small>` : ''}</div><div class="preflight-counts"><span class="pass">${report.summary?.passes || 0} pass</span><span class="warning">${report.summary?.warnings || 0} warning</span><span class="error">${report.summary?.errors || 0} error</span></div></section>`;
 }
 
+
+function currentPrintReleaseGate() {
+  if (!state.project || !state.preview) return null;
+  ensureEditions(state.project);
+  const type = currentPrintEditionType();
+  const preflight = currentPreflight(state.project?.storyLock?.status === 'verified');
+  return buildPrintReleaseGate({ project:state.project, type, preflight, preview:state.preview });
+}
+
+function renderPrintReleaseGate() {
+  const gate = currentPrintReleaseGate();
+  if (!gate) return '';
+  const type = currentPrintEditionType();
+  const edition = state.project.editions[type];
+  ensurePrintReleaseState(state.project, type);
+  const meta = edition.kdpMetadata || {};
+  const steps = [
+    ['Interior PDF', gate.interiorCurrent], ['Cover PDF', gate.coverCurrent], ['KDP handoff', gate.metadataReady],
+    ['Visual proof', gate.visualProof.current], ['Package locked', gate.frozen], ['KDP Print Previewer', gate.external?.kdpPrintPreviewApproved],
+  ].map(([label, ok]) => `<div class="release-gate-step ${ok ? 'done' : ''}"><span>${ok ? '✓' : '•'}</span><strong>${escapeHtml(label)}</strong></div>`).join('');
+  const headline = gate.proofCertified ? 'Print pipeline complete'
+    : gate.kdpPublishReady ? 'Ready to publish on KDP'
+      : gate.readyForKdpPreviewer ? 'Ready for KDP Print Previewer'
+        : gate.technicalReady ? 'Finish the final print proof' : 'Finish the production files';
+  const checks = gate.checks.map((item) => `<div class="release-a11y-row ${item.status}"><span>${item.status === 'pass' ? '✓' : '×'}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.message)}</small></div></div>`).join('');
+  return `<section class="kindle-release-gate ${gate.kdpPublishReady ? 'ready' : gate.readyForKdpPreviewer ? 'ready' : gate.technicalReady ? 'review' : 'blocked'}" id="printReleaseGate">
+    <div class="kindle-release-head"><div><div class="eyebrow">AMAZON PRINT GATE · v1.0.31</div><h3>${headline}</h3><p>YasReady binds the exact interior PDF, cover PDF, print settings, and KDP metadata into one release token. Amazon confirmations expire automatically if any production file changes.</p></div><div class="kindle-release-score"><strong>${gate.pageCount}</strong><span>pages</span></div></div>
+    ${state.printGateMessage ? `<div class="notice info">${escapeHtml(state.printGateMessage)}</div>` : ''}
+    <div class="release-gate-steps">${steps}</div>
+    <div class="release-gate-summary"><div><strong>${gate.interiorCurrent ? 'YES' : 'NO'}</strong><span>interior current</span></div><div><strong>${gate.coverCurrent ? 'YES' : 'NO'}</strong><span>cover current</span></div><div><strong>${gate.readyForKdpPreviewer ? 'YES' : 'NO'}</strong><span>Previewer ready</span></div><div><strong>${gate.kdpPublishReady ? 'YES' : 'NO'}</strong><span>KDP ready</span></div></div>
+    <details class="release-accessibility" ${gate.metadataReady ? '' : 'open'}><summary><span><strong>KDP handoff details</strong><small>Edition-specific metadata used for this print package</small></span><b>⌄</b></summary><div class="print-gate-metadata">
+      <label class="design-field"><span>Language</span><input id="printGateLanguage" value="${escapeHtml(meta.language || 'en')}" maxlength="32"></label>
+      <label class="design-field"><span>Subtitle · optional</span><input id="printGateSubtitle" value="${escapeHtml(meta.subtitle || '')}" maxlength="240"></label>
+      <label class="design-field"><span>Series · optional</span><input id="printGateSeries" value="${escapeHtml(meta.series || '')}" maxlength="240"></label>
+      <label class="design-field"><span>Publisher / imprint · optional</span><input id="printGatePublisher" value="${escapeHtml(meta.publisher || '')}" maxlength="180"></label>
+      <label class="design-field"><span>ISBN</span><select id="printGateIsbnMode"><option value="kdp-free" ${meta.isbnMode !== 'own' ? 'selected' : ''}>Use free KDP ISBN</option><option value="own" ${meta.isbnMode === 'own' ? 'selected' : ''}>Use my own ISBN</option></select></label>
+      <label class="design-field"><span>Own ISBN</span><input id="printGateIsbn" value="${escapeHtml(meta.isbn || '')}" placeholder="Only needed for own ISBN"></label>
+      <div class="cover-brain-actions wide"><button class="btn secondary" id="savePrintGateMetadata" type="button">Save KDP handoff</button></div>
+    </div></details>
+    <div class="release-gate-actions">
+      <button class="btn secondary" id="markPrintVisualProof" type="button" ${gate.technicalReady ? '' : 'disabled'}>${gate.visualProof.current ? 'Visual proof complete ✓' : 'Mark visual proof complete'}</button>
+      <button class="btn ${gate.technicalReady && gate.visualProof.current && !gate.frozen ? 'primary' : 'secondary'}" id="freezePrintRelease" type="button" ${gate.technicalReady && gate.visualProof.current && !gate.frozen ? '' : 'disabled'}>${gate.frozen ? 'Print package locked ✓' : 'Lock print package'}</button>
+      <button class="btn secondary" id="confirmKdpPrintPreview" type="button" ${gate.readyForKdpPreviewer ? '' : 'disabled'}>${gate.external?.kdpPrintPreviewApproved ? 'KDP Print Previewer passed ✓' : 'Confirm KDP Print Previewer'}</button>
+      <button class="btn secondary" id="confirmPhysicalProof" type="button" ${gate.kdpPublishReady ? '' : 'disabled'}>${gate.external?.physicalProofApproved ? 'Physical proof approved ✓' : 'Physical proof approved'}</button>
+      <button class="btn secondary" id="downloadPrintReleaseReport" type="button">Download Print Gate report</button>
+    </div>
+    <div class="release-next-action"><small>NEXT PRINT ACTION</small><strong>${escapeHtml(gate.nextAction.label)}</strong><span>${escapeHtml(gate.nextAction.detail)}</span><code>${escapeHtml(gate.releaseToken)}</code></div>
+    <details class="release-accessibility"><summary><span><strong>Production package checks</strong><small>${gate.checks.filter(x => x.status === 'pass').length} pass · ${gate.checks.filter(x => x.status === 'error').length} error</small></span><b>⌄</b></summary><div>${checks}</div></details>
+    ${gate.kdpPublishReady && !gate.external?.physicalProofApproved ? `<div class="notice success"><strong>KDP upload ready.</strong> Amazon Print Previewer is confirmed for this exact package. A physical proof is recommended before you call the edition YasReady proof-certified.</div>` : ''}
+  </section>`;
+}
+
 function renderExport() {
   if (!state.preview) {
     return `
@@ -1102,6 +1159,7 @@ function renderExport() {
       </div>
       ${renderPrintPdfReport()}
       ${renderCoverBrain()}
+      ${renderPrintReleaseGate()}
       <div class="preflight-list">${report.checks.map(renderPreflightCheck).join('')}</div>
       <div class="export-actions">
         <button class="btn secondary" id="openPrintMaster" type="button" ${report.ready ? '' : 'disabled'}>Open Print Master</button>
@@ -2287,7 +2345,9 @@ async function savePrintBrainSetup(useRecommended = false) {
   state.project.design.print = { ...edition.design };
   edition.lastPreflight = null;
   edition.lastPdfAudit = null;
+  edition.lastCoverAudit = null;
   state.printPdfReport = null;
+  state.coverPdfReport = null;
   edition.lastPageCount = null;
   edition.lastBuiltAt = null;
   state.preview = null;
@@ -2516,6 +2576,12 @@ function bindDynamicEvents() {
   document.querySelector('#createPaperbackPdf')?.addEventListener('click', createPaperbackPdf);
   document.querySelector('#saveCoverBrain')?.addEventListener('click', saveCoverBrainSettings);
   document.querySelector('#buildCoverPdf')?.addEventListener('click', buildCurrentCoverPdf);
+  document.querySelector('#savePrintGateMetadata')?.addEventListener('click', saveCurrentPrintGateMetadata);
+  document.querySelector('#markPrintVisualProof')?.addEventListener('click', completePrintVisualProof);
+  document.querySelector('#freezePrintRelease')?.addEventListener('click', freezeCurrentPrintRelease);
+  document.querySelector('#confirmKdpPrintPreview')?.addEventListener('click', () => confirmPrintExternal('kdpPrintPreviewApproved', 'KDP Print Previewer'));
+  document.querySelector('#confirmPhysicalProof')?.addEventListener('click', () => confirmPrintExternal('physicalProofApproved', 'physical proof'));
+  document.querySelector('#downloadPrintReleaseReport')?.addEventListener('click', downloadPrintReleaseReport);
   document.querySelector('#choosePrintCoverFront')?.addEventListener('click', () => document.querySelector('#printCoverFrontInput')?.click());
   document.querySelector('#printCoverFrontInput')?.addEventListener('change', (event) => event.target.files?.[0] && importPrintCoverFront(event.target.files[0]));
   document.querySelector('#removePrintCoverFront')?.addEventListener('click', removePrintCoverFront);
@@ -3214,7 +3280,7 @@ async function buildCurrentCoverPdf() {
   try {
     const packaged = await renderCoverPdf({ project:state.project, editionType:type, production:edition.production || {}, pageCount, cover:edition.coverBrain || {}, dpi:COVER_DPI });
     const sha256 = await sha256Hex(packaged.bytes);
-    state.coverPdfReport = { ...packaged.audit, sha256, geometry:packaged.geometry, generatedAt:new Date().toISOString(), pageCount };
+    state.coverPdfReport = { ...packaged.audit, sha256, geometry:packaged.geometry, proofSignature:state.preview?.proofSignature || '', generatedAt:new Date().toISOString(), pageCount };
     edition.lastCoverAudit = state.coverPdfReport;
     state.project.updatedAt = new Date().toISOString();
     await saveProject(state.project); state.projects = await listProjects();
@@ -3222,6 +3288,65 @@ async function buildCurrentCoverPdf() {
     downloadBlobFile(`${safeExportBaseName()}-${type}-kdp-cover.pdf`, packaged.blob);
   } catch (error) { console.error(error); alert(error?.message || 'YasReady could not build the cover PDF safely.'); }
   finally { state.busy=false; state.busyMessage=''; state.activeView='export'; updateMain(); }
+}
+
+
+async function saveCurrentPrintGateMetadata() {
+  if (!state.project) return;
+  ensureEditions(state.project);
+  const type = currentPrintEditionType();
+  const values = {
+    language:document.querySelector('#printGateLanguage')?.value || 'en',
+    subtitle:document.querySelector('#printGateSubtitle')?.value || '',
+    series:document.querySelector('#printGateSeries')?.value || '',
+    publisher:document.querySelector('#printGatePublisher')?.value || '',
+    isbnMode:document.querySelector('#printGateIsbnMode')?.value || 'kdp-free',
+    isbn:document.querySelector('#printGateIsbn')?.value || '',
+  };
+  savePrintKdpMetadata(state.project, type, values);
+  state.project.updatedAt = new Date().toISOString();
+  state.printGateMessage = 'KDP handoff details saved for this physical edition.';
+  await saveProject(state.project); state.projects = await listProjects(); updateMain();
+}
+
+async function completePrintVisualProof() {
+  if (!state.project) return;
+  const type = currentPrintEditionType();
+  const gate = currentPrintReleaseGate();
+  if (!gate?.technicalReady) { alert('Build and pass the current interior PDF, cover PDF, and KDP handoff checks first.'); return; }
+  markPrintVisualProofComplete(state.project, type);
+  state.printGateMessage = 'Final print visual proof stamped for this exact package.';
+  await saveProject(state.project); state.projects = await listProjects(); updateMain();
+}
+
+async function freezeCurrentPrintRelease() {
+  if (!state.project) return;
+  const type = currentPrintEditionType();
+  const gate = currentPrintReleaseGate();
+  try {
+    freezePrintRelease(state.project, type, gate);
+    state.printGateMessage = 'Print package locked. Any change to interior, cover, production settings, or KDP handoff will invalidate Amazon confirmations.';
+    await saveProject(state.project); state.projects = await listProjects(); updateMain();
+  } catch (error) { alert(error?.message || 'Print package could not be locked.'); }
+}
+
+async function confirmPrintExternal(key, label) {
+  if (!state.project) return;
+  const type = currentPrintEditionType();
+  try {
+    setPrintExternalConfirmation(state.project, type, key, true);
+    state.printGateMessage = `${label} confirmed for this exact ${editionLabel(type).toLowerCase()} package.`;
+    await saveProject(state.project); state.projects = await listProjects(); updateMain();
+  } catch (error) { alert(error?.message || `${label} could not be confirmed.`); }
+}
+
+function downloadPrintReleaseReport() {
+  if (!state.project || !state.preview) return;
+  const type = currentPrintEditionType();
+  const preflight = currentPreflight(state.project?.storyLock?.status === 'verified');
+  const gate = buildPrintReleaseGate({ project:state.project, type, preflight, preview:state.preview });
+  const report = printReleaseReport({ project:state.project, type, preflight, preview:state.preview, gate });
+  downloadTextFile(`${safeExportBaseName()}-${type}-amazon-print-gate.json`, JSON.stringify(report, null, 2), 'application/json;charset=utf-8');
 }
 
 async function openPrintMaster() {

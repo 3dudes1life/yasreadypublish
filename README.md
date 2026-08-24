@@ -1,3 +1,9 @@
+# YasReady Publish v1.0.31
+
+## Amazon Print Gate
+
+1.0.31 binds the exact finished interior PDF, cover PDF, final page count, print-production settings, KDP handoff metadata, and manual proof state into one release token. YasReady now stops at **Ready for KDP Print Previewer** until the author confirms Amazon's own Print Previewer passed for that exact package. A physical proof can then be marked approved for YasReady proof certification. Kindle state from 1.0.30 is preserved during migration.
+
 # YasReady Publish
 
 **Current release: v1.0.30 — Cover Brain + Kindle E21018 Fix**

@@ -18,8 +18,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   const project = {
     id: crypto.randomUUID(),
-    version: 30,
-    appVersion: '1.0.30',
+    version: 31,
+    appVersion: '1.0.31',
     title: baseName,
     author: '',
     createdAt: now,
@@ -75,7 +75,7 @@ export function migrateProject(project) {
   if (!project) return project;
   const oldVersion = Number(project.version) || 1;
   const priorAppVersion = String(project.appVersion || '');
-  const alreadyCurrent = oldVersion >= 30 && priorAppVersion === '1.0.30';
+  const alreadyCurrent = oldVersion >= 31 && priorAppVersion === '1.0.31';
   const preNormalizePrintCollapse = project.design?.print?.collapseBodyBlankParagraphs;
   const preNormalizeEbookCollapse = project.design?.ebook?.collapseBodyBlankParagraphs;
   const pre118EbookDesign = project.editions?.ebook?.design || project.design?.ebook || {};
@@ -205,7 +205,7 @@ export function migrateProject(project) {
   // and Adjust modes. The simulator is UI-only; migration touches no source
   // blocks or wording. We invalidate only stale ebook preflight status so the
   // next acceptance run is always fresh.
-  if (oldVersion < 19) {
+  if (oldVersion < 30 && !alreadyCurrent && priorAppVersion !== '1.0.28' && priorAppVersion !== '1.0.19') {
     ensurePresentationOverrides(project);
     if (project.editions?.ebook) project.editions.ebook.lastPreflight = null;
   }
@@ -227,7 +227,7 @@ export function migrateProject(project) {
   // 1.0.12 adds Kindle semantic styles plus safe note/media import for new
   // DOCX projects. Existing projects remain on their original canonical
   // algorithm and hashes; migration never rewrites source blocks or assets.
-  if (oldVersion < 21) {
+  if (oldVersion < 30 && !alreadyCurrent && priorAppVersion !== '1.0.28' && priorAppVersion !== '1.0.21') {
     if (!Array.isArray(project.manuscript?.notes)) project.manuscript.notes = [];
     if (!Array.isArray(project.manuscript?.media)) project.manuscript.media = [];
     if (project.editions?.ebook) project.editions.ebook.lastPreflight = null;
@@ -237,7 +237,7 @@ export function migrateProject(project) {
   // 1.0.13 adds Kindle Intelligence: whole-book presentation fingerprints,
   // chapter comparison, anomaly mapping, and safe presentation-only fixes.
   // Migration changes no manuscript blocks, wording, notes, or embedded assets.
-  if (oldVersion < 22) {
+  if (oldVersion < 30 && !alreadyCurrent && priorAppVersion !== '1.0.28' && priorAppVersion !== '1.0.22') {
     ensurePresentationOverrides(project);
     if (project.editions?.ebook) project.editions.ebook.lastPreflight = null;
   }
@@ -282,7 +282,7 @@ export function migrateProject(project) {
   // 1.0.18 adds source-safe chapter-heading interpretation in Theme Studio.
   // Upgrade only untouched legacy Tres Amigos spacing. If an author had already
   // customized chapter spacing, keep it exactly as-is. Manuscript blocks are never touched.
-  if (!alreadyCurrent && priorAppVersion !== '1.0.28' && priorAppVersion !== '1.0.18' && !pre118HadChapterLayout) {
+  if (oldVersion < 30 && !alreadyCurrent && priorAppVersion !== '1.0.28' && priorAppVersion !== '1.0.18' && !pre118HadChapterLayout) {
     ensureEditions(project);
     const ebook = project.editions?.ebook?.design;
     if (ebook) {
@@ -301,7 +301,7 @@ export function migrateProject(project) {
   // Kindle rhythm. Only the untouched 1.0.18 Tres Amigos spacing pair migrates;
   // any author-customized spacing remains exactly as saved. This is presentation
   // metadata only and never changes the Story-Locked chapter heading or prose.
-  if (!alreadyCurrent && priorAppVersion !== '1.0.28' && priorAppVersion !== '1.0.19') {
+  if (oldVersion < 30 && !alreadyCurrent && priorAppVersion !== '1.0.28' && priorAppVersion !== '1.0.19') {
     ensureEditions(project);
     const ebook = project.editions?.ebook?.design;
     if (ebook) {
@@ -325,7 +325,7 @@ export function migrateProject(project) {
   // 1.0.21 removes the stale legacy chapter flourish from the private Tres Amigos
   // house style. Other themes keep their ornaments. This changes presentation
   // metadata only; Story Lock manuscript text and hashes are untouched.
-  if (!alreadyCurrent && priorAppVersion !== '1.0.28' && priorAppVersion !== '1.0.21') {
+  if (oldVersion < 30 && !alreadyCurrent && priorAppVersion !== '1.0.28' && priorAppVersion !== '1.0.21') {
     ensureEditions(project);
     const ebook = project.editions?.ebook?.design;
     if (ebook) {
@@ -343,7 +343,7 @@ export function migrateProject(project) {
   // front-matter presentation for title, copyright, and dedication pages.
   // Because the EPUB renderer changes, prior ebook preflight/proof/freeze state
   // must be rechecked. Canonical manuscript blocks, words, runs, and hashes are untouched.
-  if (!alreadyCurrent && priorAppVersion !== '1.0.28' && priorAppVersion !== '1.0.22') {
+  if (oldVersion < 30 && !alreadyCurrent && priorAppVersion !== '1.0.28' && priorAppVersion !== '1.0.22') {
     ensureEditions(project);
     if (project.editions?.ebook) {
       project.editions.ebook.lastPreflight = null;
@@ -377,7 +377,7 @@ export function migrateProject(project) {
   // 1.0.27 Amazon Hard Mode invalidates prior Kindle proof/freeze state because
   // production CSS/package validation is stricter and external Previewer/KDP gates
   // are now tracked separately. Manuscript source, wording, media and hashes remain untouched.
-  if (!alreadyCurrent && priorAppVersion !== '1.0.28' && (oldVersion < 27 || priorAppVersion !== '1.0.27')) {
+  if (oldVersion < 30 && !alreadyCurrent && priorAppVersion !== '1.0.28' && (oldVersion < 27 || priorAppVersion !== '1.0.27')) {
     ensureEditions(project);
     if (project.editions?.ebook) {
       project.editions.ebook.lastPreflight = null;
@@ -398,7 +398,7 @@ export function migrateProject(project) {
   // candidates cannot become chapters in known front/back matter. Reanalyze
   // existing projects to clear stale inferredKinds while preserving explicit
   // review decisions and every Story-Locked source byte.
-  if (!alreadyCurrent && (oldVersion < 28 || priorAppVersion !== '1.0.28')) {
+  if (oldVersion < 30 && !alreadyCurrent && (oldVersion < 28 || priorAppVersion !== '1.0.28')) {
     if (project.bookBrain) reanalyzeBookBrain(project);
     ensureEditions(project);
     if (project.editions?.ebook) project.editions.ebook.lastPreflight = null;
@@ -407,7 +407,7 @@ export function migrateProject(project) {
   // 1.0.29 replaces browser Print → Save as PDF with YasReady's own
   // 300-DPI production renderer. Old remembered print-PDF audits are stale
   // because they were not generated by Print PDF Hard Mode.
-  if (!alreadyCurrent && (oldVersion < 29 || priorAppVersion !== '1.0.29')) {
+  if (oldVersion < 30 && !alreadyCurrent && (oldVersion < 29 || priorAppVersion !== '1.0.29')) {
     ensureEditions(project);
     if (project.editions?.paperback) project.editions.paperback.lastPdfAudit = null;
     if (project.editions?.hardcover) project.editions.hardcover.lastPdfAudit = null;
@@ -419,7 +419,7 @@ export function migrateProject(project) {
   // package after a real Kindle Previewer E21018 conversion log traced the
   // failure into front-001.xhtml. It also adds Cover Brain state for print
   // editions. No manuscript text or Story Lock canonical data changes.
-  if (oldVersion < 30 || priorAppVersion !== '1.0.30') {
+  if (oldVersion < 30) {
     ensureEditions(project);
     if (project.editions?.ebook) {
       project.editions.ebook.lastPreflight = null;
@@ -435,8 +435,15 @@ export function migrateProject(project) {
     if (project.editions?.hardcover) project.editions.hardcover.lastCoverAudit = null;
   }
 
-  project.version = Math.max(oldVersion, 30);
-  project.appVersion = '1.0.30';
+  // 1.0.31 adds Amazon Print Gate state for paperback/hardcover. Existing
+  // production PDFs/covers remain available, but external Amazon confirmations
+  // are always token-bound to the exact current package. Story Lock is unchanged.
+  if (oldVersion < 31 || priorAppVersion !== '1.0.31') {
+    ensureEditions(project);
+  }
+
+  project.version = Math.max(oldVersion, 31);
+  project.appVersion = '1.0.31';
   return project;
 }
 
