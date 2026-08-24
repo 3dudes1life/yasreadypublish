@@ -62,8 +62,8 @@ test('device preview is standalone read-only proof with cover, TOC and reader co
 test('1.0.8 migration initializes presentation override buckets without changing manuscript', () => {
   const p=project();
   const before=JSON.stringify(p.manuscript.blocks);
-  assert.equal(p.version, 35);
-  assert.equal(p.appVersion, '1.0.35');
+  assert.equal(p.version, 36);
+  assert.equal(p.appVersion, '1.0.36');
   assert.deepEqual(p.presentationOverrides,{ebook:{},paperback:{},hardcover:{}});
   assert.equal(JSON.stringify(p.manuscript.blocks),before);
 });

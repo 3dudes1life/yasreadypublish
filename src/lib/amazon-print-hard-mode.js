@@ -130,7 +130,7 @@ export function runAmazonPrintHardMode({ project, type = 'paperback', preview = 
     checks.push(check('amazon-barcode-rendering','Cover barcode presence','warning','No back-cover barcode is configured. Confirm this is intentional before KDP upload.'));
   }
 
-  const generatedCover = edition.coverMode !== 'upload-pdf';
+  const generatedCover = edition.coverMode === 'build';
   checks.push(check('amazon-cover-title','Front-cover title',String(project?.title || '').trim() && generatedCover ? 'pass' : generatedCover ? 'error' : 'warning',generatedCover ? (String(project?.title || '').trim() ? 'Generated Cover Brain front includes the project title.' : 'Project title is missing from the generated front cover.') : 'Uploaded cover artwork cannot be text-read safely in-browser; verify the visible title in YasReady/KDP Print Previewer.'));
   checks.push(check('amazon-cover-safe-content','Cover trim/safe-zone visual check',generatedCover ? 'pass' : 'warning',generatedCover ? 'Cover Brain positions generated critical text inside the modeled KDP safe zones.' : 'Uploaded artwork geometry is machine-checked, but visual text/graphic safe-zone placement must be confirmed in KDP Print Previewer.'));
   checks.push(check('amazon-no-physical-proof','Physical proof responsibility','pass','Physical proof inspection is intentionally outside YasReady’s release gate; the author owns that final physical-copy decision.'));

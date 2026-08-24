@@ -116,3 +116,15 @@ When YasReady owns barcode placement, the final ISBN must validate and scanner-r
 ### External Amazon confirmation
 
 YasReady's only external print release confirmation is **KDP Print Previewer passed** for the exact frozen release token. Any production change invalidates that confirmation. Physical proof ordering and inspection are intentionally outside the software gate and remain the author's decision/responsibility.
+
+
+## Full-Wrap Artwork Adapter (v1.0.36)
+
+YasReady now distinguishes **finished visual artwork** from a **final KDP production PDF**.
+
+- JPG/PNG full-wrap artwork may be imported as a design source. YasReady infers the old physical wrap/spine geometry from the image proportions at the selected trim height and reports effective PPI.
+- A stale narrower paperback spine may be expanded after final pagination while preserving back/front panel geometry and the original spine-art width. YasReady will not automatically crop a source spine that is wider than the target because that could destroy text/logos.
+- Finished artwork must meet the production-resolution target before YasReady manufactures the final cover PDF. A lower-resolution reference is diagnostic only.
+- The manufactured cover is built only after final page count is frozen and uses the exact target full-wrap canvas before Barcode Brain replacement and Amazon Paperback Hard Mode auditing.
+- A PDF supplied through the **final KDP PDF** path remains strict and must already have the exact one-page production geometry. An image printed into a generic 8.5×11 PDF wrapper is not accepted as a full-wrap production cover.
+- Cover/artwork changes invalidate the frozen print package and KDP Print Previewer confirmation for that package; they do not alter Story Lock or an already-earned Kindle release proof.

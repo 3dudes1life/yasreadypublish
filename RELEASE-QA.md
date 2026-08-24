@@ -1,8 +1,8 @@
-# YasReady Publish v1.0.35 Release QA
+# YasReady Publish v1.0.36 Release QA
 
 ## Amazon Paperback Hard Mode
 
-- Run `npm run verify`; **260 automated tests must pass**, followed by static verification and Superman audit.
+- Run `npm run verify`; **265 automated tests must pass**, followed by static verification and Superman audit.
 - Confirm physical odd pages are right/recto and even pages are left/verso; printed folios must follow the same odd/right-even/left rule.
 - Confirm the selected trim/ink/paper page-count range and page-count-aware inside/outside/top/bottom margins are independently checked in Amazon Hard Mode.
 - Confirm the finished interior PDF audit blocks encryption, annotations/comments, forms, scripts, open actions, bookmarks, incorrect MediaBox/page count, non-300-DPI rendered pages, or oversized uploads.
@@ -12,6 +12,17 @@
 - Confirm the only YasReady external print release confirmation is **KDP Print Previewer passed**. There is no physical-proof approval button or software blocker; physical proof inspection is author-owned.
 - Confirm migration from 1.0.34 invalidates print artifacts/Previewer confirmation but preserves the exact Kindle release proof and Story Lock manuscript data.
 - Sanity-check a previously accepted real full-wrap cover: warnings may appear for transparency/page-box/image-analysis limits, but the file must not be falsely rejected when geometry/security are valid.
+
+
+## v1.0.36 focused acceptance
+
+- Simple Mode exposes a visible forward action from Book to Style, Style to Preview, and Preview to Export without requiring the sidebar.
+- About the Authors and Join the Journey use centered headings with left-aligned body prose in both browser preview and production PDF.
+- Finished full-wrap JPG/PNG artwork is accepted as **artwork**, not mislabeled as a KDP-ready PDF.
+- A Book-2-style 2048×1435 reference image is diagnosed as roughly 13.20×9.25 in / 0.95 in stale-spine geometry and is blocked from production for insufficient effective PPI.
+- A 300-PPI equivalent with the same proportions can preserve the back/front panels and expand only the spine to the frozen Book 2 geometry.
+- A final KDP PDF upload remains strict: exact one-page canvas geometry is required; printing a JPG into an 8.5×11 PDF wrapper is not treated as a valid wrap.
+- Migration invalidates stale paperback pagination/PDF/cover/KDP Print Previewer proof while preserving an already-earned Kindle release proof.
 
 # YasReady Publish v1.0.34 Release QA
 

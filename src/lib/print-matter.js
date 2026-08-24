@@ -1,6 +1,6 @@
 import { buildEbookSections } from './ebook-model.js';
 
-export const SPECIAL_PRINT_MATTER_ROLES = Object.freeze(['title', 'copyright', 'dedication']);
+export const SPECIAL_PRINT_MATTER_ROLES = Object.freeze(['title', 'copyright', 'dedication', 'about-authors', 'join-journey']);
 
 export function normalizePrintMatterText(text = '') {
   return String(text || '').replace(/\s+/g, ' ').trim();
@@ -56,6 +56,14 @@ export function printMatterFragmentKind(info, block) {
     if (/^dedication(?:\s+page)?\b/i.test(text)) return 'matter-dedication-heading';
     return info.meaningfulIndex === 0 ? 'matter-dedication-lead' : 'matter-dedication-body';
   }
+  if (info.role === 'about-authors') {
+    if (/^about the author(?:s)?\b/i.test(text)) return 'matter-back-heading';
+    return 'matter-back-body';
+  }
+  if (info.role === 'join-journey') {
+    if (/^join the journey\b/i.test(text)) return 'matter-back-heading';
+    return 'matter-back-body';
+  }
   return block?.kind || 'body';
 }
 
@@ -71,6 +79,10 @@ export function printMatterStyleSpec(kind, design = {}) {
     'matter-dedication-heading': { fontSizePt:Math.max(15, body * 1.28), lineHeight:1.12, alignment:'center', bold:true, italic:false, paddingTopIn:2.15, paddingBottomIn:0.28 },
     'matter-dedication-lead': { fontSizePt:Math.max(11.5, body * 0.98), lineHeight:1.18, alignment:'center', bold:false, italic:true, paddingTopIn:2.25, paddingBottomIn:0 },
     'matter-dedication-body': { fontSizePt:Math.max(11.5, body * 0.98), lineHeight:1.18, alignment:'center', bold:false, italic:true, paddingTopIn:0, paddingBottomIn:0 },
+    // Book 1 convention: the back-matter heading is centered, while the prose
+    // remains normally readable inside the same centered page column beneath it.
+    'matter-back-heading': { fontSizePt:Math.max(15, body * 1.28), lineHeight:1.14, alignment:'center', bold:true, italic:false, paddingTopIn:1.35, paddingBottomIn:0.30 },
+    'matter-back-body': { fontSizePt:body, lineHeight:1.18, alignment:'left', bold:false, italic:false, paddingTopIn:0.05, paddingBottomIn:0.08 },
   };
   return specs[kind] || null;
 }
@@ -81,5 +93,6 @@ export function printMatterBlankHeightIn(info, previousInfo = null) {
   if (info.role === 'title') return 0;
   if (info.role === 'copyright') return 0.20;
   if (info.role === 'dedication') return 0.24;
+  if (info.role === 'about-authors' || info.role === 'join-journey') return 0.12;
   return 0.12;
 }

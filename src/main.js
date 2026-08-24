@@ -30,6 +30,7 @@ import {
 import { normalizeEbookDesign } from './lib/ebook-model.js';
 import { buildPrintMatterIndex, normalizePrintMatterText, printMatterBlankHeightIn, printMatterFragmentKind, printMatterPagePolicy, printMatterStyleSpec } from './lib/print-matter.js';
 import { auditUploadedPrintCoverPdf, parsePrintCoverPdfBytes } from './lib/print-cover-upload.js';
+import { analyzeFullWrapArtwork, normalizeFullWrapArtwork, renderFullWrapArtworkPdf } from './lib/full-wrap-art.js';
 import {
   appendInteriorBarcodePages, barcodeBrainChecks, barcodeFingerprint, barcodePagePlan, barcodeSvg, detectLabeledPrintIsbn,
   drawBarcodeToCanvas, interiorBarcodeEnabled, normalizeBarcodeBrain, normalizePrintIsbn,
@@ -77,7 +78,7 @@ import {
   kindleReleaseReport, markAllCurrentReviewsIntentional, markKindleVisualProofComplete, setKindleExternalConfirmation,
 } from './lib/kindle-release-gate.js';
 
-const VERSION = '1.0.35';
+const VERSION = '1.0.36';
 // Legacy capability labels retained for regression discovery only (not default UI): Amazon KDP · Reflowable EPUB 3 · Kindle Preview Studio · Semantic Style Palette · Kindle Release Gate · v1.0.16
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
@@ -279,9 +280,26 @@ function renderShell() {
         ${renderSidebar()}
         <section class="main" id="mainView">${renderMain()}</section>
       </div>
+      <div id="simpleFlowDock">${renderSimpleFlowDock()}</div>
       <div class="footer-note">YasReady Publish v${VERSION} · Your manuscript stays Story-Locked while layout and export settings remain separate.</div>
     </main>`;
   bindEvents();
+}
+
+function renderSimpleFlowDock() {
+  if (!state.project || state.busy || ['library','bugs'].includes(state.activeView)) return '';
+  const step = state.simpleStep || 'book';
+  const map = {
+    book:{ back:null, next:'style', nextLabel:'Continue to Style →' },
+    style:{ back:'book', backLabel:'← Book', next:'preview', nextLabel:'Continue to Preview →' },
+    preview:{ back:'style', backLabel:'← Style', next:'export', nextLabel:'Continue to Export →' },
+    export:{ back:'preview', backLabel:'← Preview', next:null },
+  };
+  const nav = map[step] || map.book;
+  return `<div class="simple-flow-dock" role="navigation" aria-label="Book publishing workflow">
+    <span class="simple-flow-dock-step">${step === 'book' ? '1 · BOOK' : step === 'style' ? '2 · STYLE' : step === 'preview' ? '3 · PREVIEW' : '4 · EXPORT'}</span>
+    <div>${nav.back ? `<button class="btn ghost" data-simple-step="${nav.back}" type="button">${nav.backLabel}</button>` : ''}${nav.next ? `<button class="btn primary" data-simple-step="${nav.next}" type="button">${nav.nextLabel}</button>` : `<button class="btn secondary" data-simple-step="book" type="button">Back to Book</button>`}</div>
+  </div>`;
 }
 
 function renderSidebar() {
@@ -720,11 +738,15 @@ function renderPrintBrainSetup() {
   const paperOptions = production.ink === 'black'
     ? (type === 'hardcover' ? [['cream','Cream'],['white','White']] : [['cream','Cream'],['white','White'],['groundwood','Groundwood']])
     : [['white','White']];
-  const coverMode = ['choose','upload-pdf','build'].includes(edition.coverMode) ? edition.coverMode : 'choose';
+  const coverMode = ['choose','upload-pdf','upload-art','build'].includes(edition.coverMode) ? edition.coverMode : 'choose';
   const uploadedCover = edition.uploadedCoverPdf || null;
+  const uploadedArt = normalizeFullWrapArtwork(edition.uploadedCoverArt || null);
   const coverFileSummary = uploadedCover
     ? `${escapeHtml(uploadedCover.fileName)} · ${(uploadedCover.fileSize / 1024 / 1024).toFixed(1)} MB${uploadedCover.widthIn && uploadedCover.heightIn ? ` · ${uploadedCover.widthIn.toFixed(4)} × ${uploadedCover.heightIn.toFixed(4)} in` : ''}`
-    : 'No full-wrap PDF attached yet.';
+    : 'No production PDF attached yet.';
+  const artFileSummary = uploadedArt
+    ? `${escapeHtml(uploadedArt.fileName)} · ${(uploadedArt.fileSize / 1024 / 1024).toFixed(1)} MB · ${uploadedArt.width} × ${uploadedArt.height}px`
+    : 'No finished full-wrap JPG/PNG attached yet.';
   const meta = edition.kdpMetadata || {};
   const barcode = currentBarcodeBrain();
   const detected = detectLabeledPrintIsbn(project, type);
@@ -736,7 +758,7 @@ function renderPrintBrainSetup() {
   const basePages = Number(state.preview?.barcodePlan?.basePageCount || (pageCount ? Math.max(0,pageCount-(state.preview?.barcodePlan?.spacerPages || 0)-1) : 0));
   const barcodeReport = barcodeBrainChecks({ isbn:isbnValue, isbnMode, pageCount, basePageCount:basePages, brain:barcode, coverMode });
   return `<article class="panel print-brain-panel">
-    <div class="simple-page-head"><div><span class="simple-kicker">PRINT BRAIN · v1.0.35</span><h2>Make your ${type === 'hardcover' ? 'hardcover' : 'paperback'}.</h2><p>Choose the physical book. YasReady handles the KDP geometry and checks the combination against Amazon’s manufacturing rules.</p></div></div>
+    <div class="simple-page-head"><div><span class="simple-kicker">PRINT BRAIN · v1.0.36</span><h2>Make your ${type === 'hardcover' ? 'hardcover' : 'paperback'}.</h2><p>Choose the physical book. YasReady handles the KDP geometry and checks the combination against Amazon’s manufacturing rules.</p></div></div>
     <div class="print-brain-recommend"><div><span>RECOMMENDED FOR FICTION</span><strong>6 × 9 · Black ink · Cream paper · No bleed</strong><small>Same Story-Locked manuscript. Paperback and hardcover still paginate independently.</small></div><button class="btn secondary" id="usePrintBrainRecommended" type="button">Use Recommended</button></div>
     <div class="print-brain-grid">
       <label class="design-field"><span>Book size</span><select id="printBrainTrim">${trims.map((trim) => `<option value="${trim.id}" ${trim.id === production.trimId ? 'selected' : ''}>${escapeHtml(trim.label)}${trim.id === '6x9' ? ' · Recommended' : ''}</option>`).join('')}</select></label>
@@ -747,15 +769,18 @@ function renderPrintBrainSetup() {
     <div class="notice ${eligibility.range.available ? 'success' : 'error'}"><strong>${eligibility.range.available ? 'KDP option is valid.' : 'This combination is unavailable.'}</strong> ${escapeHtml(eligibility.range.reason)}${pageCount ? ` Current proof: ${pageCount} pages.` : ' YasReady will recalculate the gutter after pagination.'}</div>
     <section class="print-cover-choice">
       <div class="print-cover-choice-head"><div><span class="simple-kicker">YOUR COVER</span><h3>How are you handling the ${type === 'hardcover' ? 'hardcover' : 'paperback'} cover?</h3><p>Print cover geometry depends on the final interior page count, so YasReady tracks the cover from the beginning instead of surprising you at export.</p></div><span class="mini-status ${coverMode === 'choose' ? 'needs' : 'good'}">${coverMode === 'choose' ? 'Choose one' : 'Selected'}</span></div>
-      <div class="print-cover-mode-grid">
-        <label class="print-cover-mode ${coverMode === 'upload-pdf' ? 'selected' : ''}"><input type="radio" name="printCoverMode" value="upload-pdf" ${coverMode === 'upload-pdf' ? 'checked' : ''}><span><strong>I already have a full-wrap KDP cover PDF</strong><small>Attach the finished back + spine + front PDF. YasReady will compare its MediaBox against the final spine/page-count geometry.</small></span></label>
-        <label class="print-cover-mode ${coverMode === 'build' ? 'selected' : ''}"><input type="radio" name="printCoverMode" value="build" ${coverMode === 'build' ? 'checked' : ''}><span><strong>Build my cover in YasReady</strong><small>Use the Kindle/front artwork and Cover Brain to build the full-wrap PDF after pagination freezes the spine width.</small></span></label>
+      <div class="print-cover-mode-grid three">
+        <label class="print-cover-mode ${coverMode === 'upload-art' ? 'selected' : ''}"><input type="radio" name="printCoverMode" value="upload-art" ${coverMode === 'upload-art' ? 'checked' : ''}><span><strong>I already designed the full wrap</strong><small>Upload the original JPG/PNG design. YasReady will preserve the back/front panels, diagnose stale spine geometry, and manufacture the final KDP-sized PDF after pagination.</small></span></label>
+        <label class="print-cover-mode ${coverMode === 'upload-pdf' ? 'selected' : ''}"><input type="radio" name="printCoverMode" value="upload-pdf" ${coverMode === 'upload-pdf' ? 'checked' : ''}><span><strong>I already have the final KDP PDF</strong><small>Use this only when the PDF itself already has the exact final back + spine + front canvas. Do not print a JPG to an 8.5 × 11 PDF first.</small></span></label>
+        <label class="print-cover-mode ${coverMode === 'build' ? 'selected' : ''}"><input type="radio" name="printCoverMode" value="build" ${coverMode === 'build' ? 'checked' : ''}><span><strong>Build my cover in YasReady</strong><small>Use separate front/back assets and Cover Brain to create the complete wrap after pagination freezes the spine width.</small></span></label>
       </div>
-      <div class="print-full-cover-upload ${coverMode === 'upload-pdf' ? '' : 'is-muted'}"><input id="printFullWrapCoverInput" type="file" accept="application/pdf,.pdf" hidden><button class="btn ${uploadedCover ? 'secondary' : 'primary'}" id="choosePrintFullWrapCover" type="button" ${coverMode === 'upload-pdf' ? '' : 'disabled'}>${uploadedCover ? 'Replace full-wrap PDF' : 'Attach full-wrap PDF'}</button>${uploadedCover ? '<button class="btn ghost" id="removePrintFullWrapCover" type="button">Remove</button>' : ''}<small>${coverFileSummary}</small></div>
-      ${coverMode === 'upload-pdf' && uploadedCover ? '<div class="notice info"><strong>Attached now; certified later.</strong> YasReady will re-check this PDF after the final interior page count is known. If the spine width changes, it will block the stale cover instead of letting you upload the wrong wrap.</div>' : ''}
+      <div class="print-full-cover-upload ${coverMode === 'upload-art' ? '' : 'is-muted'}" data-cover-upload-mode="upload-art"><input id="printFullWrapArtInput" type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" hidden><button class="btn ${uploadedArt ? 'secondary' : 'primary'}" id="choosePrintFullWrapArt" type="button" ${coverMode === 'upload-art' ? '' : 'disabled'}>${uploadedArt ? 'Replace full-wrap artwork' : 'Attach full-wrap artwork'}</button>${uploadedArt ? '<button class="btn ghost" id="removePrintFullWrapArt" type="button">Remove</button>' : ''}<small>${artFileSummary}</small></div>
+      <div class="print-full-cover-upload ${coverMode === 'upload-pdf' ? '' : 'is-muted'}" data-cover-upload-mode="upload-pdf"><input id="printFullWrapCoverInput" type="file" accept="application/pdf,.pdf" hidden><button class="btn ${uploadedCover ? 'secondary' : 'primary'}" id="choosePrintFullWrapCover" type="button" ${coverMode === 'upload-pdf' ? '' : 'disabled'}>${uploadedCover ? 'Replace final KDP PDF' : 'Attach final KDP PDF'}</button>${uploadedCover ? '<button class="btn ghost" id="removePrintFullWrapCover" type="button">Remove</button>' : ''}<small>${coverFileSummary}</small></div>
+      ${coverMode === 'upload-art' && uploadedArt ? '<div class="notice info"><strong>Artwork, not production PDF.</strong> YasReady will infer the canvas/spine this design was built for, preserve the back/front panels, and rebuild the final one-page PDF only after the current page count is frozen.</div>' : ''}
+      ${coverMode === 'upload-pdf' && uploadedCover ? '<div class="notice info"><strong>Production PDF attached.</strong> YasReady will re-check its real PDF page size after pagination. If the canvas was created by printing a JPG onto Letter paper, it will explain that instead of treating the visual design as the problem.</div>' : ''}
     </section>
     <section class="print-barcode-choice">
-      <div class="print-cover-choice-head"><div><span class="simple-kicker">BARCODE BRAIN · v1.0.35</span><h3>Lock the ISBN into the physical book.</h3><p>Barcode Brain runs before final spine math because the optional last-page ISBN barcode becomes a real physical page. One ISBN can drive the last interior page, back cover, and standalone barcode assets.</p></div><span class="mini-status ${isbnStatus.valid ? 'good' : 'needs'}">${isbnStatus.valid ? 'ISBN VALID' : 'ISBN NEEDED'}</span></div>
+      <div class="print-cover-choice-head"><div><span class="simple-kicker">BARCODE BRAIN · v1.0.36</span><h3>Lock the ISBN into the physical book.</h3><p>Barcode Brain runs before final spine math because the optional last-page ISBN barcode becomes a real physical page. One ISBN can drive the last interior page, back cover, and standalone barcode assets.</p></div><span class="mini-status ${isbnStatus.valid ? 'good' : 'needs'}">${isbnStatus.valid ? 'ISBN VALID' : 'ISBN NEEDED'}</span></div>
       <div class="print-brain-grid barcode-brain-grid">
         <label class="design-field"><span>Print ISBN source</span><select id="printBrainIsbnMode"><option value="own" ${isbnMode === 'own' ? 'selected' : ''}>Use my own ISBN</option><option value="kdp-free" ${isbnMode !== 'own' ? 'selected' : ''}>Use free KDP ISBN / Amazon barcode</option></select></label>
         <label class="design-field"><span>Print ISBN</span><input id="printBrainIsbn" value="${escapeHtml(isbnValue)}" placeholder="979…" inputmode="numeric"><small>${detectedIsbn ? `Detected in the manuscript copyright page: ${escapeHtml(detectedIsbn)} · confirm it belongs to this ${escapeHtml(editionLabel(type).toLowerCase())}.` : 'ISBN-13 is validated mathematically before any barcode is generated.'}</small></label>
@@ -1036,7 +1061,8 @@ function renderBookPage(page, design) {
       const classes = `print-fragment ${escapeHtml(fragment.kind)} ${fragment.continuation ? 'continuation' : ''}`;
       let extra = '';
       const matterSpec = printMatterStyleSpec(fragment.kind, design);
-      let content = matterSpec ? escapeHtml(fragment.displayText ?? fragment.text) : renderInlineRuns(fragment);
+      const preserveMatterRuns = ['matter-back-heading','matter-back-body'].includes(fragment.kind);
+      let content = matterSpec ? (preserveMatterRuns ? renderInlineRuns(fragment) : escapeHtml(fragment.displayText ?? fragment.text)) : renderInlineRuns(fragment);
       if (matterSpec) {
         const matterSize = matterSpec.fontSizePt * (96 / 72) * (px / 96);
         extra = `padding-top:${(matterSpec.paddingTopIn || 0) * px}px;padding-bottom:${(matterSpec.paddingBottomIn || 0) * px}px;font-size:${matterSize}px;line-height:${matterSpec.lineHeight};text-align:${matterSpec.alignment};font-weight:${matterSpec.bold ? 700 : 400};font-style:${matterSpec.italic ? 'italic' : 'normal'};white-space:normal;`;
@@ -1092,11 +1118,27 @@ function renderCoverBrain() {
   const inlineBarcode = barcode.coverPlacement === 'yasready' && barcodeIsbn.valid
     ? barcodeSvg(barcodeIsbn.digits, { widthIn:2, heightIn:1.2 }).replace(/^<\?xml[^>]*>\s*/i,'')
     : '';
+  if (edition.coverMode === 'upload-art') {
+    const art = normalizeFullWrapArtwork(edition.uploadedCoverArt || null);
+    const artAudit = analyzeFullWrapArtwork({ asset:art, geometry:g, production:edition.production || {}, pageCount });
+    const inferred = artAudit.inferred || {};
+    const barcodeCheck = report.checks.find((item)=>item.id==='barcode');
+    const canBuild = artAudit.ready && barcodeCheck?.status !== 'error';
+    return `<section class="cover-brain-card uploaded-cover-card">
+      <div class="cover-brain-head"><div><div class="eyebrow">FULL-WRAP ARTWORK ADAPTER · v1.0.36</div><h3>${escapeHtml(editionLabel(type))} cover</h3><p>This is your finished visual design, not a production PDF. YasReady preserves the back and front panels at their original physical size, adapts only the stale spine area when it can do so safely, replaces the old barcode footprint, and manufactures the final KDP-sized PDF after pagination.</p></div><div class="cover-brain-dims"><strong>${g.width.toFixed(4)} × ${g.height.toFixed(4)}</strong><span>in required</span><small>Spine ${g.spineWidth.toFixed(4)} in</small></div></div>
+      ${state.coverBrainMessage ? `<div class="notice info">${escapeHtml(state.coverBrainMessage)}</div>` : ''}
+      <div class="uploaded-cover-summary"><div><span>FINISHED ARTWORK</span><strong>${escapeHtml(art?.fileName || 'No full-wrap artwork attached')}</strong><small>${art ? `${art.width} × ${art.height}px · ${(art.fileSize/1024/1024).toFixed(1)} MB · SHA ${escapeHtml(shortHash(art.sha256,16))}` : 'Go back to Print Brain and attach the original JPG/PNG artwork.'}</small></div><div class="mini-status ${artAudit.ready ? 'good' : 'needs'}">${artAudit.ready ? 'READY TO MANUFACTURE' : 'ARTWORK NEEDS ATTENTION'}</div></div>
+      ${inferred.sourceWidthIn ? `<div class="notice ${artAudit.ready ? 'success' : 'warning'}"><strong>Plain-English diagnosis:</strong> this artwork maps to about <strong>${inferred.sourceWidthIn.toFixed(3)} × ${inferred.sourceHeightIn.toFixed(3)} in</strong> with an inferred <strong>${inferred.sourceSpineIn.toFixed(3)} in spine</strong>${inferred.inferredPages ? ` — roughly a ${inferred.inferredPages}-page cover on this paper profile` : ''}. This book currently needs <strong>${g.width.toFixed(3)} × ${g.height.toFixed(3)} in</strong> with a <strong>${g.spineWidth.toFixed(3)} in spine</strong>.${inferred.targetCanExtendSpine && !inferred.ratioMatch ? ' YasReady can preserve both 6-inch covers and extend only the spine background around the existing spine art.' : ''}</div>` : ''}
+      <div class="cover-brain-checks"><div class="cover-check-head"><strong>${canBuild ? 'Artwork can become the final KDP cover' : 'Artwork manufacture blocked'}</strong><span>${artAudit.checks.filter((item)=>item.status==='pass').length} pass</span></div>${artAudit.checks.map((item)=>`<div class="cover-check ${item.status}"><span>${item.status === 'pass' ? '✓' : item.status === 'warning' ? '!' : '×'}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.message)}</small></div></div>`).join('')}${report.checks.filter((item)=>item.id==='barcode').map((item)=>`<div class="cover-check ${item.status}"><span>${item.status === 'pass' ? '✓' : item.status === 'warning' ? '!' : '×'}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.message)}</small></div></div>`).join('')}</div>
+      ${barcodeIsbn.valid ? `<div class="barcode-asset-actions"><button class="btn ghost" id="downloadBarcodeSvg" type="button">Download ISBN barcode SVG</button><button class="btn ghost" id="downloadBarcodePng" type="button">Download 300-DPI PNG</button></div>` : ''}
+      <div class="cover-brain-actions"><button class="btn ${canBuild ? 'primary' : 'secondary'}" id="buildCoverPdf" type="button" ${canBuild ? '' : 'disabled'}>${barcode.coverPlacement === 'yasready' ? 'Manufacture cover + replace barcode' : 'Manufacture final KDP cover PDF'}</button><button class="btn ghost" data-simple-step="style" type="button">← Change cover choice</button></div>
+    </section>`;
+  }
   if (edition.coverMode === 'upload-pdf') {
     const uploadAudit = auditUploadedPrintCoverPdf({ asset:edition.uploadedCoverPdf, geometry:g, pageCount, proofSignature:state.preview?.proofSignature || '' });
     const attached = edition.uploadedCoverPdf;
     return `<section class="cover-brain-card uploaded-cover-card">
-      <div class="cover-brain-head"><div><div class="eyebrow">PRINT COVER + BARCODE BRAIN · v1.0.35</div><h3>${escapeHtml(editionLabel(type))} cover</h3><p>You chose an existing KDP-ready full-wrap PDF. YasReady compares its canvas and PDF safety against the final ${pageCount || '—'}-page interior${barcode.coverPlacement === 'yasready' ? ' and stamps the certified vector EAN-13 at download after knocking out the entire legacy placeholder footprint' : ''}.</p></div><div class="cover-brain-dims"><strong>${g.width.toFixed(4)} × ${g.height.toFixed(4)}</strong><span>in required</span><small>Spine ${g.spineWidth.toFixed(4)} in</small></div></div>
+      <div class="cover-brain-head"><div><div class="eyebrow">PRINT COVER + BARCODE BRAIN · v1.0.36</div><h3>${escapeHtml(editionLabel(type))} cover</h3><p>You chose an existing KDP-ready full-wrap PDF. YasReady compares its canvas and PDF safety against the final ${pageCount || '—'}-page interior${barcode.coverPlacement === 'yasready' ? ' and stamps the certified vector EAN-13 at download after knocking out the entire legacy placeholder footprint' : ''}.</p></div><div class="cover-brain-dims"><strong>${g.width.toFixed(4)} × ${g.height.toFixed(4)}</strong><span>in required</span><small>Spine ${g.spineWidth.toFixed(4)} in</small></div></div>
       ${state.coverBrainMessage ? `<div class="notice info">${escapeHtml(state.coverBrainMessage)}</div>` : ''}
       <div class="uploaded-cover-summary"><div><span>ATTACHED FILE</span><strong>${escapeHtml(attached?.fileName || 'No cover PDF attached')}</strong><small>${attached ? `${(attached.fileSize / 1024 / 1024).toFixed(1)} MB · ${attached.widthIn.toFixed(4)} × ${attached.heightIn.toFixed(4)} in · SHA ${escapeHtml(shortHash(attached.sha256,16))}` : 'Go back to Print Brain and attach the full-wrap PDF.'}</small></div><div class="mini-status ${uploadAudit.ready ? 'good' : 'needs'}">${uploadAudit.ready ? 'MATCHES FINAL INTERIOR' : 'NEEDS UPDATED WRAP'}</div></div>
       <div class="cover-brain-checks"><div class="cover-check-head"><strong>${uploadAudit.ready && report.checks.find((item)=>item.id==='barcode')?.status !== 'error' ? 'Cover PDF certified' : 'Cover PDF blocked'}</strong><span>${uploadAudit.checks.filter((item)=>item.status==='pass').length} geometry pass</span></div>${uploadAudit.checks.map((item) => `<div class="cover-check ${item.status}"><span>${item.status === 'pass' ? '✓' : '×'}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.message)}</small></div></div>`).join('')}${report.checks.filter((item)=>item.id==='barcode').map((item)=>`<div class="cover-check ${item.status}"><span>${item.status === 'pass' ? '✓' : item.status === 'warning' ? '!' : '×'}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.message)}</small></div></div>`).join('')}</div>
@@ -1119,7 +1161,7 @@ function renderCoverBrain() {
       <a class="btn ghost" href="https://kdp.amazon.com/cover-templates?language=en_US" target="_blank" rel="noopener">Open Amazon Cover Calculator ↗</a>
     </div>` : '';
   return `<section class="cover-brain-card">
-    <div class="cover-brain-head"><div><div class="eyebrow">COVER BRAIN + BARCODE BRAIN · v1.0.35</div><h3>${escapeHtml(editionLabel(type))} cover</h3><p>Final page count drives the spine and full-wrap canvas. YasReady reserves the barcode zone and keeps every critical element inside KDP safety.</p></div><div class="cover-brain-dims"><strong>${g.width.toFixed(4)} × ${g.height.toFixed(4)}</strong><span>in full cover</span><small>Spine ${g.spineWidth.toFixed(4)} in${g.exact ? '' : ' · estimate'}</small></div></div>
+    <div class="cover-brain-head"><div><div class="eyebrow">COVER BRAIN + BARCODE BRAIN · v1.0.36</div><h3>${escapeHtml(editionLabel(type))} cover</h3><p>Final page count drives the spine and full-wrap canvas. YasReady reserves the barcode zone and keeps every critical element inside KDP safety.</p></div><div class="cover-brain-dims"><strong>${g.width.toFixed(4)} × ${g.height.toFixed(4)}</strong><span>in full cover</span><small>Spine ${g.spineWidth.toFixed(4)} in${g.exact ? '' : ' · estimate'}</small></div></div>
     ${state.coverBrainMessage ? `<div class="notice info">${escapeHtml(state.coverBrainMessage)}</div>` : ''}
     <div class="cover-brain-preview" style="--back:${ratioBack};--spine:${ratioSpine};--front:${ratioFront};background:${escapeHtml(cover.background)};color:${escapeHtml(cover.textColor)}">
       <div class="cover-panel cover-back"><div class="cover-back-copy">${escapeHtml(cover.backCopy || 'Back-cover copy')}</div>${barcode.coverPlacement === 'yasready' && inlineBarcode ? `<div class="cover-barcode-zone is-yasready">${inlineBarcode}</div>` : barcode.coverPlacement === 'amazon' ? '<div class="cover-barcode-zone">AMAZON BARCODE</div>' : ''}</div>
@@ -1185,7 +1227,7 @@ function renderPrintReleaseGate() {
   const checks = gate.checks.map((item) => `<div class="release-a11y-row ${item.status}"><span>${item.status === 'pass' ? '✓' : item.status === 'warning' ? '!' : '×'}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.message)}</small></div></div>`).join('');
   const hardChecks = hard.checks.map((item) => `<div class="release-a11y-row ${item.status}"><span>${item.status === 'pass' ? '✓' : item.status === 'warning' ? '!' : '×'}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.message)}</small></div></div>`).join('');
   return `<section class="kindle-release-gate ${gate.kdpPublishReady ? 'ready' : gate.readyForKdpPreviewer ? 'ready' : gate.technicalReady ? 'review' : 'blocked'}" id="printReleaseGate">
-    <div class="kindle-release-head"><div><div class="eyebrow">AMAZON PRINT GATE · v1.0.35</div><h3>${headline}</h3><p>YasReady binds the exact interior PDF, cover PDF, final page count, barcode, manufacturing settings, and KDP metadata into one release token. Amazon confirmations expire automatically if any production file changes.</p></div><div class="kindle-release-score"><strong>${gate.pageCount}</strong><span>pages</span></div></div>
+    <div class="kindle-release-head"><div><div class="eyebrow">AMAZON PRINT GATE · v1.0.36</div><h3>${headline}</h3><p>YasReady binds the exact interior PDF, cover PDF, final page count, barcode, manufacturing settings, and KDP metadata into one release token. Amazon confirmations expire automatically if any production file changes.</p></div><div class="kindle-release-score"><strong>${gate.pageCount}</strong><span>pages</span></div></div>
     ${state.printGateMessage ? `<div class="notice info">${escapeHtml(state.printGateMessage)}</div>` : ''}
     <div class="release-gate-steps">${steps}</div>
     <div class="release-gate-summary"><div><strong>${gate.interiorCurrent ? 'YES' : 'NO'}</strong><span>interior current</span></div><div><strong>${gate.coverCurrent ? 'YES' : 'NO'}</strong><span>cover current</span></div><div><strong>${gate.hardModeReady ? 'YES' : 'NO'}</strong><span>Hard Mode</span></div><div><strong>${gate.kdpPublishReady ? 'YES' : 'NO'}</strong><span>KDP ready</span></div></div>
@@ -2450,6 +2492,34 @@ async function removePrintFullWrapCover() {
   await saveProject(state.project); state.projects = await listProjects(); updateMain();
 }
 
+async function importPrintFullWrapArtwork(file) {
+  if (!state.project) return;
+  if (!['image/jpeg','image/png'].includes(file?.type || '')) { alert('Choose the original full-wrap JPG or PNG artwork. Do not convert it to a letter-size PDF first.'); return; }
+  try {
+    const [bytes, dataUrl] = await Promise.all([file.arrayBuffer(), fileToDataUrl(file)]);
+    const [{ width, height }, sha256] = await Promise.all([imageDimensions(dataUrl), sha256Hex(bytes)]);
+    ensureEditions(state.project);
+    const type = currentPrintEditionType();
+    const edition = state.project.editions[type];
+    edition.coverMode = 'upload-art';
+    edition.uploadedCoverArt = normalizeFullWrapArtwork({ fileName:file.name, mimeType:file.type, fileSize:file.size, width, height, dataUrl, sha256, updatedAt:new Date().toISOString() });
+    edition.lastCoverAudit = null;
+    state.coverPdfReport = null;
+    state.coverBrainMessage = `Full-wrap artwork attached: ${file.name} (${width} × ${height}px). YasReady will compare the design's inferred spine/canvas with the final page count instead of treating it like an already-manufactured PDF.`;
+    state.project.updatedAt = new Date().toISOString();
+    await saveProject(state.project); state.projects = await listProjects(); updateMain();
+  } catch (error) { console.error(error); alert(error?.message || 'The full-wrap artwork could not be attached.'); }
+}
+
+async function removePrintFullWrapArtwork() {
+  if (!state.project) return;
+  ensureEditions(state.project);
+  const edition = state.project.editions[currentPrintEditionType()];
+  edition.uploadedCoverArt = null; edition.lastCoverAudit = null; state.coverPdfReport = null;
+  state.coverBrainMessage = 'Attached full-wrap artwork removed.';
+  await saveProject(state.project); state.projects = await listProjects(); updateMain();
+}
+
 async function savePrintBrainSetup(useRecommended = false) {
   if (!state.project) return;
   ensureEditions(state.project);
@@ -2480,7 +2550,11 @@ async function savePrintBrainSetup(useRecommended = false) {
     return;
   }
   if (coverMode === 'upload-pdf' && !edition.uploadedCoverPdf) {
-    alert('Attach your full-wrap KDP cover PDF before continuing, or choose “Build my cover in YasReady.”');
+    alert('Attach the actual final KDP full-wrap PDF before continuing, or choose the finished-artwork option instead.');
+    return;
+  }
+  if (coverMode === 'upload-art' && !edition.uploadedCoverArt) {
+    alert('Attach the original full-wrap JPG/PNG artwork before continuing. YasReady will manufacture the KDP PDF after pagination.');
     return;
   }
   edition.coverMode = coverMode;
@@ -2635,6 +2709,8 @@ function updateMain() {
   if (main) main.innerHTML = renderMain();
   const sidebar = document.querySelector('.sidebar');
   if (sidebar) sidebar.outerHTML = renderSidebar();
+  const dock = document.querySelector('#simpleFlowDock');
+  if (dock) dock.innerHTML = renderSimpleFlowDock();
   bindEvents();
 }
 
@@ -2708,13 +2784,17 @@ function bindDynamicEvents() {
   document.querySelector('#savePrintBrainSetup')?.addEventListener('click', () => savePrintBrainSetup(false));
   document.querySelector('#usePrintBrainRecommended')?.addEventListener('click', () => savePrintBrainSetup(true));
   document.querySelectorAll('input[name="printCoverMode"]').forEach((input) => input.addEventListener('change', () => {
-    const upload = document.querySelector('.print-full-cover-upload');
-    const button = document.querySelector('#choosePrintFullWrapCover');
     document.querySelectorAll('.print-cover-mode').forEach((label) => label.classList.toggle('selected', label.querySelector('input')?.checked));
-    const isUpload = readPrintCoverMode() === 'upload-pdf';
-    upload?.classList.toggle('is-muted', !isUpload);
-    if (button) button.disabled = !isUpload;
+    const mode = readPrintCoverMode();
+    document.querySelectorAll('[data-cover-upload-mode]').forEach((row) => row.classList.toggle('is-muted', row.dataset.coverUploadMode !== mode));
+    const pdfButton = document.querySelector('#choosePrintFullWrapCover');
+    const artButton = document.querySelector('#choosePrintFullWrapArt');
+    if (pdfButton) pdfButton.disabled = mode !== 'upload-pdf';
+    if (artButton) artButton.disabled = mode !== 'upload-art';
   }));
+  document.querySelector('#choosePrintFullWrapArt')?.addEventListener('click', () => document.querySelector('#printFullWrapArtInput')?.click());
+  document.querySelector('#printFullWrapArtInput')?.addEventListener('change', (event) => event.target.files?.[0] && importPrintFullWrapArtwork(event.target.files[0]));
+  document.querySelector('#removePrintFullWrapArt')?.addEventListener('click', removePrintFullWrapArtwork);
   document.querySelector('#choosePrintFullWrapCover')?.addEventListener('click', () => document.querySelector('#printFullWrapCoverInput')?.click());
   document.querySelector('#printFullWrapCoverInput')?.addEventListener('change', (event) => event.target.files?.[0] && importPrintFullWrapCover(event.target.files[0]));
   document.querySelector('#removePrintFullWrapCover')?.addEventListener('click', removePrintFullWrapCover);
@@ -3487,6 +3567,35 @@ async function buildCurrentCoverPdf() {
   const type = currentPrintEditionType();
   const edition = state.project.editions[type];
   const pageCount = Number(edition.lastPageCount || state.preview?.pages?.length || 0);
+  if (edition.coverMode === 'upload-art') {
+    const geometry = coverGeometry({ type, production:edition.production || {}, pageCount, cover:edition.coverBrain || {} });
+    const art = normalizeFullWrapArtwork(edition.uploadedCoverArt || null);
+    const artAnalysis = analyzeFullWrapArtwork({ asset:art, geometry, production:edition.production || {}, pageCount });
+    if (!artAnalysis.ready || !art?.dataUrl) { edition.lastCoverAudit = { ...artAnalysis, pageCount, proofSignature:state.preview?.proofSignature || '' }; state.coverPdfReport = edition.lastCoverAudit; await saveProject(state.project); alert('The finished cover artwork cannot be manufactured safely yet. Open the cover checks for the exact reason—YasReady will not stretch or silently degrade the design.'); updateMain(); return; }
+    const barcode = normalizeBarcodeBrain(edition.barcodeBrain || {});
+    const isbn = normalizePrintIsbn(edition.kdpMetadata?.isbn || '');
+    if (barcode.coverPlacement === 'yasready' && (edition.kdpMetadata?.isbnMode !== 'own' || !isbn.valid)) { alert('Barcode Brain needs a valid owned print ISBN before it can replace the back-cover barcode.'); return; }
+    state.busy = true; state.busyMessage = `Manufacturing the final ${editionLabel(type).toLowerCase()} cover from your full-wrap artwork…`; updateMain();
+    try {
+      const packaged = await renderFullWrapArtworkPdf({ asset:art, geometry, production:edition.production || {}, pageCount, barcodeBrain:barcode, isbn:isbn.digits || '', dpi:COVER_DPI });
+      const sha256 = await sha256Hex(packaged.bytes);
+      const parsed = parsePrintCoverPdfBytes(packaged.bytes);
+      if (!parsed.ok) throw new Error('The manufactured cover PDF could not be re-read for final geometry certification.');
+      const finalAsset = { fileName:`${safeExportBaseName()}-${type}-kdp-cover.pdf`, mimeType:'application/pdf', fileSize:packaged.bytes.byteLength, sha256, dataUrl:bytesToPdfDataUrl(packaged.bytes), ...parsed, updatedAt:new Date().toISOString() };
+      const pdfAudit = auditUploadedPrintCoverPdf({ asset:finalAsset, geometry, pageCount, proofSignature:state.preview?.proofSignature || '' });
+      const checks = [...artAnalysis.checks, ...pdfAudit.checks];
+      const errors = checks.filter((item)=>item.status === 'error').length;
+      const warnings = checks.filter((item)=>item.status === 'warning').length;
+      const audit = { ...pdfAudit, ready:errors===0, checks, summary:{errors,warnings,passes:checks.length-errors-warnings,total:checks.length}, sha256, sourceArtworkSha256:art.sha256 || '', sourceArtworkFileName:art.fileName, barcodeFingerprint:barcodeFingerprint({ isbn:isbn.digits || '', pageCount, brain:barcode }), barcode:packaged.barcode, adapter:artAnalysis.inferred, generatedAt:new Date().toISOString(), pageCount, proofSignature:state.preview?.proofSignature || '' };
+      edition.lastCoverAudit = audit; state.coverPdfReport = audit;
+      state.project.updatedAt = new Date().toISOString();
+      await saveProject(state.project); state.projects = await listProjects();
+      if (!audit.ready) throw new Error('The manufactured cover failed its final PDF audit.');
+      downloadBlobFile(`${safeExportBaseName()}-${type}-kdp-cover.pdf`, packaged.blob);
+    } catch (error) { console.error(error); alert(error?.message || 'YasReady could not manufacture the full-wrap artwork safely.'); }
+    finally { state.busy=false; state.busyMessage=''; state.activeView='export'; updateMain(); }
+    return;
+  }
   if (edition.coverMode === 'upload-pdf') {
     const geometry = coverGeometry({ type, production:edition.production || {}, pageCount, cover:edition.coverBrain || {} });
     const sourceAudit = auditUploadedPrintCoverPdf({ asset:edition.uploadedCoverPdf, geometry, pageCount, proofSignature:state.preview?.proofSignature || '' });
@@ -4646,14 +4755,15 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
     const matterInfo = matterIndex.get(block.id) || null;
     const kind = printMatterFragmentKind(matterInfo, block);
     const specialMatter = Boolean(matterInfo && printMatterStyleSpec(kind, design));
-    const displayText = specialMatter ? normalizePrintMatterText(text) : text;
+    const preserveMatterRuns = ['matter-back-heading','matter-back-body'].includes(kind);
+    const displayText = specialMatter && !preserveMatterRuns ? normalizePrintMatterText(text) : text;
     const suppressIndent = specialMatter || sourceKind === 'chapter-opening' || previousNonEmptyKind === 'scene-break' || previousNonEmptyKind === 'chapter-title';
     if (sourceKind === 'blank') {
       ensurePage();
       const sectionType = matterSectionForBlockIndex(block.index, structure);
       const previousBlock = blocks[blockPosition - 1] || null;
       const previousInfo = previousBlock ? matterIndex.get(previousBlock.id) || null : null;
-      const specialBlank = matterInfo && ['title','copyright','dedication'].includes(matterInfo.role);
+      const specialBlank = matterInfo && ['title','copyright','dedication','about-authors','join-journey'].includes(matterInfo.role);
       const blankMode = specialBlank ? 'normalize' : blankRenderMode({ blocks, index: blockPosition, sectionType, policy: design.bodyBlankPolicy });
       const matterBlankHeight = specialBlank ? printMatterBlankHeightIn(matterInfo, { ...(previousInfo || {}), wasBlank:previousBlock?.kind === 'blank' }) : null;
       const height = specialBlank

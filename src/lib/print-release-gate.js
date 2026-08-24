@@ -169,8 +169,10 @@ export function buildPrintReleaseGate({ project, type = 'paperback', preflight =
   let nextAction = { type:'preflight', label:'Resolve print blockers', detail:'Clear Print Brain/KDP preflight errors first.' };
   if (preflight?.ready && !interiorCurrent) nextAction = { type:'interior', label:`Build ${type} interior PDF`, detail:'Create and audit the exact finished interior PDF.' };
   else if (preflight?.ready && interiorCurrent && !coverCurrent) nextAction = edition.coverMode === 'upload-pdf'
-    ? { type:'cover', label:`Update ${type} full-wrap cover PDF`, detail:'Attach a full-wrap PDF whose canvas matches the final interior page count.' }
-    : { type:'cover', label:`Build ${type} cover PDF`, detail:'Cover geometry must match the final interior page count.' };
+    ? { type:'cover', label:`Update ${type} full-wrap cover PDF`, detail:'Attach a true production PDF whose canvas matches the final interior page count.' }
+    : edition.coverMode === 'upload-art'
+      ? { type:'cover', label:`Manufacture ${type} cover PDF`, detail:'Use the attached full-wrap artwork to create the exact final KDP canvas and barcode.' }
+      : { type:'cover', label:`Build ${type} cover PDF`, detail:'Cover geometry must match the final interior page count.' };
   else if (preflight?.ready && interiorCurrent && coverCurrent && (!metadataReady || !barcodeReady)) nextAction = { type:'metadata', label:'Finish ISBN / Barcode Brain', detail:'Complete the physical-edition ISBN and barcode certification before external review.' };
   else if (technicalReady && !visualProof.current) nextAction = { type:'visual-proof', label:'Complete final print proof', detail:'Review early, middle, late, blank, TOC, and chapter-opening spreads.' };
   else if (technicalReady && visualProof.current && !frozen) nextAction = { type:'freeze', label:'Lock this print package', detail:'Lock the exact interior + cover + metadata package for Amazon testing.' };

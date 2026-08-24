@@ -251,7 +251,9 @@ export function barcodeBrainChecks({ isbn = '', isbnMode = 'own', pageCount = 0,
   const coverMessage = brain.coverPlacement === 'yasready'
     ? coverMode === 'upload-pdf'
       ? 'YasReady will stamp the generated vector ISBN barcode onto the attached full-wrap PDF at export.'
-      : 'Cover Brain will draw the ISBN barcode into the KDP-safe back-cover zone.'
+      : coverMode === 'upload-art'
+        ? 'YasReady will manufacture the final KDP cover from the finished artwork, knock out the old barcode footprint, and place the generated vector ISBN barcode.'
+        : 'Cover Brain will draw the ISBN barcode into the KDP-safe back-cover zone.'
     : brain.coverPlacement === 'amazon'
       ? 'YasReady will leave the KDP barcode zone white for Amazon to place its barcode.'
       : 'No ISBN barcode will be placed on the cover.';

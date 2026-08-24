@@ -1,12 +1,12 @@
-# YasReady Publish v1.0.35
+# YasReady Publish v1.0.36
 
-**Amazon Paperback Hard Mode**
+**Full-Wrap Artwork Adapter + Guided Four-Step Flow**
 
-Version 1.0.35 turns the physical-book release path into an Amazon-aware package audit. The exact interior, cover, page count, manufacturing settings, ISBN/barcode, and KDP metadata are checked together before YasReady asks for the one external production confirmation it cannot perform itself: KDP Print Previewer. Physical proof ordering/inspection is deliberately the author's responsibility, not a software gate.
+Version 1.0.36 fixes the three real paperback workflow problems exposed by the Book 2 production run. Simple Mode now has an obvious in-page path through **Book → Style → Preview → Export** instead of requiring the left rail. Print back matter uses the Book 1 convention: **centered feature heading with readable left-aligned prose beneath it**. Cover intake now distinguishes a finished visual JPG/PNG wrap from a truly production-sized KDP PDF.
 
-For existing full-wrap covers, Barcode Brain now places the 2 × 1.2 inch certified EAN-13 over a larger 2.05 × 1.65 inch solid-white knockout. This is designed to replace an old/placeholder barcode block cleanly—including its ISBN label and human-readable digits—without rebuilding the cover artwork.
+If an author uploads finished full-wrap artwork, YasReady diagnoses the physical wrap/spine geometry implied by the image, reports effective production PPI, preserves the back and front panels, and—when the new book only needs a wider spine—extends only the stale spine area without horizontally stretching the original spine text/art. The final KDP PDF is manufactured only after pagination locks the exact page count. A low-resolution reference image can be used for diagnosis but cannot masquerade as production artwork.
 
-**Current release: v1.0.35 — Amazon Paperback Hard Mode**
+**Current release: v1.0.36 — Full-Wrap Artwork Adapter + Guided Flow**
 
 ## v1.0.30 — Cover Brain + Kindle E21018 Fix
 

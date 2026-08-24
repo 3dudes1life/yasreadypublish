@@ -19,8 +19,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   const project = {
     id: crypto.randomUUID(),
-    version: 35,
-    appVersion: '1.0.35',
+    version: 36,
+    appVersion: '1.0.36',
     title: baseName,
     author: '',
     createdAt: now,
@@ -76,7 +76,7 @@ export function migrateProject(project) {
   if (!project) return project;
   const oldVersion = Number(project.version) || 1;
   const priorAppVersion = String(project.appVersion || '');
-  const alreadyCurrent = oldVersion >= 35 && priorAppVersion === '1.0.35';
+  const alreadyCurrent = oldVersion >= 36 && priorAppVersion === '1.0.36';
   // 1.0.34 is a print-only renderer/pagination upgrade. Preserve the exact
   // Kindle release proof when upgrading a real 1.0.33 project so a paperback
   // barcode change cannot erase already-confirmed Kindle Previewer work.
@@ -86,9 +86,9 @@ export function migrateProject(project) {
   const preNormalizePrintCollapse = project.design?.print?.collapseBodyBlankParagraphs;
   const preNormalizeEbookCollapse = project.design?.ebook?.collapseBodyBlankParagraphs;
   const priorPrintCoverChoice = Object.fromEntries(['paperback','hardcover'].map((type) => [type, {
-    explicit: ['upload-pdf','build'].includes(project.editions?.[type]?.coverMode),
+    explicit: ['upload-pdf','upload-art','build'].includes(project.editions?.[type]?.coverMode),
     mode: project.editions?.[type]?.coverMode || '',
-    hasUpload: Boolean(project.editions?.[type]?.uploadedCoverPdf),
+    hasUpload: Boolean(project.editions?.[type]?.uploadedCoverPdf || project.editions?.[type]?.uploadedCoverArt),
   }]));
   const pre118EbookDesign = project.editions?.ebook?.design || project.design?.ebook || {};
   const pre118ThemeStudio = pre118EbookDesign?.themeStudio || {};
@@ -565,11 +565,35 @@ export function migrateProject(project) {
     }
   }
 
+
+  // 1.0.36 separates a finished visual wrap (JPG/PNG) from a production-ready
+  // KDP PDF, fixes print back-matter page typography, and adds persistent
+  // four-step workflow navigation. The print renderer/cover manufacture path
+  // changed, so prior print proof/PDF/cover tokens are stale. Kindle proof is
+  // preserved because the ebook renderer and package are unchanged.
+  if (oldVersion < 36) {
+    ensureEditions(project);
+    for (const type of ['paperback','hardcover']) {
+      const edition = project.editions?.[type];
+      if (!edition) continue;
+      edition.lastPageCount = null;
+      edition.lastBuiltAt = null;
+      edition.lastPreflight = null;
+      edition.lastPdfAudit = null;
+      edition.lastCoverAudit = null;
+      if (edition.printGate && typeof edition.printGate === 'object') {
+        edition.printGate.visualProof = null;
+        edition.printGate.freeze = null;
+        edition.printGate.external = { kdpPrintPreviewApproved:false };
+      }
+    }
+  }
+
   if (priorEbookReleaseGateFor134 && project.editions?.ebook) {
     project.editions.ebook.releaseGate = priorEbookReleaseGateFor134;
   }
-  project.version = Math.max(oldVersion, 35);
-  project.appVersion = '1.0.35';
+  project.version = Math.max(oldVersion, 36);
+  project.appVersion = '1.0.36';
   return project;
 }
 

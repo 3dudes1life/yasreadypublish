@@ -3,7 +3,7 @@ import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const VERSION = '1.0.35';
+const VERSION = '1.0.36';
 
 function walk(dir) {
   const out = [];
@@ -33,7 +33,7 @@ const project = readFileSync(join(ROOT, 'src/lib/project.js'), 'utf8');
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 if (pkg.version !== VERSION) throw new Error(`package.json version is ${pkg.version}, expected ${VERSION}`);
 if (!main.includes(`const VERSION = '${VERSION}'`)) throw new Error('main.js version mismatch');
-if (!project.includes(`appVersion: '${VERSION}'`) || !project.includes(`project.appVersion = '${VERSION}'`) || !project.includes('version: 35')) throw new Error('project schema appVersion/schema mismatch');
+if (!project.includes(`appVersion: '${VERSION}'`) || !project.includes(`project.appVersion = '${VERSION}'`) || !project.includes('version: 36')) throw new Error('project schema appVersion/schema mismatch');
 
 const buttonIds = [...main.matchAll(/<button\b[^>]*\s+id="([^"]+)"/g)].map((m) => m[1]);
 const boundIds = new Set([...main.matchAll(/querySelector\(['"]#([^'"]+)['"]\)/g)].map((m) => m[1]));
@@ -91,26 +91,31 @@ const coverPdf = readFileSync(join(ROOT, 'src/lib/cover-pdf.js'), 'utf8');
 for (const marker of ['renderCoverPdf','buildRasterPdf','auditPrintPdfBytes','AMAZON BARCODE RESERVED']) {
   if (!coverPdf.includes(marker)) throw new Error(`Missing Cover PDF marker: ${marker}`);
 }
-if (!main.includes('COVER BRAIN + BARCODE BRAIN · v1.0.35') || !main.includes('buildCoverPdf')) throw new Error('Cover Brain UI/runtime wiring is missing.');
+if (!main.includes('COVER BRAIN + BARCODE BRAIN · v1.0.36') || !main.includes('buildCoverPdf')) throw new Error('Cover Brain UI/runtime wiring is missing.');
 
 
 const printMatter = readFileSync(join(ROOT, 'src/lib/print-matter.js'), 'utf8');
 for (const marker of ['buildPrintMatterIndex','printMatterPagePolicy','matter-title-primary','matter-copyright-body','matter-dedication-body']) if (!printMatter.includes(marker)) throw new Error(`Missing v1.0.33 semantic print matter marker: ${marker}`);
 const printCoverUpload = readFileSync(join(ROOT, 'src/lib/print-cover-upload.js'), 'utf8');
 for (const marker of ['parsePrintCoverPdfBytes','auditUploadedPrintCoverPdf','uploaded-cover-geometry']) if (!printCoverUpload.includes(marker)) throw new Error(`Missing v1.0.33 cover intake marker: ${marker}`);
-for (const marker of ['YOUR COVER','printCoverMode','printFullWrapCoverInput','I already have a full-wrap KDP cover PDF','Build my cover in YasReady']) if (!main.includes(marker)) throw new Error(`Missing v1.0.33 print cover UI marker: ${marker}`);
+for (const marker of ['YOUR COVER','printCoverMode','printFullWrapCoverInput','I already have the final KDP PDF','Build my cover in YasReady']) if (!main.includes(marker)) throw new Error(`Missing v1.0.33 print cover UI marker: ${marker}`);
+
+const fullWrapArt = readFileSync(join(ROOT, 'src/lib/full-wrap-art.js'), 'utf8');
+for (const marker of ['analyzeFullWrapArtwork','renderFullWrapArtworkPdf','Preserve front/back while adapting spine','Full-wrap artwork resolution']) if (!fullWrapArt.includes(marker)) throw new Error(`Missing v1.0.36 full-wrap artwork adapter marker: ${marker}`);
+for (const marker of ['FULL-WRAP ARTWORK ADAPTER · v1.0.36','upload-art','printFullWrapArtInput','renderSimpleFlowDock','simpleFlowDock','Continue to Preview →','Continue to Export →']) if (!main.includes(marker)) throw new Error(`Missing v1.0.36 cover intake/navigation marker: ${marker}`);
+for (const marker of ['matter-back-heading','matter-back-body']) if (!printMatter.includes(marker)) throw new Error(`Missing v1.0.36 back-matter alignment marker: ${marker}`);
 const barcodeBrain = readFileSync(join(ROOT, 'src/lib/barcode-brain.js'), 'utf8');
 for (const marker of ['encodeEan13','decodeEan13Bits','barcodeRoundTrip','appendInteriorBarcodePages','barcodePdfVectorCommands','barcodeFingerprint']) if (!barcodeBrain.includes(marker)) throw new Error(`Missing v1.0.34 Barcode Brain marker: ${marker}`);
 const barcodeStamp = readFileSync(join(ROOT, 'src/lib/barcode-cover-stamp.js'), 'utf8');
 for (const marker of ['stampBarcodeOnUploadedCoverPdf','pdf-lib@1.17.1']) if (!barcodeStamp.includes(marker)) throw new Error(`Missing v1.0.34 barcode cover stamping marker: ${marker}`);
-for (const marker of ['BARCODE BRAIN · v1.0.35','downloadBarcodeSvg','downloadBarcodePng','Stamp barcode + download KDP cover PDF']) if (!main.includes(marker)) throw new Error(`Missing v1.0.34 Barcode Brain UI marker: ${marker}`);
+for (const marker of ['BARCODE BRAIN · v1.0.36','downloadBarcodeSvg','downloadBarcodePng','Stamp barcode + download KDP cover PDF']) if (!main.includes(marker)) throw new Error(`Missing v1.0.34 Barcode Brain UI marker: ${marker}`);
 const amazonPrintHardMode = readFileSync(join(ROOT, 'src/lib/amazon-print-hard-mode.js'), 'utf8');
 for (const marker of ['runAmazonPrintHardMode','amazon-page-range','amazon-inside-margin','amazon-outside-margins','amazon-physical-parity','amazon-interior-security','amazon-interior-fonts','amazon-cover-geometry','amazon-cover-images','amazon-barcode-geometry','amazon-no-physical-proof']) if (!amazonPrintHardMode.includes(marker)) throw new Error(`Missing v1.0.35 Amazon Paperback Hard Mode marker: ${marker}`);
 const printReleaseGate = readFileSync(join(ROOT, 'src/lib/print-release-gate.js'), 'utf8');
 for (const marker of ['buildPrintReleaseGate','printReleaseToken','freezePrintRelease','setPrintExternalConfirmation','physicalProofResponsibility']) {
   if (!printReleaseGate.includes(marker)) throw new Error(`Missing Amazon Print Gate marker: ${marker}`);
 }
-for (const marker of ['AMAZON PRINT GATE · v1.0.35','Amazon Paperback Hard Mode','Confirm KDP Print Previewer','NEXT PRINT ACTION']) {
+for (const marker of ['AMAZON PRINT GATE · v1.0.36','Amazon Paperback Hard Mode','Confirm KDP Print Previewer','NEXT PRINT ACTION']) {
   if (!main.includes(marker)) throw new Error(`Missing Amazon Print Gate UI marker: ${marker}`);
 }
 
@@ -139,6 +144,7 @@ for (const marker of ['scanKindleIntelligence','compareKindleChapters','applyKin
 const production = readFileSync(join(ROOT, 'src/lib/kindle-production-flow.js'), 'utf8');
 for (const marker of ['buildKindleProductionFlow','buildKindlePolishQueue','markKindleReviewIntentional','kindleReviewDecision']) if (!production.includes(marker)) throw new Error(`Missing Kindle Production Flow marker: ${marker}`);
 const editions = readFileSync(join(ROOT, 'src/lib/editions.js'), 'utf8');
+if (!editions.includes('uploadedCoverArt') || !editions.includes('upload-art')) throw new Error('Edition normalization can drop v1.0.36 full-wrap artwork state.');
 if (!editions.includes('reviewDecisions:')) throw new Error('Edition normalization can drop review decisions.');
 const releaseGate = readFileSync(join(ROOT, 'src/lib/kindle-release-gate.js'), 'utf8');
 for (const marker of ['buildKindleReleaseGate','auditKindleAccessibility','applySafeFixBatch','markAllCurrentReviewsIntentional','markKindleVisualProofComplete','freezeKindleRelease','kindleReleaseReport']) if (!releaseGate.includes(marker)) throw new Error(`Missing Kindle Release Gate marker: ${marker}`);

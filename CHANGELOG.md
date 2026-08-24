@@ -1,3 +1,15 @@
+## 1.0.36 — Full-Wrap Artwork Adapter + Guided Flow
+
+- Added persistent/in-page Simple Mode navigation so authors can move **Book → Style → Preview → Export** without hunting the left sidebar.
+- Fixed print back matter to match the Book 1 convention: centered `About the Authors` / `Join the Journey!` headings with left-aligned prose beneath them.
+- Added a distinct **finished full-wrap artwork** intake path for JPG/PNG files. These are diagnosed as design artwork rather than being forced through a fake PDF wrapper.
+- Added physical-geometry inference from artwork aspect ratio, including inferred source wrap width, source spine width, approximate old page count, target spine, and effective production PPI.
+- Added safe stale-spine adaptation: when the current paperback needs a wider spine, YasReady preserves the original back/front panels and original spine artwork width while extending only spine-edge texture. It never silently crops a source spine that is wider than the target.
+- Added production-resolution gating. Low-resolution reference artwork can be inspected/diagnosed but cannot be certified as final cover art.
+- Added final KDP cover manufacture from accepted artwork after pagination freezes, including the Barcode Brain white knockout + vector ISBN placement and finished-PDF audit/hash.
+- Schema 36 invalidates stale print production proof after migration while preserving the existing Kindle release proof.
+- Added dedicated v1.0.36 regression coverage; release suite now contains 265 automated tests.
+
 ## 1.0.35 — Amazon Paperback Hard Mode
 
 - Adds a finished-package Amazon paperback audit for page parity, page-count eligibility, page-count-aware margins, minimum text size, exact interior geometry, 300-DPI rendering, PDF security/interactive structures, cover geometry/bleed/spine eligibility, and barcode safety.

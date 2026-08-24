@@ -428,8 +428,9 @@ function renderPreviewPageToCanvas(ctx, canvas, { page, design, project, product
         const bottom = (matterSpec.paddingBottomIn || 0) * dpi;
         y += top;
         const visible = String(fragment.displayText ?? fragment.text ?? '');
-        const fake = { ...fragment, text:visible, startOffset:0, endOffset:visible.length };
-        drawWrappedFragment(ctx, fake, null, design, { x:contentX, y, width:contentWidth, fontSizePt:matterSpec.fontSizePt, lineHeight:matterSpec.lineHeight, alignment:matterSpec.alignment, bold:matterSpec.bold, italic:matterSpec.italic });
+        const preserveMatterRuns = ['matter-back-heading','matter-back-body'].includes(fragment.kind);
+        const fake = preserveMatterRuns ? { ...fragment, text:visible } : { ...fragment, text:visible, startOffset:0, endOffset:visible.length };
+        drawWrappedFragment(ctx, fake, preserveMatterRuns ? block : null, design, { x:contentX, y, width:contentWidth, fontSizePt:matterSpec.fontSizePt, lineHeight:matterSpec.lineHeight, alignment:matterSpec.alignment, bold:matterSpec.bold, italic:matterSpec.italic });
         y += Math.max(0, heightPx - top - bottom) + bottom;
         continue;
       }

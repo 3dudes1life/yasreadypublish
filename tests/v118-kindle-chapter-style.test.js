@@ -25,7 +25,7 @@ test('1.0.18 Tres Amigos defaults to Kindle-style number + title with generous o
   assert.equal(studio.chapterHeadingLayout,'number-title');
   assert.equal(studio.chapterNameItalic,true);
   const p=project();
-  assert.equal(p.appVersion, '1.0.35');
+  assert.equal(p.appVersion, '1.0.36');
   assert.ok(p.editions.ebook.design.chapterTopEm >= 6.2);
   assert.ok(p.editions.ebook.design.chapterAfterEm >= 5.4);
 });
