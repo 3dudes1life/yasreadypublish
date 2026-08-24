@@ -1,6 +1,7 @@
 import { fontStack, normalizePrintDesign } from './print-model.js';
 import { normalizePrintProduction } from './print-brain.js';
 import { runningHeaderText } from './structure-model.js';
+import { printMatterStyleSpec } from './print-matter.js';
 
 export const PRINT_PDF_VERSION = 1;
 export const PRINT_PDF_DPI = 300;
@@ -406,6 +407,17 @@ function renderPreviewPageToCanvas(ctx, canvas, { page, design, project, product
         continue;
       }
       const block = blocksById.get(fragment.sourceBlockId) || null;
+      const matterSpec = printMatterStyleSpec(fragment.kind, design);
+      if (matterSpec) {
+        const top = (matterSpec.paddingTopIn || 0) * dpi;
+        const bottom = (matterSpec.paddingBottomIn || 0) * dpi;
+        y += top;
+        const visible = String(fragment.displayText ?? fragment.text ?? '');
+        const fake = { ...fragment, text:visible, startOffset:0, endOffset:visible.length };
+        drawWrappedFragment(ctx, fake, null, design, { x:contentX, y, width:contentWidth, fontSizePt:matterSpec.fontSizePt, lineHeight:matterSpec.lineHeight, alignment:matterSpec.alignment, bold:matterSpec.bold, italic:matterSpec.italic });
+        y += Math.max(0, heightPx - top - bottom) + bottom;
+        continue;
+      }
       if (fragment.kind === 'chapter-title') {
         const top = design.chapterTopSpace * dpi;
         const bottom = design.chapterAfterSpace * dpi;

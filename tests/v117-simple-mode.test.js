@@ -14,8 +14,8 @@ test('1.0.17 is a UX-only migration that keeps schema 25 and manuscript blocks b
   };
   const before = JSON.stringify(legacy.manuscript.blocks);
   const next = migrateProject(structuredClone(legacy));
-  assert.equal(next.version, 32);
-  assert.equal(next.appVersion, '1.0.32');
+  assert.equal(next.version, 33);
+  assert.equal(next.appVersion, '1.0.33');
   assert.equal(JSON.stringify(next.manuscript.blocks),before);
 });
 

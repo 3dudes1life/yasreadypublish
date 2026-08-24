@@ -18,8 +18,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   const project = {
     id: crypto.randomUUID(),
-    version: 32,
-    appVersion: '1.0.32',
+    version: 33,
+    appVersion: '1.0.33',
     title: baseName,
     author: '',
     createdAt: now,
@@ -75,9 +75,14 @@ export function migrateProject(project) {
   if (!project) return project;
   const oldVersion = Number(project.version) || 1;
   const priorAppVersion = String(project.appVersion || '');
-  const alreadyCurrent = oldVersion >= 32 && priorAppVersion === '1.0.32';
+  const alreadyCurrent = oldVersion >= 33 && priorAppVersion === '1.0.33';
   const preNormalizePrintCollapse = project.design?.print?.collapseBodyBlankParagraphs;
   const preNormalizeEbookCollapse = project.design?.ebook?.collapseBodyBlankParagraphs;
+  const priorPrintCoverChoice = Object.fromEntries(['paperback','hardcover'].map((type) => [type, {
+    explicit: ['upload-pdf','build'].includes(project.editions?.[type]?.coverMode),
+    mode: project.editions?.[type]?.coverMode || '',
+    hasUpload: Boolean(project.editions?.[type]?.uploadedCoverPdf),
+  }]));
   const pre118EbookDesign = project.editions?.ebook?.design || project.design?.ebook || {};
   const pre118ThemeStudio = pre118EbookDesign?.themeStudio || {};
   const pre118HadChapterLayout = Object.prototype.hasOwnProperty.call(pre118ThemeStudio, 'chapterHeadingLayout');
@@ -462,8 +467,33 @@ export function migrateProject(project) {
     }
   }
 
-  project.version = Math.max(oldVersion, 32);
-  project.appVersion = '1.0.32';
+  // 1.0.33 makes print front matter semantic instead of letting title, legal,
+  // and dedication copy flow as one continuous paragraph stream. It also moves
+  // the print-cover decision into Print Brain and supports an attached full-wrap
+  // KDP cover PDF whose canvas is re-certified against the final page count.
+  // The renderer changed, so every prior print proof/PDF/cover token is stale.
+  if (oldVersion < 33 || priorAppVersion !== '1.0.33') {
+    ensureEditions(project);
+    for (const type of ['paperback','hardcover']) {
+      const edition = project.editions?.[type];
+      if (!edition) continue;
+      edition.lastPageCount = null;
+      edition.lastBuiltAt = null;
+      edition.lastPreflight = null;
+      edition.lastPdfAudit = null;
+      edition.lastCoverAudit = null;
+      const priorCover = priorPrintCoverChoice[type] || {};
+      if (!priorCover.explicit) edition.coverMode = priorCover.hasUpload ? 'upload-pdf' : 'choose';
+      if (edition.printGate && typeof edition.printGate === 'object') {
+        edition.printGate.visualProof = null;
+        edition.printGate.freeze = null;
+        edition.printGate.external = {};
+      }
+    }
+  }
+
+  project.version = Math.max(oldVersion, 33);
+  project.appVersion = '1.0.33';
   return project;
 }
 

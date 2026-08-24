@@ -2,6 +2,7 @@ import { normalizePrintDesign } from './print-model.js';
 import { normalizeEbookDesign } from './ebook-model.js';
 import { normalizePrintProduction } from './print-brain.js';
 import { normalizeCoverBrain } from './cover-brain.js';
+import { normalizeUploadedPrintCoverPdf } from './print-cover-upload.js';
 import { ensurePrintReleaseState, normalizePrintKdpMetadata } from './print-release-gate.js';
 
 export const EDITION_TYPES = Object.freeze(['paperback', 'hardcover', 'ebook']);
@@ -38,6 +39,8 @@ export function ensureEditions(project) {
     lastPdfAudit: project.editions.paperback?.lastPdfAudit || null,
     production: normalizePrintProduction(project.editions.paperback?.production || {}, 'paperback'),
     coverBrain: normalizeCoverBrain(project.editions.paperback?.coverBrain || {}, 'paperback'),
+    coverMode: ['choose','upload-pdf','build'].includes(project.editions.paperback?.coverMode) ? project.editions.paperback.coverMode : (project.editions.paperback?.uploadedCoverPdf ? 'upload-pdf' : project.editions.paperback?.coverBrain?.configured ? 'build' : 'choose'),
+    uploadedCoverPdf: normalizeUploadedPrintCoverPdf(project.editions.paperback?.uploadedCoverPdf || null),
     lastCoverAudit: project.editions.paperback?.lastCoverAudit || null,
     kdpMetadata: normalizePrintKdpMetadata(project.editions.paperback?.kdpMetadata || {}, { language:legacyEbook.language || 'en', publisher:legacyEbook.publisher || '' }),
     printGate: project.editions.paperback?.printGate && typeof project.editions.paperback.printGate === 'object' ? project.editions.paperback.printGate : null,
@@ -52,6 +55,8 @@ export function ensureEditions(project) {
     lastPdfAudit: project.editions.hardcover?.lastPdfAudit || null,
     production: normalizePrintProduction(project.editions.hardcover?.production || {}, 'hardcover'),
     coverBrain: normalizeCoverBrain(project.editions.hardcover?.coverBrain || {}, 'hardcover'),
+    coverMode: ['choose','upload-pdf','build'].includes(project.editions.hardcover?.coverMode) ? project.editions.hardcover.coverMode : (project.editions.hardcover?.uploadedCoverPdf ? 'upload-pdf' : project.editions.hardcover?.coverBrain?.configured ? 'build' : 'choose'),
+    uploadedCoverPdf: normalizeUploadedPrintCoverPdf(project.editions.hardcover?.uploadedCoverPdf || null),
     lastCoverAudit: project.editions.hardcover?.lastCoverAudit || null,
     kdpMetadata: normalizePrintKdpMetadata(project.editions.hardcover?.kdpMetadata || {}, { language:legacyEbook.language || 'en', publisher:legacyEbook.publisher || '' }),
     printGate: project.editions.hardcover?.printGate && typeof project.editions.hardcover.printGate === 'object' ? project.editions.hardcover.printGate : null,

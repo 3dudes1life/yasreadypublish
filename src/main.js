@@ -28,6 +28,8 @@ import {
   printReleaseReport, savePrintKdpMetadata, setPrintExternalConfirmation,
 } from './lib/print-release-gate.js';
 import { normalizeEbookDesign } from './lib/ebook-model.js';
+import { buildPrintMatterIndex, normalizePrintMatterText, printMatterBlankHeightIn, printMatterFragmentKind, printMatterPagePolicy, printMatterStyleSpec } from './lib/print-matter.js';
+import { auditUploadedPrintCoverPdf, parsePrintCoverPdfBytes } from './lib/print-cover-upload.js';
 import { runEpubPreflight } from './lib/ebook-preflight.js';
 import { buildEbookPreviewHtml, buildEpubBlob, buildDevicePreviewHtml } from './lib/epub-export.js';
 import { effectiveBlocks, effectiveChapters, effectiveStats, setStructureOverride, structureOverrideSummary, STRUCTURE_OVERRIDE_KINDS } from './lib/structure-overrides.js';
@@ -70,7 +72,7 @@ import {
   kindleReleaseReport, markAllCurrentReviewsIntentional, markKindleVisualProofComplete, setKindleExternalConfirmation,
 } from './lib/kindle-release-gate.js';
 
-const VERSION = '1.0.32';
+const VERSION = '1.0.33';
 // Legacy capability labels retained for regression discovery only (not default UI): Amazon KDP · Reflowable EPUB 3 · Kindle Preview Studio · Semantic Style Palette · Kindle Release Gate · v1.0.16
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
@@ -705,8 +707,13 @@ function renderPrintBrainSetup() {
   const paperOptions = production.ink === 'black'
     ? (type === 'hardcover' ? [['cream','Cream'],['white','White']] : [['cream','Cream'],['white','White'],['groundwood','Groundwood']])
     : [['white','White']];
+  const coverMode = ['choose','upload-pdf','build'].includes(edition.coverMode) ? edition.coverMode : 'choose';
+  const uploadedCover = edition.uploadedCoverPdf || null;
+  const coverFileSummary = uploadedCover
+    ? `${escapeHtml(uploadedCover.fileName)} · ${(uploadedCover.fileSize / 1024 / 1024).toFixed(1)} MB${uploadedCover.widthIn && uploadedCover.heightIn ? ` · ${uploadedCover.widthIn.toFixed(4)} × ${uploadedCover.heightIn.toFixed(4)} in` : ''}`
+    : 'No full-wrap PDF attached yet.';
   return `<article class="panel print-brain-panel">
-    <div class="simple-page-head"><div><span class="simple-kicker">PRINT BRAIN · v1.0.29</span><h2>Make your ${type === 'hardcover' ? 'hardcover' : 'paperback'}.</h2><p>Choose the physical book. YasReady handles the KDP geometry and checks the combination against Amazon’s manufacturing rules.</p></div></div>
+    <div class="simple-page-head"><div><span class="simple-kicker">PRINT BRAIN · v1.0.33</span><h2>Make your ${type === 'hardcover' ? 'hardcover' : 'paperback'}.</h2><p>Choose the physical book. YasReady handles the KDP geometry and checks the combination against Amazon’s manufacturing rules.</p></div></div>
     <div class="print-brain-recommend"><div><span>RECOMMENDED FOR FICTION</span><strong>6 × 9 · Black ink · Cream paper · No bleed</strong><small>Same Story-Locked manuscript. Paperback and hardcover still paginate independently.</small></div><button class="btn secondary" id="usePrintBrainRecommended" type="button">Use Recommended</button></div>
     <div class="print-brain-grid">
       <label class="design-field"><span>Book size</span><select id="printBrainTrim">${trims.map((trim) => `<option value="${trim.id}" ${trim.id === production.trimId ? 'selected' : ''}>${escapeHtml(trim.label)}${trim.id === '6x9' ? ' · Recommended' : ''}</option>`).join('')}</select></label>
@@ -715,6 +722,15 @@ function renderPrintBrainSetup() {
       <label class="toggle-row"><input id="printBrainBleed" type="checkbox" ${production.bleed ? 'checked' : ''}><span><strong>Interior bleed</strong><small>Only turn on when artwork/backgrounds must print to the edge.</small></span></label>
     </div>
     <div class="notice ${eligibility.range.available ? 'success' : 'error'}"><strong>${eligibility.range.available ? 'KDP option is valid.' : 'This combination is unavailable.'}</strong> ${escapeHtml(eligibility.range.reason)}${pageCount ? ` Current proof: ${pageCount} pages.` : ' YasReady will recalculate the gutter after pagination.'}</div>
+    <section class="print-cover-choice">
+      <div class="print-cover-choice-head"><div><span class="simple-kicker">YOUR COVER</span><h3>How are you handling the ${type === 'hardcover' ? 'hardcover' : 'paperback'} cover?</h3><p>Print cover geometry depends on the final interior page count, so YasReady tracks the cover from the beginning instead of surprising you at export.</p></div><span class="mini-status ${coverMode === 'choose' ? 'needs' : 'good'}">${coverMode === 'choose' ? 'Choose one' : 'Selected'}</span></div>
+      <div class="print-cover-mode-grid">
+        <label class="print-cover-mode ${coverMode === 'upload-pdf' ? 'selected' : ''}"><input type="radio" name="printCoverMode" value="upload-pdf" ${coverMode === 'upload-pdf' ? 'checked' : ''}><span><strong>I already have a full-wrap KDP cover PDF</strong><small>Attach the finished back + spine + front PDF. YasReady will compare its MediaBox against the final spine/page-count geometry.</small></span></label>
+        <label class="print-cover-mode ${coverMode === 'build' ? 'selected' : ''}"><input type="radio" name="printCoverMode" value="build" ${coverMode === 'build' ? 'checked' : ''}><span><strong>Build my cover in YasReady</strong><small>Use the Kindle/front artwork and Cover Brain to build the full-wrap PDF after pagination freezes the spine width.</small></span></label>
+      </div>
+      <div class="print-full-cover-upload ${coverMode === 'upload-pdf' ? '' : 'is-muted'}"><input id="printFullWrapCoverInput" type="file" accept="application/pdf,.pdf" hidden><button class="btn ${uploadedCover ? 'secondary' : 'primary'}" id="choosePrintFullWrapCover" type="button" ${coverMode === 'upload-pdf' ? '' : 'disabled'}>${uploadedCover ? 'Replace full-wrap PDF' : 'Attach full-wrap PDF'}</button>${uploadedCover ? '<button class="btn ghost" id="removePrintFullWrapCover" type="button">Remove</button>' : ''}<small>${coverFileSummary}</small></div>
+      ${coverMode === 'upload-pdf' && uploadedCover ? '<div class="notice info"><strong>Attached now; certified later.</strong> YasReady will re-check this PDF after the final interior page count is known. If the spine width changes, it will block the stale cover instead of letting you upload the wrong wrap.</div>' : ''}
+    </section>
     <details class="simple-advanced-panel"><summary><span><strong>Why these settings?</strong><small>Amazon manufacturing rules, without making you memorize the chart.</small></span><b>⌄</b></summary><div class="simple-advanced-body"><p>Inside margin changes with final page count. No-bleed outside/top/bottom minimum is 0.25 in; bleed requires at least 0.375 in. YasReady applies the safe minimum automatically and never shrinks a roomier house-style margin.</p></div></details>
     <div class="simple-step-footer"><button class="btn ghost" data-simple-step="style" type="button">← Back</button><button class="btn primary" id="savePrintBrainSetup" type="button">Save & style the book →</button></div>
   </article>`;
@@ -962,7 +978,9 @@ function renderBookPage(page, design) {
     ? 'Terminal blank keeps the physical interior even so KDP does not add an untracked page.'
     : page.blankReason === 'toc-left-spread'
       ? 'Front-matter alignment keeps the generated Contents opening on the left side of a spread.'
-      : 'Kept blank so the next chapter opens on the right.';
+      : String(page.blankReason || '').startsWith('matter-')
+        ? 'Intentional front/back-matter alignment keeps this feature page on the right.'
+        : 'Kept blank so the next chapter opens on the right.';
   const fragments = page.intentionalBlank
     ? `<div class="intentional-blank">Intentional blank page<br><small>${escapeHtml(blankReasonText)}</small></div>`
     : page.fragments.map((fragment) => {
@@ -977,8 +995,12 @@ function renderBookPage(page, design) {
       }
       const classes = `print-fragment ${escapeHtml(fragment.kind)} ${fragment.continuation ? 'continuation' : ''}`;
       let extra = '';
-      let content = renderInlineRuns(fragment);
-      if (fragment.kind === 'chapter-title') {
+      const matterSpec = printMatterStyleSpec(fragment.kind, design);
+      let content = matterSpec ? escapeHtml(fragment.displayText ?? fragment.text) : renderInlineRuns(fragment);
+      if (matterSpec) {
+        const matterSize = matterSpec.fontSizePt * (96 / 72) * (px / 96);
+        extra = `padding-top:${(matterSpec.paddingTopIn || 0) * px}px;padding-bottom:${(matterSpec.paddingBottomIn || 0) * px}px;font-size:${matterSize}px;line-height:${matterSpec.lineHeight};text-align:${matterSpec.alignment};font-weight:${matterSpec.bold ? 700 : 400};font-style:${matterSpec.italic ? 'italic' : 'normal'};white-space:normal;`;
+      } else if (fragment.kind === 'chapter-title') {
         extra = `padding-top:${chapterTop}px;padding-bottom:${chapterAfter}px;font-size:${chapterSize}px;line-height:${design.chapterTitleLineHeight};text-align:${design.chapterTitleAlignment};`;
         content = renderChapterTitle(fragment.text, design);
       }
@@ -1024,6 +1046,17 @@ function renderCoverBrain() {
   const pageCount = Number(edition?.lastPageCount || state.preview?.pages?.length || 0);
   const report = coverBrainChecks({ type, production:edition?.production || {}, pageCount, cover, ebookCover:getEbookCover(state.project) });
   const g = report.geometry;
+  if (edition.coverMode === 'upload-pdf') {
+    const uploadAudit = auditUploadedPrintCoverPdf({ asset:edition.uploadedCoverPdf, geometry:g, pageCount, proofSignature:state.preview?.proofSignature || '' });
+    const attached = edition.uploadedCoverPdf;
+    return `<section class="cover-brain-card uploaded-cover-card">
+      <div class="cover-brain-head"><div><div class="eyebrow">PRINT COVER · ATTACHED FULL WRAP</div><h3>${escapeHtml(editionLabel(type))} cover</h3><p>You chose an existing KDP-ready full-wrap PDF. YasReady compares its actual PDF canvas against the final ${pageCount || '—'}-page interior before the release gate can pass.</p></div><div class="cover-brain-dims"><strong>${g.width.toFixed(4)} × ${g.height.toFixed(4)}</strong><span>in required</span><small>Spine ${g.spineWidth.toFixed(4)} in</small></div></div>
+      ${state.coverBrainMessage ? `<div class="notice info">${escapeHtml(state.coverBrainMessage)}</div>` : ''}
+      <div class="uploaded-cover-summary"><div><span>ATTACHED FILE</span><strong>${escapeHtml(attached?.fileName || 'No cover PDF attached')}</strong><small>${attached ? `${(attached.fileSize / 1024 / 1024).toFixed(1)} MB · ${attached.widthIn.toFixed(4)} × ${attached.heightIn.toFixed(4)} in · SHA ${escapeHtml(shortHash(attached.sha256,16))}` : 'Go back to Print Brain and attach the full-wrap PDF.'}</small></div><div class="mini-status ${uploadAudit.ready ? 'good' : 'needs'}">${uploadAudit.ready ? 'MATCHES FINAL INTERIOR' : 'NEEDS UPDATED WRAP'}</div></div>
+      <div class="cover-brain-checks"><div class="cover-check-head"><strong>${uploadAudit.ready ? 'Cover PDF certified' : 'Cover PDF blocked'}</strong><span>${uploadAudit.checks.filter((item)=>item.status==='pass').length} pass · ${uploadAudit.checks.filter((item)=>item.status==='error').length} blocker</span></div>${uploadAudit.checks.map((item) => `<div class="cover-check ${item.status}"><span>${item.status === 'pass' ? '✓' : '×'}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.message)}</small></div></div>`).join('')}</div>
+      <div class="cover-brain-actions"><button class="btn ${uploadAudit.ready ? 'primary' : 'secondary'}" id="buildCoverPdf" type="button" ${uploadAudit.ready ? '' : 'disabled'}>Download attached KDP cover PDF</button><button class="btn ghost" data-simple-step="style" type="button">← Change cover choice</button></div>
+    </section>`;
+  }
   const frontArt = report.frontArt;
   const last = state.coverPdfReport || edition?.lastCoverAudit || null;
   const safeFront = frontArt?.dataUrl ? `<img src="${escapeHtml(frontArt.dataUrl)}" alt="Front cover artwork">` : `<div class="cover-brain-generated-front"><strong>${escapeHtml(state.project.title || 'Untitled')}</strong><span>${escapeHtml(state.project.author || '')}</span></div>`;
@@ -1103,7 +1136,7 @@ function renderPrintReleaseGate() {
         : gate.technicalReady ? 'Finish the final print proof' : 'Finish the production files';
   const checks = gate.checks.map((item) => `<div class="release-a11y-row ${item.status}"><span>${item.status === 'pass' ? '✓' : '×'}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.message)}</small></div></div>`).join('');
   return `<section class="kindle-release-gate ${gate.kdpPublishReady ? 'ready' : gate.readyForKdpPreviewer ? 'ready' : gate.technicalReady ? 'review' : 'blocked'}" id="printReleaseGate">
-    <div class="kindle-release-head"><div><div class="eyebrow">AMAZON PRINT GATE · v1.0.32</div><h3>${headline}</h3><p>YasReady binds the exact interior PDF, cover PDF, print settings, and KDP metadata into one release token. Amazon confirmations expire automatically if any production file changes.</p></div><div class="kindle-release-score"><strong>${gate.pageCount}</strong><span>pages</span></div></div>
+    <div class="kindle-release-head"><div><div class="eyebrow">AMAZON PRINT GATE · v1.0.33</div><h3>${headline}</h3><p>YasReady binds the exact interior PDF, cover PDF, print settings, and KDP metadata into one release token. Amazon confirmations expire automatically if any production file changes.</p></div><div class="kindle-release-score"><strong>${gate.pageCount}</strong><span>pages</span></div></div>
     ${state.printGateMessage ? `<div class="notice info">${escapeHtml(state.printGateMessage)}</div>` : ''}
     <div class="release-gate-steps">${steps}</div>
     <div class="release-gate-summary"><div><strong>${gate.interiorCurrent ? 'YES' : 'NO'}</strong><span>interior current</span></div><div><strong>${gate.coverCurrent ? 'YES' : 'NO'}</strong><span>cover current</span></div><div><strong>${gate.readyForKdpPreviewer ? 'YES' : 'NO'}</strong><span>Previewer ready</span></div><div><strong>${gate.kdpPublishReady ? 'YES' : 'NO'}</strong><span>KDP ready</span></div></div>
@@ -2334,12 +2367,56 @@ function readPrintBrainForm(type = currentPrintEditionType()) {
   return normalizePrintProduction({ configured:true, trimId, ink, paper, bleed }, type);
 }
 
+function readPrintCoverMode() {
+  return document.querySelector('input[name="printCoverMode"]:checked')?.value || 'choose';
+}
+
+async function importPrintFullWrapCover(file) {
+  if (!state.project) return;
+  if (!/\.pdf$/i.test(file?.name || '') && file?.type !== 'application/pdf') { alert('Choose a PDF full-wrap print cover.'); return; }
+  try {
+    const bytes = await file.arrayBuffer();
+    const parsed = parsePrintCoverPdfBytes(bytes);
+    if (!parsed.ok) { alert('YasReady could not read this cover PDF MediaBox. Export the cover as a standard single-page PDF and try again.'); return; }
+    const [sha256, dataUrl] = await Promise.all([sha256Hex(bytes), fileToDataUrl(file)]);
+    ensureEditions(state.project);
+    const type = currentPrintEditionType();
+    const edition = state.project.editions[type];
+    edition.coverMode = 'upload-pdf';
+    edition.uploadedCoverPdf = { fileName:file.name, mimeType:'application/pdf', fileSize:file.size, sha256, dataUrl, ...parsed, updatedAt:new Date().toISOString() };
+    edition.lastCoverAudit = null;
+    state.coverPdfReport = null;
+    state.coverBrainMessage = `Full-wrap cover attached: ${file.name} (${parsed.widthIn.toFixed(4)} × ${parsed.heightIn.toFixed(4)} in). Final geometry check will run after pagination.`;
+    state.project.updatedAt = new Date().toISOString();
+    await saveProject(state.project); state.projects = await listProjects(); updateMain();
+  } catch (error) { console.error(error); alert(error?.message || 'The full-wrap cover PDF could not be attached.'); }
+}
+
+async function removePrintFullWrapCover() {
+  if (!state.project) return;
+  ensureEditions(state.project);
+  const edition = state.project.editions[currentPrintEditionType()];
+  edition.uploadedCoverPdf = null; edition.lastCoverAudit = null; state.coverPdfReport = null;
+  state.coverBrainMessage = 'Attached full-wrap cover PDF removed.';
+  await saveProject(state.project); state.projects = await listProjects(); updateMain();
+}
+
 async function savePrintBrainSetup(useRecommended = false) {
   if (!state.project) return;
   ensureEditions(state.project);
   const type = currentPrintEditionType();
   const production = useRecommended ? { ...recommendedPrintProduction(type), configured:true } : readPrintBrainForm(type);
   const edition = state.project.editions[type];
+  const coverMode = readPrintCoverMode();
+  if (coverMode === 'choose') {
+    alert('Choose how you are handling the print cover before continuing. YasReady will not let a paperback reach export with an invisible cover decision.');
+    return;
+  }
+  if (coverMode === 'upload-pdf' && !edition.uploadedCoverPdf) {
+    alert('Attach your full-wrap KDP cover PDF before continuing, or choose “Build my cover in YasReady.”');
+    return;
+  }
+  edition.coverMode = coverMode;
   edition.production = production;
   edition.design = applyPrintBrainToDesign(edition.design, production, type, Number(edition.lastPageCount || 0));
   state.project.design.print = { ...edition.design };
@@ -2560,6 +2637,17 @@ function bindDynamicEvents() {
   document.querySelector('#saveDesign')?.addEventListener('click', saveDesign);
   document.querySelector('#savePrintBrainSetup')?.addEventListener('click', () => savePrintBrainSetup(false));
   document.querySelector('#usePrintBrainRecommended')?.addEventListener('click', () => savePrintBrainSetup(true));
+  document.querySelectorAll('input[name="printCoverMode"]').forEach((input) => input.addEventListener('change', () => {
+    const upload = document.querySelector('.print-full-cover-upload');
+    const button = document.querySelector('#choosePrintFullWrapCover');
+    document.querySelectorAll('.print-cover-mode').forEach((label) => label.classList.toggle('selected', label.querySelector('input')?.checked));
+    const isUpload = readPrintCoverMode() === 'upload-pdf';
+    upload?.classList.toggle('is-muted', !isUpload);
+    if (button) button.disabled = !isUpload;
+  }));
+  document.querySelector('#choosePrintFullWrapCover')?.addEventListener('click', () => document.querySelector('#printFullWrapCoverInput')?.click());
+  document.querySelector('#printFullWrapCoverInput')?.addEventListener('change', (event) => event.target.files?.[0] && importPrintFullWrapCover(event.target.files[0]));
+  document.querySelector('#removePrintFullWrapCover')?.addEventListener('click', removePrintFullWrapCover);
   document.querySelector('#copyPaperbackToHardcover')?.addEventListener('click', copyPaperbackIntoHardcover);
   document.querySelectorAll('[data-edition-enabled]').forEach((input) => input.addEventListener('change', () => updateEditionEnabled(input.dataset.editionEnabled, input.checked)));
   document.querySelectorAll('[data-work-edition]').forEach((button) => button.addEventListener('click', () => workOnPrintEdition(button.dataset.workEdition)));
@@ -3279,11 +3367,24 @@ async function removePrintCoverFront() {
 
 async function buildCurrentCoverPdf() {
   if (!state.project) return;
-  await saveCoverBrainSettings();
   ensureEditions(state.project);
   const type = currentPrintEditionType();
   const edition = state.project.editions[type];
   const pageCount = Number(edition.lastPageCount || state.preview?.pages?.length || 0);
+  if (edition.coverMode === 'upload-pdf') {
+    const geometry = coverGeometry({ type, production:edition.production || {}, pageCount, cover:edition.coverBrain || {} });
+    const audit = auditUploadedPrintCoverPdf({ asset:edition.uploadedCoverPdf, geometry, pageCount, proofSignature:state.preview?.proofSignature || '' });
+    edition.lastCoverAudit = audit; state.coverPdfReport = audit;
+    await saveProject(state.project);
+    if (!audit.ready || !edition.uploadedCoverPdf?.dataUrl) { alert('The attached full-wrap cover does not match the final interior geometry. Update the cover PDF before downloading it for KDP.'); updateMain(); return; }
+    const anchor = document.createElement('a');
+    anchor.href = edition.uploadedCoverPdf.dataUrl;
+    anchor.download = `${safeExportBaseName()}-${type}-kdp-cover.pdf`;
+    document.body.appendChild(anchor); anchor.click(); anchor.remove();
+    updateMain();
+    return;
+  }
+  await saveCoverBrainSettings();
   state.busy = true; state.busyMessage = `Building ${editionLabel(type)} full-wrap cover at ${COVER_DPI} DPI…`; updateMain();
   try {
     const packaged = await renderCoverPdf({ project:state.project, editionType:type, production:edition.production || {}, pageCount, cover:edition.coverBrain || {}, dpi:COVER_DPI });
@@ -4204,7 +4305,16 @@ function measureFragment(rig, design, kind, text, continuation = false, isFinalP
   paragraph.style.whiteSpace = 'pre-wrap';
   paragraph.style.overflowWrap = 'break-word';
 
-  if (kind === 'generated-toc-title') {
+  const matterSpec = printMatterStyleSpec(kind, design);
+  if (matterSpec) {
+    wrapper.style.paddingTop = `${matterSpec.paddingTopIn || 0}in`;
+    wrapper.style.paddingBottom = `${matterSpec.paddingBottomIn || 0}in`;
+    paragraph.style.fontSize = `${matterSpec.fontSizePt}pt`;
+    paragraph.style.lineHeight = String(matterSpec.lineHeight);
+    paragraph.style.textAlign = matterSpec.alignment;
+    paragraph.style.fontWeight = matterSpec.bold ? '700' : '400';
+    paragraph.style.fontStyle = matterSpec.italic ? 'italic' : 'normal';
+  } else if (kind === 'generated-toc-title') {
     wrapper.style.paddingTop = `${design.tocTopSpace}in`;
     wrapper.style.paddingBottom = `${design.tocAfterTitleSpace}in`;
     paragraph.style.fontSize = `${design.tocTitleSize}pt`;
@@ -4309,6 +4419,7 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
   const blocks = effectiveBlocks(project);
   const rig = createMeasureRig(design);
   const structure = analyzeMatter(blocks);
+  const matterIndex = buildPrintMatterIndex(project);
   const pages = [];
   let current = null;
   let blankVersos = 0;
@@ -4349,6 +4460,9 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
       tocTitle: meta.tocTitle || null,
       tocPageNumber: meta.tocPageNumber ?? null,
       tocTargetId: meta.tocTargetId || null,
+      displayText: meta.displayText == null ? null : String(meta.displayText),
+      matterRole: meta.matterRole || null,
+      matterSectionId: meta.matterSectionId || null,
       collapsedBlank: Boolean(meta.collapsedBlank),
       normalizedBlank: Boolean(meta.normalizedBlank),
     });
@@ -4386,24 +4500,47 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
   };
 
   const placeTextBlock = (block, blockPosition) => {
-    const kind = block.kind;
+    const sourceKind = block.kind;
     const text = block.text;
-    const suppressIndent = kind === 'chapter-opening' || previousNonEmptyKind === 'scene-break' || previousNonEmptyKind === 'chapter-title';
-    if (kind === 'blank') {
+    const matterInfo = matterIndex.get(block.id) || null;
+    const kind = printMatterFragmentKind(matterInfo, block);
+    const specialMatter = Boolean(matterInfo && printMatterStyleSpec(kind, design));
+    const displayText = specialMatter ? normalizePrintMatterText(text) : text;
+    const suppressIndent = specialMatter || sourceKind === 'chapter-opening' || previousNonEmptyKind === 'scene-break' || previousNonEmptyKind === 'chapter-title';
+    if (sourceKind === 'blank') {
       ensurePage();
       const sectionType = matterSectionForBlockIndex(block.index, structure);
-      const blankMode = blankRenderMode({ blocks, index: blockPosition, sectionType, policy: design.bodyBlankPolicy });
-      const height = blankMode === 'collapse'
-        ? 0
-        : blankMode === 'normalize'
-          ? design.bodyBlankSpace * CSS_PX_PER_INCH
-          : measureFragment(rig, design, kind, '', false, true, true);
+      const previousBlock = blocks[blockPosition - 1] || null;
+      const previousInfo = previousBlock ? matterIndex.get(previousBlock.id) || null : null;
+      const specialBlank = matterInfo && ['title','copyright','dedication'].includes(matterInfo.role);
+      const blankMode = specialBlank ? 'normalize' : blankRenderMode({ blocks, index: blockPosition, sectionType, policy: design.bodyBlankPolicy });
+      const matterBlankHeight = specialBlank ? printMatterBlankHeightIn(matterInfo, { ...(previousInfo || {}), wasBlank:previousBlock?.kind === 'blank' }) : null;
+      const height = specialBlank
+        ? Math.max(0, Number(matterBlankHeight) || 0) * CSS_PX_PER_INCH
+        : blankMode === 'collapse'
+          ? 0
+          : blankMode === 'normalize'
+            ? design.bodyBlankSpace * CSS_PX_PER_INCH
+            : measureFragment(rig, design, sourceKind, '', false, true, true);
       if (blankMode === 'collapse') collapsedBodyBlanks += 1;
       if (blankMode === 'normalize') normalizedBodyBlankRuns += 1;
       if (height > remaining() && current.fragments.length) newPage();
-      addFragment(block, '', kind, false, height, {
+      addFragment(block, '', sourceKind, false, height, {
         startOffset: 0, endOffset: 0, isFinalPiece: true, suppressIndent: true,
+        matterRole:matterInfo?.role || null, matterSectionId:matterInfo?.sectionId || null,
         collapsedBlank: blankMode === 'collapse', normalizedBlank: blankMode === 'normalize',
+      });
+      return;
+    }
+
+    if (specialMatter) {
+      ensurePage();
+      const fullHeight = measureFragment(rig, design, kind, displayText, false, true, true);
+      if (fullHeight > remaining() && current.fragments.length) newPage();
+      if (fullHeight > rig.pageHeightPx) throw new Error(`${matterInfo.role} front matter is too tall for one print page. Shorten the source page or choose a smaller print theme.`);
+      addFragment(block, text, kind, false, fullHeight, {
+        startOffset:0, endOffset:text.length, isFinalPiece:true, suppressIndent:true,
+        displayText, matterRole:matterInfo.role, matterSectionId:matterInfo.sectionId,
       });
       return;
     }
@@ -4467,6 +4604,17 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
   try {
     for (let i = 0; i < blocks.length; i += 1) {
       const block = blocks[i];
+      const matterInfo = matterIndex.get(block.id) || null;
+      const matterPagePolicy = printMatterPagePolicy(matterInfo);
+      if (matterPagePolicy.breakBefore) {
+        if (current?.fragments?.length || current?.intentionalBlank) newPage();
+        if (matterPagePolicy.alignRight && current && current.side !== 'right') {
+          current.intentionalBlank = true;
+          current.blankReason = `matter-${matterInfo.role}-right`;
+          blankVersos += 1;
+          newPage();
+        }
+      }
       if (tocEntries.length && !tocInserted && structure.firstChapterIndex === i) placeGeneratedToc();
       if (structure.backMatterStartIndex === i && current?.fragments?.length) newPage();
       if (block.kind === 'chapter-title') {
@@ -4580,11 +4728,21 @@ async function buildPreview() {
     state.spreadIndex = 0;
     ensureEditions(state.project);
     const editionType = currentPrintEditionType();
-    state.project.editions[editionType].lastPageCount = state.preview.pages.length;
-    state.project.editions[editionType].lastBuiltAt = new Date().toISOString();
-    state.project.editions[editionType].lastPreflight = null;
-    state.project.editions[editionType].lastPdfAudit = null;
+    const edition = state.project.editions[editionType];
+    edition.lastPageCount = state.preview.pages.length;
+    edition.lastBuiltAt = new Date().toISOString();
+    edition.lastPreflight = null;
+    edition.lastPdfAudit = null;
     state.printPdfReport = null;
+    if (edition.coverMode === 'upload-pdf') {
+      const geometry = coverGeometry({ type:editionType, production:edition.production || {}, pageCount:state.preview.pages.length, cover:edition.coverBrain || {} });
+      edition.lastCoverAudit = auditUploadedPrintCoverPdf({ asset:edition.uploadedCoverPdf, geometry, pageCount:state.preview.pages.length, proofSignature:state.preview.proofSignature || '' });
+      state.coverPdfReport = edition.lastCoverAudit;
+      if (!edition.lastCoverAudit.ready) state.coverBrainMessage = 'Your attached full-wrap cover does not match the final interior geometry yet. YasReady blocked it; update the cover after this page count is final.';
+    } else {
+      edition.lastCoverAudit = null;
+      state.coverPdfReport = null;
+    }
     await saveProject(state.project);
   } catch (error) {
     console.error(error);

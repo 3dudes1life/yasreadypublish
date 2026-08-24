@@ -1,4 +1,11 @@
-# YasReady Publish v1.0.32
+# YasReady Publish v1.0.33
+
+**Paperback Front Matter + Cover Intake**
+
+1.0.33 fixes the first real paperback proof problems found with Book 2. Print front matter is now semantic: the title page, copyright/legal page, and dedication page are isolated as independent physical pages instead of flowing through one continuous pagination stream. Presentation-only whitespace cleanup and Book-1-calibrated print styles apply without changing Story Lock source text.
+
+Paperback/Hardcover Print Brain now requires an explicit cover path before continuing: attach an existing full-wrap KDP PDF or build the cover in YasReady. Attached full-wrap PDFs are parsed for their actual PDF MediaBox and re-certified against the final page-count-dependent cover geometry; a stale spine/canvas is blocked instead of silently accepted.
+
 
 
 ## Kindle Back Matter + Actionable QA
@@ -13,7 +20,7 @@ The Kindle package audit is now actionable: production EPUB files are sanitized 
 
 # YasReady Publish
 
-**Current release: v1.0.32 — Kindle Back Matter + Actionable QA**
+**Current release: v1.0.33 — Paperback Front Matter + Cover Intake**
 
 ## v1.0.30 — Cover Brain + Kindle E21018 Fix
 

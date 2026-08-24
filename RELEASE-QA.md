@@ -1,4 +1,15 @@
-# YasReady Publish v1.0.32 Release QA
+# YasReady Publish v1.0.33 Release QA
+
+## v1.0.33 paperback front matter + cover intake
+
+- Existing pre-1.0.33 print editions stop at Print Brain and require an explicit cover choice; they do not inherit a silent Cover Brain assumption.
+- Full-wrap PDF mode accepts only a PDF, reads its real MediaBox, stores its SHA-256, and rechecks width/height after final pagination.
+- A page-count/spine change invalidates the prior cover certification and blocks the stale wrap.
+- Title, copyright, and dedication are separate semantic print sections and begin on separate physical pages.
+- Tres Amigos reference behavior: title page alone; copyright/legal page alone; dedication page alone.
+- Front-matter source wording/order remains Story-Locked; whitespace cleanup is presentation-only.
+- Browser preview and 300-DPI production PDF use the same semantic print-matter style rules.
+- Migration invalidates stale print page count, preflight, interior PDF audit, cover audit, visual proof, freeze, and Amazon print confirmations; Kindle manuscript/source is not rewritten.
 
 - Run `npm run verify`; **239 automated tests must pass**, followed by static verification and Superman audit.
 - Reproduce a trailing Heading-1-style `BOOK TWO` author page and confirm it remains back matter rather than becoming an extra chapter.

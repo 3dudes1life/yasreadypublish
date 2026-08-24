@@ -1,3 +1,13 @@
+## 1.0.33 — Paperback Front Matter + Cover Intake
+
+- Rebuilt print front matter as semantic physical pages: Title, Copyright, and Dedication no longer leak or split into one another.
+- Added Book-1-calibrated title/copyright/dedication print styles while keeping Story Lock text byte-for-byte untouched.
+- Added an explicit Paperback/Hardcover cover decision in Print Brain: upload an existing full-wrap KDP PDF or build in YasReady.
+- Added full-wrap PDF MediaBox parsing and final-page-count geometry certification, including stale-spine blocking after repagination.
+- Added uploaded-cover handoff inside Cover Brain and Print Gate; the release gate now tells upload-mode authors to update the wrap instead of pretending YasReady must build it.
+- v1.0.33 migration invalidates stale print proofs/PDF/cover certifications and requires legacy projects to make a cover choice, while preserving the Kindle manuscript and Story Lock.
+- Added regression coverage for semantic print matter, presentation-only whitespace cleanup, PDF canvas auditing, and migration behavior.
+
 ## 1.0.32 — Kindle Back Matter + Actionable QA
 
 - Book Brain v2 now recognizes trailing **About the Authors** and **Join the Journey** pages from content/layout cues even when Word headings are missing or mis-styled.

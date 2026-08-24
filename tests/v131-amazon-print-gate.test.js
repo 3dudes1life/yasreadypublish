@@ -78,8 +78,8 @@ test('1.0.32 migration preserves Print Gate while invalidating stale Kindle rend
   project.editions.ebook.releaseGate={ visualProof:{token:'kindle-proof'}, freeze:{token:'kindle-freeze'}, external:{kindlePreviewerOpened:{value:true,token:'k'},enhancedTypesetting:{value:true,token:'k'}} };
   const before=JSON.stringify(project.manuscript);
   const migrated=migrateProject(project);
-  assert.equal(migrated.version,32);
-  assert.equal(migrated.appVersion,'1.0.32');
+  assert.equal(migrated.version,33);
+  assert.equal(migrated.appVersion,'1.0.33');
   assert.ok(migrated.editions.paperback.printGate);
   assert.equal(migrated.editions.ebook.releaseGate.visualProof, null);
   assert.equal(migrated.editions.ebook.releaseGate.freeze, null);

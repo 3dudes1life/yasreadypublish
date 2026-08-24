@@ -7,7 +7,7 @@ const required = [
   'src/lib/navigator-model.js', 'src/lib/theme-store.js', 'src/lib/preflight-model.js', 'src/lib/print-export.js',
   'src/lib/ebook-model.js', 'src/lib/ebook-preflight.js', 'src/lib/epub-export.js', 'src/lib/structure-overrides.js',
   'src/lib/print-toc.js', 'src/lib/project-backup.js', 'src/lib/readiness-model.js', 'src/lib/spacing-policy.js',
-  'src/lib/editions.js', 'src/lib/print-release-gate.js', 'src/lib/proof-integrity.js', 'src/lib/presentation-overrides.js', 'src/lib/semantic-styles.js', 'src/lib/print-brain.js', 'src/lib/print-pdf.js', 'src/lib/cover-brain.js', 'src/lib/cover-pdf.js',
+  'src/lib/editions.js', 'src/lib/print-release-gate.js', 'src/lib/print-matter.js', 'src/lib/print-cover-upload.js', 'src/lib/proof-integrity.js', 'src/lib/presentation-overrides.js', 'src/lib/semantic-styles.js', 'src/lib/print-brain.js', 'src/lib/print-pdf.js', 'src/lib/cover-brain.js', 'src/lib/cover-pdf.js',
   'src/lib/kindle-preview-model.js', 'src/lib/kindle-quality.js', 'src/lib/kindle-intelligence.js',
   'src/lib/kindle-production-flow.js', 'src/lib/epub-audit.js', 'src/lib/ebook-theme-studio.js', 'src/lib/kindle-release-gate.js', 'src/lib/bug-log.js', 'src/lib/book-brain.js', 'public/vendor/jszip.min.js',
   'STORY-LOCK-SPEC.md', 'KDP-PREFLIGHT.md', 'EPUB-PREFLIGHT.md', 'KINDLE-STANDARDS.md', 'RELEASE-QA.md',
@@ -23,7 +23,7 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
 }
 const main = readFileSync('src/main.js', 'utf8');
 for (const marker of [
-  "const VERSION = '1.0.32'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
+  "const VERSION = '1.0.33'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
   'Amazon KDP · Reflowable EPUB 3', 'Kindle Preview Studio', 'Adjust Layout', 'preview-studio-grid-v110',
   'Kindle Pro consistency scan', '3-View Torture Test', '11 pt reference', 'Semantic Style Palette', 'Content style',
   'saveEbookSemanticStyles', 'Kindle Intelligence', 'Compare Chapters', 'compareKindleChaptersButton', 'Undo', 'Redo',
@@ -52,8 +52,8 @@ for (const dynamicBinding of [
 }
 
 const project = readFileSync('src/lib/project.js', 'utf8');
-if (!project.includes("appVersion: '1.0.32'") || !project.includes('version: 32') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
-  throw new Error('Project app version was not migrated to 1.0.32 with Amazon Print Gate schema 32 state.');
+if (!project.includes("appVersion: '1.0.33'") || !project.includes('version: 33') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
+  throw new Error('Project app version was not migrated to 1.0.33 with Paperback Front Matter/Cover Intake schema 33 state.');
 }
 const editions = readFileSync('src/lib/editions.js', 'utf8');
 if (!editions.includes('reviewDecisions:')) throw new Error('Edition normalization does not preserve Kindle review decisions.');
@@ -125,7 +125,7 @@ const printBrain = readFileSync('src/lib/print-brain.js', 'utf8');
 for (const marker of ['PRINT_BRAIN_VERSION','printTrimOptions','normalizePrintProduction','printEligibility','applyPrintBrainToDesign']) {
   if (!printBrain.includes(marker)) throw new Error(`Print Brain engine is missing: ${marker}`);
 }
-for (const marker of ['PRINT BRAIN · v1.0.29','Use Recommended','Save & style the book','data-quality-action','PRINT PDF HARD MODE · v1.0.29','Build ${escapeHtml(editionLabel(currentPrintEditionType()))} PDF']) {
+for (const marker of ['PRINT BRAIN · v1.0.33','Use Recommended','Save & style the book','data-quality-action','PRINT PDF HARD MODE · v1.0.29','Build ${escapeHtml(editionLabel(currentPrintEditionType()))} PDF']) {
   if (!main.includes(marker)) throw new Error(`1.0.28 Print Brain / actionable QA UI is missing: ${marker}`);
 }
 if (!readFileSync('src/lib/book-brain.js','utf8').includes('outsideKnownBody')) throw new Error('1.0.28 Book Brain boundary guard is missing.');
@@ -145,13 +145,13 @@ if (!main.includes('Rebuild package') || !main.includes("data-quality-action=\"p
 const bookBrain = readFileSync('src/lib/book-brain.js', 'utf8');
 for (const marker of ['BOOK_BRAIN_VERSION = 2','about-authors','join-journey','backMatterInterpretations']) if (!bookBrain.includes(marker)) throw new Error(`1.0.32 Book Brain back-matter marker missing: ${marker}`);
 
-console.log('YasReady Publish v1.0.32 static verification passed.');
+console.log('YasReady Publish v1.0.33 static verification passed.');
 
 
 const printGate = readFileSync('src/lib/print-release-gate.js', 'utf8');
 for (const marker of ['buildPrintReleaseGate','printReleaseToken','freezePrintRelease','setPrintExternalConfirmation','printReleaseReport','physicalProofApproved']) {
   if (!printGate.includes(marker)) throw new Error(`Amazon Print Gate is missing: ${marker}`);
 }
-for (const marker of ['AMAZON PRINT GATE · v1.0.32','Ready for KDP Print Previewer','Confirm KDP Print Previewer','Physical proof approved','Download Print Gate report','NEXT PRINT ACTION']) {
+for (const marker of ['AMAZON PRINT GATE · v1.0.33','Ready for KDP Print Previewer','Confirm KDP Print Previewer','Physical proof approved','Download Print Gate report','NEXT PRINT ACTION']) {
   if (!main.includes(marker)) throw new Error(`1.0.32 Amazon Print Gate UI is missing: ${marker}`);
 }
