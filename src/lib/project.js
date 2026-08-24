@@ -19,8 +19,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   const project = {
     id: crypto.randomUUID(),
-    version: 36,
-    appVersion: '1.0.36',
+    version: 37,
+    appVersion: '1.0.37',
     title: baseName,
     author: '',
     createdAt: now,
@@ -76,7 +76,7 @@ export function migrateProject(project) {
   if (!project) return project;
   const oldVersion = Number(project.version) || 1;
   const priorAppVersion = String(project.appVersion || '');
-  const alreadyCurrent = oldVersion >= 36 && priorAppVersion === '1.0.36';
+  const alreadyCurrent = oldVersion >= 37 && priorAppVersion === '1.0.37';
   // 1.0.34 is a print-only renderer/pagination upgrade. Preserve the exact
   // Kindle release proof when upgrading a real 1.0.33 project so a paperback
   // barcode change cannot erase already-confirmed Kindle Previewer work.
@@ -589,11 +589,34 @@ export function migrateProject(project) {
     }
   }
 
+
+  // 1.0.37 removes visible internal seams from stale-spine artwork adaptation
+  // and preserves hard source line breaks in print back-matter preview. Because
+  // the cover manufacture algorithm changed, all remembered print package proof
+  // is stale. Kindle release proof and Story-Locked manuscript data are untouched.
+  if (oldVersion < 37) {
+    ensureEditions(project);
+    for (const type of ['paperback','hardcover']) {
+      const edition = project.editions?.[type];
+      if (!edition) continue;
+      edition.lastPageCount = null;
+      edition.lastBuiltAt = null;
+      edition.lastPreflight = null;
+      edition.lastPdfAudit = null;
+      edition.lastCoverAudit = null;
+      if (edition.printGate && typeof edition.printGate === 'object') {
+        edition.printGate.visualProof = null;
+        edition.printGate.freeze = null;
+        edition.printGate.external = { kdpPrintPreviewApproved:false };
+      }
+    }
+  }
+
   if (priorEbookReleaseGateFor134 && project.editions?.ebook) {
     project.editions.ebook.releaseGate = priorEbookReleaseGateFor134;
   }
-  project.version = Math.max(oldVersion, 36);
-  project.appVersion = '1.0.36';
+  project.version = Math.max(oldVersion, 37);
+  project.appVersion = '1.0.37';
   return project;
 }
 

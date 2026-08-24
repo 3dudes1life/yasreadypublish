@@ -1,12 +1,12 @@
-# YasReady Publish v1.0.36
+# YasReady Publish v1.0.37
 
-**Full-Wrap Artwork Adapter + Guided Four-Step Flow**
+**Seamless Spine Expansion + Back-Matter Line Fidelity**
 
-Version 1.0.36 fixes the three real paperback workflow problems exposed by the Book 2 production run. Simple Mode now has an obvious in-page path through **Book → Style → Preview → Export** instead of requiring the left rail. Print back matter uses the Book 1 convention: **centered feature heading with readable left-aligned prose beneath it**. Cover intake now distinguishes a finished visual JPG/PNG wrap from a truly production-sized KDP PDF.
+Version 1.0.37 is the real-book polish pass from the Book 2 manufacturing test. Finished JPG/PNG wraps can still be adapted after pagination, but YasReady no longer carries the old spine fold-edge pixels into the center of a wider spine. It removes a narrow stale edge band, synthesizes only the missing teal/background texture from clean spine samples, mirrors those samples to avoid obvious stretching, feathers the preserved spine artwork into the new width, and audits the internal joins before certification. Front and back panels remain physically unchanged.
 
-If an author uploads finished full-wrap artwork, YasReady diagnoses the physical wrap/spine geometry implied by the image, reports effective production PPI, preserves the back and front panels, and—when the new book only needs a wider spine—extends only the stale spine area without horizontally stretching the original spine text/art. The final KDP PDF is manufactured only after pagination locks the exact page count. A low-resolution reference image can be used for diagnosis but cannot masquerade as production artwork.
+Print Preview now also respects hard source line breaks inside back matter, so a source label such as **Visit:** remains on its own line exactly as intended. This is presentation fidelity only; Story Lock wording and Kindle production remain untouched.
 
-**Current release: v1.0.36 — Full-Wrap Artwork Adapter + Guided Flow**
+**Current release: v1.0.37 — Seamless Spine Expansion + Back-Matter Line Fidelity**
 
 ## v1.0.30 — Cover Brain + Kindle E21018 Fix
 

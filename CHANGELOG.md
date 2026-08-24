@@ -1,3 +1,12 @@
+## 1.0.37 — Seamless Spine Expansion + Back-Matter Line Fidelity
+
+- Rebuilt finished-artwork spine widening so stale fold-edge pixels are discarded instead of being relocated into the middle of a wider spine.
+- Added mirrored clean-texture synthesis and feathered blending around the preserved spine artwork core; front and back panels remain untouched and spine typography is not horizontally stretched.
+- Added an automatic internal spine-seam audit with a wider rescue blend when a strong manufactured join is detected.
+- Fixed print Preview so hard source line breaks in back matter remain visible, including standalone labels such as `Visit:`, without changing Story-Locked manuscript wording.
+- Schema 37 invalidates stale paperback/hardcover production proof and cover audits created by the previous spine algorithm while preserving earned Kindle release proof.
+- Added dedicated v1.0.37 regression coverage for Book 2 spine geometry, no-crop safety, line-break fidelity, and migration isolation.
+
 ## 1.0.36 — Full-Wrap Artwork Adapter + Guided Flow
 
 - Added persistent/in-page Simple Mode navigation so authors can move **Book → Style → Preview → Export** without hunting the left sidebar.

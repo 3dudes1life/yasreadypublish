@@ -2,7 +2,7 @@ import { buildRasterPdf, auditPrintPdfBytes, PRINT_PDF_DPI } from './print-pdf.j
 import { paperbackSpineFactor } from './cover-brain.js';
 import { barcodePdfVectorCommands, normalizeBarcodeBrain, normalizePrintIsbn } from './barcode-brain.js';
 
-export const FULL_WRAP_ART_VERSION = 1;
+export const FULL_WRAP_ART_VERSION = 2;
 
 function clamp(n, min, max) { return Math.min(max, Math.max(min, Number(n) || 0)); }
 
@@ -58,10 +58,10 @@ export function analyzeFullWrapArtwork({ asset, geometry, production = {}, pageC
       ? `Artwork already maps to the final ${targetWidth.toFixed(3)} × ${targetHeight.toFixed(3)} in wrap.`
       : `Artwork maps to about ${sourceWidthIn.toFixed(3)} × ${targetHeight.toFixed(3)} in with an inferred ${sourceSpineIn.toFixed(3)} in spine${inferredPages ? ` (roughly ${inferredPages} pages for this paper/ink profile)` : ''}; the current ${Number(pageCount)||0}-page book needs ${targetWidth.toFixed(3)} × ${targetHeight.toFixed(3)} in with a ${targetSpine.toFixed(3)} in spine.`
     : 'The image proportions do not contain a plausible back + spine + front wrap for the selected trim size.' });
-  checks.push({ id:'wrap-art-spine-adapter', status:ratioMatch || targetCanExtendSpine ? 'pass' : 'error', label:'Preserve front/back while adapting spine', message:ratioMatch
+  checks.push({ id:'wrap-art-spine-adapter', status:ratioMatch || targetCanExtendSpine ? 'pass' : 'error', label:'Seamless spine expansion', message:ratioMatch
     ? 'No spine adaptation is needed.'
     : targetCanExtendSpine
-      ? `YasReady can preserve the back and front panels at their original physical size and extend only the spine from ${sourceSpineIn.toFixed(3)} to ${targetSpine.toFixed(3)} in.`
+      ? `YasReady will preserve both covers and the spine artwork proportions, discard the stale fold-edge pixels, then synthesize and feather only the added spine texture from ${sourceSpineIn.toFixed(3)} to ${targetSpine.toFixed(3)} in.`
       : `The source spine (${Math.max(0,sourceSpineIn).toFixed(3)} in) is wider than the current ${targetSpine.toFixed(3)} in spine. Automatic cropping could damage spine text, so YasReady will not guess.` });
   const resolutionStatus = effectivePpi >= 295 ? 'pass' : effectivePpi >= 250 ? 'warning' : 'error';
   checks.push({ id:'wrap-art-resolution', status:resolutionStatus, label:'Full-wrap artwork resolution', message:`Effective source resolution is about ${Math.round(Number.isFinite(effectivePpi) ? effectivePpi : 0)} PPI at its inferred physical size.${effectivePpi >= 295 ? ' Production artwork meets the 300-PPI target.' : ` Use the original high-resolution export; about ${Math.ceil(sourceWidthIn*300)} × ${Math.ceil(targetHeight*300)}px would provide 300 PPI at this source geometry.`}` });
@@ -101,21 +101,160 @@ function drawPanel(ctx, image, sx, sw, dx, dw, targetHeightPx) {
   ctx.drawImage(image, sx, 0, Math.max(1, sw), image.height, dx, 0, Math.max(1, dw), targetHeightPx);
 }
 
-function extendSpinePreservingArt(ctx, image, { sourceLeftPx, sourceSpinePx, targetLeftPx, targetSpinePx, targetHeightPx }) {
-  if (Math.abs(targetSpinePx - sourceSpinePx) <= 1) {
-    drawPanel(ctx, image, sourceLeftPx, sourceSpinePx, targetLeftPx, targetSpinePx, targetHeightPx);
-    return;
+export function planSeamlessSpineExpansion({ sourceSpinePx = 0, targetSpinePx = 0, sourceToTargetScale = 1 } = {}) {
+  const source = Number(sourceSpinePx) || 0;
+  const target = Number(targetSpinePx) || 0;
+  const scale = Number(sourceToTargetScale) > 0 ? Number(sourceToTargetScale) : 1;
+  if (!(source > 0) || !(target > 0)) throw new Error('Valid source and target spine widths are required.');
+  const scaledSource = source * scale;
+  if (Math.abs(target - scaledSource) <= 1) {
+    return { mode:'exact', sourceSpinePx:source, targetSpinePx:target, sourceToTargetScale:scale, edgeInsetSourcePx:0, coreSourceWidthPx:source, coreTargetWidthPx:target, leftExtraPx:0, rightExtraPx:0, textureSliceSourcePx:0, textureTileTargetPx:0, featherPx:0 };
   }
-  if (targetSpinePx < sourceSpinePx) throw new Error('Automatic spine adaptation would crop the existing spine artwork. Rebuild the source cover or choose a larger page-count geometry.');
-  const extra = targetSpinePx - sourceSpinePx;
-  const leftExtra = extra / 2;
-  const rightExtra = extra - leftExtra;
-  const edgeSlice = clamp(sourceSpinePx * 0.08, 4, Math.max(4, sourceSpinePx * 0.2));
-  // Extend only edge texture/color; keep the original spine artwork centered at its
-  // original physical width so text/logos are not stretched horizontally.
-  drawPanel(ctx, image, sourceLeftPx, edgeSlice, targetLeftPx, leftExtra + 1, targetHeightPx);
-  drawPanel(ctx, image, sourceLeftPx + sourceSpinePx - edgeSlice, edgeSlice, targetLeftPx + leftExtra + sourceSpinePx - 1, rightExtra + 1, targetHeightPx);
-  drawPanel(ctx, image, sourceLeftPx, sourceSpinePx, targetLeftPx + leftExtra, sourceSpinePx, targetHeightPx);
+  if (target < scaledSource) throw new Error('Automatic spine adaptation would crop the existing spine artwork. Rebuild the source cover or choose a larger page-count geometry.');
+
+  // The old fold line is part of the stale spine rectangle. Remove a narrow band
+  // from each old edge before reusing the center artwork so that old fold pixels
+  // cannot be relocated into the middle of the new spine.
+  const edgeInsetSourcePx = Math.max(1, Math.min(source * 0.08, Math.max(4, source * 0.04)));
+  const coreSourceWidthPx = Math.max(1, source - edgeInsetSourcePx * 2);
+  const coreTargetWidthPx = coreSourceWidthPx * scale;
+  const extraPx = Math.max(0, target - coreTargetWidthPx);
+  const leftExtraPx = extraPx / 2;
+  const rightExtraPx = extraPx - leftExtraPx;
+  const textureSliceSourcePx = Math.max(4, Math.min(coreSourceWidthPx * 0.28, source * 0.16));
+  const textureTileTargetPx = textureSliceSourcePx * scale;
+  const featherPx = Math.max(6, Math.min(coreTargetWidthPx * 0.14, Math.max(10, scaledSource * 0.06)));
+  return { mode:'seamless-expand', sourceSpinePx:source, targetSpinePx:target, sourceToTargetScale:scale, edgeInsetSourcePx, coreSourceWidthPx, coreTargetWidthPx, leftExtraPx, rightExtraPx, textureSliceSourcePx, textureTileTargetPx, featherPx };
+}
+
+function drawMirroredTextureBand(ctx, image, { sourceX, sourceWidth, targetX, targetWidth, targetHeightPx, tileTargetWidth, reverse = false }) {
+  if (!(targetWidth > 0) || !(sourceWidth > 0)) return;
+  const nominalTile = Math.max(1, Number(tileTargetWidth) || sourceWidth);
+  let cursor = 0;
+  let index = 0;
+  while (cursor < targetWidth - 0.01) {
+    const width = Math.min(nominalTile, targetWidth - cursor);
+    const dx = targetX + cursor;
+    const mirrored = ((index + (reverse ? 1 : 0)) % 2) === 1;
+    ctx.save();
+    if (mirrored) {
+      ctx.translate(dx + width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(image, sourceX, 0, Math.max(1, sourceWidth), image.height, 0, 0, width, targetHeightPx);
+    } else {
+      ctx.drawImage(image, sourceX, 0, Math.max(1, sourceWidth), image.height, dx, 0, width, targetHeightPx);
+    }
+    ctx.restore();
+    cursor += width;
+    index += 1;
+  }
+}
+
+function drawFeatheredSpineCore(ctx, image, { sourceX, sourceWidth, targetX, targetWidth, targetHeightPx, featherPx }) {
+  const layer = document.createElement('canvas');
+  layer.width = Math.max(1, Math.round(targetWidth));
+  layer.height = Math.max(1, Math.round(targetHeightPx));
+  const layerCtx = layer.getContext('2d');
+  if (!layerCtx) throw new Error('Canvas rendering is unavailable while blending the spine artwork.');
+  layerCtx.drawImage(image, sourceX, 0, Math.max(1, sourceWidth), image.height, 0, 0, layer.width, layer.height);
+  const feather = Math.max(1, Math.min(layer.width / 3, featherPx));
+  const stop = Math.min(0.49, feather / layer.width);
+  const mask = layerCtx.createLinearGradient(0, 0, layer.width, 0);
+  mask.addColorStop(0, 'rgba(0,0,0,0)');
+  mask.addColorStop(stop, 'rgba(0,0,0,1)');
+  mask.addColorStop(1 - stop, 'rgba(0,0,0,1)');
+  mask.addColorStop(1, 'rgba(0,0,0,0)');
+  layerCtx.globalCompositeOperation = 'destination-in';
+  layerCtx.fillStyle = mask;
+  layerCtx.fillRect(0, 0, layer.width, layer.height);
+  layerCtx.globalCompositeOperation = 'source-over';
+  ctx.drawImage(layer, targetX, 0, targetWidth, targetHeightPx);
+}
+
+function verticalSeamScore(ctx, x, targetHeightPx) {
+  const xi = Math.round(x);
+  const y = Math.max(0, Math.round(targetHeightPx * 0.05));
+  const height = Math.max(1, Math.round(targetHeightPx * 0.90));
+  if (xi < 2 || xi + 2 >= ctx.canvas.width) return 0;
+  try {
+    const left = ctx.getImageData(xi - 2, y, 2, height).data;
+    const right = ctx.getImageData(xi, y, 2, height).data;
+    let total = 0;
+    for (let row = 0; row < height; row += 1) {
+      const li = row * 8;
+      const ri = row * 8;
+      for (let channel = 0; channel < 3; channel += 1) {
+        const lv = (left[li + channel] + left[li + 4 + channel]) / 2;
+        const rv = (right[ri + channel] + right[ri + 4 + channel]) / 2;
+        total += Math.abs(lv - rv);
+      }
+    }
+    return total / (height * 3);
+  } catch {
+    return 0;
+  }
+}
+
+function extendSpinePreservingArt(ctx, image, { sourceLeftPx, sourceSpinePx, targetLeftPx, targetSpinePx, targetHeightPx }) {
+  const sourceToTargetScale = targetHeightPx / Math.max(1, image.height);
+  const plan = planSeamlessSpineExpansion({ sourceSpinePx, targetSpinePx, sourceToTargetScale });
+  if (plan.mode === 'exact') {
+    drawPanel(ctx, image, sourceLeftPx, sourceSpinePx, targetLeftPx, targetSpinePx, targetHeightPx);
+    return { ...plan, seamScores:[0,0], worstSeamScore:0, rescueApplied:false };
+  }
+
+  const sourceCoreX = sourceLeftPx + plan.edgeInsetSourcePx;
+  const targetCoreX = targetLeftPx + plan.leftExtraPx;
+  const leftSampleX = sourceLeftPx + plan.edgeInsetSourcePx;
+  const rightSampleX = sourceLeftPx + sourceSpinePx - plan.edgeInsetSourcePx - plan.textureSliceSourcePx;
+
+  const paint = (featherScale = 1) => {
+    const feather = Math.min(plan.coreTargetWidthPx / 3, plan.featherPx * featherScale);
+    drawMirroredTextureBand(ctx, image, {
+      sourceX:leftSampleX,
+      sourceWidth:plan.textureSliceSourcePx,
+      targetX:targetLeftPx,
+      targetWidth:plan.leftExtraPx + feather,
+      targetHeightPx,
+      tileTargetWidth:plan.textureTileTargetPx,
+      reverse:true,
+    });
+    drawMirroredTextureBand(ctx, image, {
+      sourceX:rightSampleX,
+      sourceWidth:plan.textureSliceSourcePx,
+      targetX:targetCoreX + plan.coreTargetWidthPx - feather,
+      targetWidth:plan.rightExtraPx + feather,
+      targetHeightPx,
+      tileTargetWidth:plan.textureTileTargetPx,
+      reverse:false,
+    });
+    drawFeatheredSpineCore(ctx, image, {
+      sourceX:sourceCoreX,
+      sourceWidth:plan.coreSourceWidthPx,
+      targetX:targetCoreX,
+      targetWidth:plan.coreTargetWidthPx,
+      targetHeightPx,
+      featherPx:feather,
+    });
+  };
+
+  paint(1);
+  let seamScores = [verticalSeamScore(ctx, targetCoreX, targetHeightPx), verticalSeamScore(ctx, targetCoreX + plan.coreTargetWidthPx, targetHeightPx)];
+  let worstSeamScore = Math.max(...seamScores);
+  let rescueApplied = false;
+  if (worstSeamScore > 36) {
+    // A second, wider blend is cheaper and safer than asking the author to
+    // rebuild a correctly designed wrap in Photoshop.
+    ctx.save();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(targetLeftPx, 0, targetSpinePx, targetHeightPx);
+    ctx.restore();
+    paint(1.8);
+    seamScores = [verticalSeamScore(ctx, targetCoreX, targetHeightPx), verticalSeamScore(ctx, targetCoreX + plan.coreTargetWidthPx, targetHeightPx)];
+    worstSeamScore = Math.max(...seamScores);
+    rescueApplied = true;
+  }
+  return { ...plan, seamScores, worstSeamScore, rescueApplied };
 }
 
 export async function renderFullWrapArtworkPdf({ asset, geometry, production = {}, pageCount = 0, barcodeBrain = {}, isbn = '', dpi = PRINT_PDF_DPI } = {}) {
@@ -143,7 +282,7 @@ export async function renderFullWrapArtworkPdf({ asset, geometry, production = {
   const targetRightPx = widthPx - targetRightX;
 
   drawPanel(ctx, image, 0, sourceLeftPx, 0, targetLeftPx, heightPx);
-  extendSpinePreservingArt(ctx, image, { sourceLeftPx, sourceSpinePx, targetLeftPx, targetSpinePx, targetHeightPx:heightPx });
+  const spineAdaptation = extendSpinePreservingArt(ctx, image, { sourceLeftPx, sourceSpinePx, targetLeftPx, targetSpinePx, targetHeightPx:heightPx });
   drawPanel(ctx, image, sourceRightX, sourceRightPx, targetRightX, targetRightPx, heightPx);
 
   const barcode = normalizeBarcodeBrain(barcodeBrain || {});
@@ -170,7 +309,14 @@ export async function renderFullWrapArtworkPdf({ asset, geometry, production = {
   const jpegBytes = dataUrlToJpegBytes(canvas.toDataURL('image/jpeg', 0.96));
   const pdf = buildRasterPdf({ pages:[{ jpegBytes, widthPx, heightPx, overlayPdf }], pageWidthIn:geometry.width, pageHeightIn:geometry.height, dpi });
   const baseAudit = auditPrintPdfBytes(pdf.bytes, { pageCount:1, pageWidthIn:geometry.width, pageHeightIn:geometry.height, dpi });
-  const checks = [...analysis.checks, ...baseAudit.checks];
+  const seamStatus = spineAdaptation.worstSeamScore <= 36 ? 'pass' : 'warning';
+  const seamMessage = spineAdaptation.mode === 'exact'
+    ? 'The source spine already matches the final geometry; no synthesized join exists.'
+    : seamStatus === 'pass'
+      ? `Seamless expansion removed stale fold-edge pixels and feathered the synthesized texture${spineAdaptation.rescueApplied ? ' with the wider rescue blend' : ''}. Internal seam score ${spineAdaptation.worstSeamScore.toFixed(1)}.`
+      : `The spine was rebuilt with the rescue blend, but the internal seam score is ${spineAdaptation.worstSeamScore.toFixed(1)}. Inspect the manufactured cover at 100% before KDP upload.`;
+  const seamCheck = { id:'wrap-art-seam-audit', status:seamStatus, label:'Spine seam audit', message:seamMessage };
+  const checks = [...analysis.checks, seamCheck, ...baseAudit.checks];
   const errors = checks.filter((item)=>item.status === 'error').length;
   const warnings = checks.filter((item)=>item.status === 'warning').length;
   return {

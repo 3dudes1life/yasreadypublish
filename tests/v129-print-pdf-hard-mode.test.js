@@ -45,8 +45,8 @@ test('1.0.29 migration clears stale pre-Hard-Mode PDF audit without touching man
   const project=baseProject();
   const before=JSON.stringify(project.manuscript);
   const migrated=migrateProject(project);
-  assert.equal(migrated.version, 36);
-  assert.equal(migrated.appVersion,'1.0.36');
+  assert.equal(migrated.version, 37);
+  assert.equal(migrated.appVersion,'1.0.37');
   assert.equal(migrated.editions.paperback.lastPdfAudit,null);
   assert.equal(JSON.stringify(migrated.manuscript),before);
 });
