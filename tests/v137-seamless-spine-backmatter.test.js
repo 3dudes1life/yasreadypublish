@@ -25,7 +25,7 @@ function makeRgba(width, height, paint) {
 test('1.0.37 cover-engine rebuild uses content-aware elastic retargeting for Book 2 geometry', () => {
   const plan = planSeamlessSpineExpansion({ sourceSpinePx:285, targetSpinePx:547.5, sourceToTargetScale:1 });
   assert.equal(plan.mode, 'content-aware-elastic');
-  assert.equal(plan.backgroundMode, 'native-core+single-pass-edge-flow');
+  assert.equal(plan.backgroundMode, 'native-core+protected-2d-background');
   assert.equal(plan.usesTiling, false);
   assert.equal(plan.usesRowFlattening, false);
   assert.equal(plan.contentAware, true);
@@ -69,25 +69,38 @@ test('1.0.37 cover-engine v7 restores the original spine core at exact 1:1 raste
   assert.equal(quality.checks.find((item)=>item.id==='wrap-art-native-core-preservation')?.status,'pass');
 });
 
-test('1.0.37 cover-engine v7 grows side texture once without tiling or elastic column redistribution', () => {
-  const sourceWidth=120, targetWidth=220, height=64;
+test('1.0.37 cover-engine v8 removes text fragments from the stretchable background while preserving native art separately', () => {
+  const sourceWidth=120, targetWidth=220, height=80;
   const source=makeRgba(sourceWidth,height,(x,y) => {
-    const v=90+18*Math.sin(x*0.11+y*0.037)+9*Math.cos(x*0.031-y*0.071);
-    return [Math.max(0,v-15),Math.min(255,v+20),Math.min(255,v+10)];
+    const v=92+10*Math.sin(x*0.08+y*0.03)+5*Math.cos(x*0.02-y*0.07);
+    if ((x<18 && y>54) || (x>100 && y<22) || (x>48 && x<72 && y>24 && y<52)) return [246,236,195];
+    return [Math.max(0,v-25),Math.min(255,v+26),Math.min(255,v+12)];
   });
   const edge=buildSinglePassEdgeFlowUnderlay(source,sourceWidth,height,targetWidth);
-  assert.equal(edge.metrics.mode,'single-pass-edge-flow');
+  assert.equal(edge.metrics.mode,'protected-2d-background');
+  assert.equal(edge.metrics.protectedContentMask,true);
   assert.equal(edge.metrics.usesTiling,false);
   assert.equal(edge.metrics.usesRowFlattening,false);
   assert.equal(edge.metrics.usesElasticColumnRedistribution,false);
+  assert.ok(edge.metrics.protectedPixelFraction>0.05);
   assert.ok(edge.metrics.leftExtra>0 && edge.metrics.rightExtra>0);
-  assert.ok(edge.metrics.sourceBandPx>=12);
-  const quality=analyzeSpineRasterQuality(edge.rgba,targetWidth,height,{
-    protectedMedianStretch:1,
-    protectedP90Stretch:1,
-    maxAssignedStretch:edge.metrics.maxExtensionStretch,
-  });
-  assert.ok(quality.metrics.worstRepeat<=1.9, `edge-flow repetition ${quality.metrics.worstRepeat}`);
+
+  let leakedBrightPixels=0;
+  for (let y=0;y<height;y+=1) {
+    for (let x=0;x<targetWidth;x+=1) {
+      const outer=x<edge.metrics.leftExtra || x>=edge.metrics.targetX+edge.metrics.coreWidth;
+      if (!outer) continue;
+      const i=(y*targetWidth+x)*4;
+      const l=edge.rgba[i]*0.2126+edge.rgba[i+1]*0.7152+edge.rgba[i+2]*0.0722;
+      if (l>185) leakedBrightPixels+=1;
+    }
+  }
+  assert.equal(leakedBrightPixels,0,'typography/highlight fragments leaked into the generated outer spine background');
+
+  const native=compositeNativeSpineCore(edge.rgba,targetWidth,source,sourceWidth,height);
+  assert.equal(native.metrics.nativeScaleX,1);
+  assert.equal(native.metrics.nativeScaleY,1);
+  assert.equal(native.metrics.nativeCoreMeanAbsError,0);
 });
 
 test('1.0.37 cover-engine visual QA rejects horizontal stripe/banding manufacture', () => {
@@ -142,6 +155,8 @@ test('1.0.37 cover-engine source contains no strip tiler or row-flattening gener
   assert.ok(!source.includes('buildRobustSpineBackground'));
   assert.ok(!source.includes('robust-row-median'));
   assert.ok(source.includes('usesElasticColumnRedistribution:false'));
+  assert.ok(source.includes('protectedContentMask:true'));
+  assert.ok(source.includes('protectedPixelFraction'));
 });
 
 test('1.0.37 exact spine geometry stays exact and wider source is never auto-cropped', () => {

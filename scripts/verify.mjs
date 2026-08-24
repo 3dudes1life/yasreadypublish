@@ -152,6 +152,16 @@ const fullWrapArt = readFileSync('src/lib/full-wrap-art.js', 'utf8');
 for (const marker of ['analyzeFullWrapArtwork','renderFullWrapArtworkPdf','planSeamlessSpineExpansion','computeSpineColumnEnergy','buildContentAwareStretchMap','analyzeSpineRasterQuality','Seamless spine expansion','wrap-art-seam-audit','wrap-art-horizontal-banding','wrap-art-periodic-repetition','Full-wrap artwork resolution']) {
   if (!fullWrapArt.includes(marker)) throw new Error(`1.0.37 Full-Wrap Artwork Adapter is missing: ${marker}`);
 }
+for (const marker of ['FULL_WRAP_ART_VERSION = 8','protectedContentMask:true','protectedPixelFraction','neutralHighDetail']) {
+  if (!fullWrapArt.includes(marker)) throw new Error(`1.0.37 Cover Engine v8 protected-background guard is missing: ${marker}`);
+}
+const v8Preflight = readFileSync('src/lib/preflight-model.js','utf8');
+for (const marker of ['isExpectedStructuralEmptyPage','barcodeSpacer','generated structural spacer page(s) are intentionally content-free for final-page parity']) {
+  if (!v8Preflight.includes(marker)) throw new Error(`1.0.37 structural parity-spacer guard is missing: ${marker}`);
+}
+for (const marker of ["interiorCurrentForCover","export-simple","Build the current interior PDF first"]) {
+  if (!main.includes(marker)) throw new Error(`1.0.37 deterministic print production path is missing: ${marker}`);
+}
 for (const marker of ['FULL-WRAP ARTWORK ADAPTER · v1.0.37','upload-art','printFullWrapArtInput','renderSimpleFlowDock','simpleFlowDock','Continue to Preview →','Continue to Export →']) {
   if (!main.includes(marker)) throw new Error(`1.0.37 cover intake/navigation UI is missing: ${marker}`);
 }

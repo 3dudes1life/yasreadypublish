@@ -2599,7 +2599,7 @@ async function savePrintBrainSetup(useRecommended = false) {
   state.editionMessage = `${editionLabel(type)} Print Brain + Barcode Brain saved. YasReady will recalculate pagination, the final ISBN page, gutter, and spine as one physical package.`;
   await saveProject(state.project);
   state.projects = await listProjects();
-  state.activeView = 'design';
+  state.activeView = state.simpleStep === 'export' ? 'export-simple' : state.simpleStep === 'preview' ? 'preview-simple' : 'style-simple';
   updateMain();
 }
 
@@ -3589,6 +3589,23 @@ async function buildCurrentCoverPdf() {
   const type = currentPrintEditionType();
   const edition = state.project.editions[type];
   const pageCount = Number(edition.lastPageCount || state.preview?.pages?.length || 0);
+  const proofSignature = state.preview?.proofSignature || '';
+  const interiorAudit = edition.lastPdfAudit || null;
+  const preflightForCover = currentPreflight(false);
+  const interiorCurrentForCover = Boolean(
+    preflightForCover?.ready &&
+    interiorAudit?.ready &&
+    interiorAudit?.sha256 &&
+    Number(interiorAudit?.pageCount || interiorAudit?.metadata?.pageCount || 0) === pageCount &&
+    (!proofSignature || interiorAudit.proofSignature === proofSignature)
+  );
+  if (!interiorCurrentForCover) {
+    state.simpleStep = 'export';
+    state.activeView = 'export-simple';
+    alert(`Build the current interior PDF first. YasReady manufactures the final cover only after the exact ${pageCount}-page interior is audited, so spine geometry and release hashes cannot drift.`);
+    updateMain();
+    return;
+  }
   if (edition.coverMode === 'upload-art') {
     const geometry = coverGeometry({ type, production:edition.production || {}, pageCount, cover:edition.coverBrain || {} });
     const art = normalizeFullWrapArtwork(edition.uploadedCoverArt || null);

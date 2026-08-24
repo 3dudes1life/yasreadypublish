@@ -154,6 +154,12 @@ const docxParser = readFileSync(join(ROOT, 'src/lib/docx-parser.js'), 'utf8');
 for (const marker of ['footnotes.xml','endnotes.xml','loadMediaAssets','mediaRefs','canonicalizeManuscriptV2']) if (!docxParser.includes(marker)) throw new Error(`Missing semantic import marker: ${marker}`);
 if (!main.includes('const ebookIntelligence = scanKindleIntelligence(state.project);') || !main.includes('ebookReport.ready && ebookQuality.ready && ebookIntelligence.ready')) throw new Error('Final Check omits Kindle Intelligence.');
 
+const supermanV8Wrap = readFileSync(join(ROOT, 'src/lib/full-wrap-art.js'), 'utf8');
+for (const marker of ['FULL_WRAP_ART_VERSION = 8','protectedContentMask:true','protectedPixelFraction','neutralHighDetail']) if (!supermanV8Wrap.includes(marker)) throw new Error(`Missing Cover Engine v8 Superman marker: ${marker}`);
+const supermanV8Preflight = readFileSync(join(ROOT, 'src/lib/preflight-model.js'), 'utf8');
+for (const marker of ['isExpectedStructuralEmptyPage','barcodeSpacer','final-page parity']) if (!supermanV8Preflight.includes(marker)) throw new Error(`Missing print parity-spacer Superman marker: ${marker}`);
+for (const marker of ['interiorCurrentForCover','export-simple','Build the current interior PDF first']) if (!main.includes(marker)) throw new Error(`Missing deterministic print-flow Superman marker: ${marker}`);
+
 console.log(`SUPERMAN AUDIT PASSED · ${VERSION}`);
 console.log(`- ${srcJs.length} application JS files syntax/import checked`);
 console.log(`- ${new Set(buttonIds).size} literal button IDs audited`);
@@ -161,4 +167,5 @@ console.log(`- ${dynamic.length} dynamic control families audited`);
 console.log('- no fetch/XHR/WebSocket/sendBeacon manuscript egress paths found');
 if (!main.includes('🐞 Bug Log')) throw new Error('Bug Log UI missing.');
 console.log('- Simple Mode four-step UX + hidden advanced systems + local Bug Log present');
+console.log('- Cover Engine v8 protected-content background synthesis + Barcode Brain structural parity-spacer guard present');
 console.log('- proof ownership, edition invalidation, semantic Kindle styles, Theme Studio families/mapping/artwork, exact-token review decisions, keyboard/search/focus workflow, safe note/media import, finished EPUB audit, calibrated preview, chapter anomaly mapping, safe presentation fixes, accessibility audit, batch review/fix workflow, invalidating visual-proof/release freeze tokens, Final Check intelligence, and whole-book QA guards present');

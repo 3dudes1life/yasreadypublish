@@ -21,6 +21,14 @@ function check(id, label, status, message, meta = {}) {
   return { id, label, status, message, ...meta };
 }
 
+export function isExpectedStructuralEmptyPage(page = {}) {
+  return Boolean(
+    page?.intentionalBlank ||
+    page?.barcodeSpacer === true ||
+    page?.blankReason === 'barcode-left-alignment'
+  );
+}
+
 export function runKdpPreflight({ project, preview, storyLockOk = true, editionType = 'paperback' } = {}) {
   // Validate the frozen proof design first. Current project settings are checked separately
   // by the proof-ownership gate so a stale preview can never pass export.
@@ -190,12 +198,18 @@ export function runKdpPreflight({ project, preview, storyLockOk = true, editionT
     `${stats.structureOverrides || 0} paragraph classification override(s) are applied as metadata only. Story text remains unchanged.`,
   ));
 
-  const unexpectedEmpty = pages.filter((page) => !page.intentionalBlank && !(page.fragments || []).length);
+  const structuralEmpty = pages.filter((page) => isExpectedStructuralEmptyPage(page) && !(page.fragments || []).length);
+  const unexpectedEmpty = pages.filter((page) => !isExpectedStructuralEmptyPage(page) && !(page.fragments || []).length);
   checks.push(check(
     'unexpected-empty-pages',
     'Unexpected empty pages',
     unexpectedEmpty.length ? 'error' : 'pass',
-    unexpectedEmpty.length ? `${unexpectedEmpty.length} non-intentional page(s) contain no layout fragments.` : 'No unexplained empty physical pages were found.',
+    unexpectedEmpty.length
+      ? `${unexpectedEmpty.length} unexplained physical page(s) contain no layout fragments.`
+      : structuralEmpty.length
+        ? `No unexplained empty pages. ${structuralEmpty.length} generated structural spacer page(s) are intentionally content-free for final-page parity.`
+        : 'No unexplained empty physical pages were found.',
+    { structuralEmptyPages:structuralEmpty.map((page) => page.number) },
   ));
 
   const tableCount = Number(project?.manuscript?.metadata?.tableCount || 0);

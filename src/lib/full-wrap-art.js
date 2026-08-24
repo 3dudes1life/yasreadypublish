@@ -2,11 +2,11 @@ import { buildRasterPdf, auditPrintPdfBytes, PRINT_PDF_DPI } from './print-pdf.j
 import { paperbackSpineFactor } from './cover-brain.js';
 import { barcodePdfVectorCommands, normalizeBarcodeBrain, normalizePrintIsbn } from './barcode-brain.js';
 
-export const FULL_WRAP_ART_VERSION = 7;
-// v7: native-core preservation over a single-pass 2D edge-flow underlay.
+export const FULL_WRAP_ART_VERSION = 8;
+// v8: protected-content 2D background synthesis + native-core preservation.
 // Legacy static-audit capability marker: Seamless spine expansion.
-// The original spine center is composited back at exact 1:1 raster scale while each newly
-// required outer side is grown once from a broad 2D edge field—no tiling or elastic bunching.
+// Typography/high-detail pixels are removed from the stretchable underlay before expansion;
+// the original spine center is then composited back at exact 1:1 raster scale.
 
 function clamp(n, min, max) { return Math.min(max, Math.max(min, Number(n) || 0)); }
 function quantile(values, q) {
@@ -72,7 +72,7 @@ export function analyzeFullWrapArtwork({ asset, geometry, production = {}, pageC
   checks.push({ id:'wrap-art-spine-adapter', status:ratioMatch || targetCanExtendSpine ? 'pass' : 'error', label:'Content-aware spine retargeting', message:ratioMatch
     ? 'No spine adaptation is needed.'
     : targetCanExtendSpine
-      ? `YasReady will keep the front and back panels fixed, extend broad 2D texture fields outward once from each spine edge, then composite the original spine center back at exact 1:1 raster scale so lettering and source texture stay crisp while expanding from ${sourceSpineIn.toFixed(3)} to ${targetSpine.toFixed(3)} in.`
+      ? `YasReady will keep the front and back panels fixed, remove typography/high-detail pixels from the stretchable background field, expand that cleaned 2D texture once, then composite the original spine center back at exact 1:1 raster scale so lettering stays crisp while expanding from ${sourceSpineIn.toFixed(3)} to ${targetSpine.toFixed(3)} in.`
       : `The source spine (${Math.max(0,sourceSpineIn).toFixed(3)} in) is wider than the current ${targetSpine.toFixed(3)} in spine. YasReady will not crop finished spine artwork automatically.` });
   const resolutionStatus = effectivePpi >= 295 ? 'pass' : effectivePpi >= 250 ? 'warning' : 'error';
   checks.push({ id:'wrap-art-resolution', status:resolutionStatus, label:'Full-wrap artwork resolution', message:`Effective source resolution is about ${Math.round(Number.isFinite(effectivePpi) ? effectivePpi : 0)} PPI at its inferred physical size.${effectivePpi >= 295 ? ' Production artwork meets the 300-PPI target.' : ` Use the original high-resolution export; about ${Math.ceil(sourceWidthIn*300)} × ${Math.ceil(targetHeight*300)}px would provide 300 PPI at this source geometry.`}` });
@@ -135,7 +135,7 @@ export function planSeamlessSpineExpansion({ sourceSpinePx = 0, targetSpinePx = 
     sourceTargetWidthPx,
     targetWidthPx,
     extraTargetPx:targetWidthPx-sourceTargetWidthPx,
-    backgroundMode:'native-core+single-pass-edge-flow',
+    backgroundMode:'native-core+protected-2d-background',
     usesTiling:false,
     usesRowFlattening:false,
     contentAware:true,
@@ -292,14 +292,17 @@ export function retargetSpineRgba(rgba, sourceWidth, height, stretchMap) {
 
 export function buildSinglePassEdgeFlowUnderlay(sourceRgba, sourceWidth, height, targetWidth, {
   insetFraction=0.015,
-  sourceBandFraction=0.18,
-  curvePower=1.35,
+  protectLuma=135,
+  protectChroma=120,
+  brightLuma=175,
+  dilationFraction=0.055,
+  blurFraction=0.014,
 } = {}) {
   const sourceW=Math.max(1,Math.round(sourceWidth));
   const targetW=Math.max(1,Math.round(targetWidth));
   const h=Math.max(1,Math.round(height));
   if (!sourceRgba || sourceRgba.length < sourceW*h*4) throw new Error('Source spine raster is smaller than declared geometry.');
-  if (targetW < sourceW) throw new Error('Edge-flow spine extension cannot crop a wider source spine.');
+  if (targetW < sourceW) throw new Error('Protected background spine extension cannot crop a wider source spine.');
 
   const maxInset=Math.max(2,Math.floor((sourceW-8)/2));
   const insetPx=Math.min(maxInset,Math.max(2,Math.round(sourceW*insetFraction)));
@@ -309,65 +312,197 @@ export function buildSinglePassEdgeFlowUnderlay(sourceRgba, sourceWidth, height,
   const targetX=Math.round((targetW-coreWidth)/2);
   const leftExtra=Math.max(0,targetX);
   const rightExtra=Math.max(0,targetW-(targetX+coreWidth));
-  const maxBand=Math.max(4,Math.floor(coreWidth*0.32));
-  const sourceBandPx=Math.min(maxBand,Math.max(12,Math.round(coreWidth*sourceBandFraction)));
-  const output=new Uint8ClampedArray(targetW*h*4);
+  const pixels=sourceW*h;
 
-  const sampleColumn=(sourceX,targetXColumn) => {
-    const sx=clamp(sourceX,coreStart,coreEnd-1);
-    const x0=Math.floor(sx);
-    const x1=Math.min(coreEnd-1,x0+1);
-    const alpha=sx-x0;
+  const luma=new Float32Array(pixels);
+  for (let p=0,i=0;p<pixels;p+=1,i+=4) {
+    luma[p]=sourceRgba[i]*0.2126+sourceRgba[i+1]*0.7152+sourceRgba[i+2]*0.0722;
+  }
+
+  // Find a conservative high-detail threshold without OCR. This protects dark
+  // neutral lettering as well as the cream/white typography common on covers.
+  const gradHist=new Uint32Array(512);
+  let gradSamples=0;
+  for (let y=1;y<h-1;y+=1) {
+    for (let x=1;x<sourceW-1;x+=1) {
+      const p=y*sourceW+x;
+      const gradient=Math.min(511,Math.round(
+        Math.abs(luma[p+1]-luma[p-1]) +
+        Math.abs(luma[p+sourceW]-luma[p-sourceW])
+      ));
+      gradHist[gradient]+=1;
+      gradSamples+=1;
+    }
+  }
+  const qCount=Math.max(1,Math.round(gradSamples*0.90));
+  let gradientThreshold=511, running=0;
+  for (let value=0;value<gradHist.length;value+=1) {
+    running+=gradHist[value];
+    if (running>=qCount) { gradientThreshold=value; break; }
+  }
+  gradientThreshold=Math.max(28,gradientThreshold);
+
+  const rawMask=new Uint8Array(pixels);
+  let rawProtected=0;
+  for (let y=0;y<h;y+=1) {
+    for (let x=0;x<sourceW;x+=1) {
+      const p=y*sourceW+x;
+      const i=p*4;
+      const r=sourceRgba[i], g=sourceRgba[i+1], b=sourceRgba[i+2];
+      const max=Math.max(r,g,b), min=Math.min(r,g,b);
+      const chroma=max-min;
+      const lum=luma[p];
+      let gradient=0;
+      if (x>0 && x<sourceW-1 && y>0 && y<h-1) {
+        gradient=Math.abs(luma[p+1]-luma[p-1])+Math.abs(luma[p+sourceW]-luma[p-sourceW]);
+      }
+      const lightTypography=(lum>=protectLuma && chroma<=protectChroma) || lum>=brightLuma;
+      const neutralHighDetail=gradient>=gradientThreshold && chroma<=80 && (lum<=90 || lum>=125);
+      if (lightTypography || neutralHighDetail) {
+        rawMask[p]=1;
+        rawProtected+=1;
+      }
+    }
+  }
+
+  // Dilate the mask so shadows, outlines, swashes and antialiased glyph edges
+  // are removed with the typography instead of leaking as tiny edge fragments.
+  const dilationPx=Math.min(
+    Math.max(2,Math.round(sourceW*dilationFraction)),
+    Math.max(2,Math.floor(sourceW/8)),
+  );
+  const horizontalMask=new Uint8Array(pixels);
+  for (let y=0;y<h;y+=1) {
+    const row=y*sourceW;
+    const prefix=new Int32Array(sourceW+1);
+    for (let x=0;x<sourceW;x+=1) prefix[x+1]=prefix[x]+rawMask[row+x];
+    for (let x=0;x<sourceW;x+=1) {
+      const a=Math.max(0,x-dilationPx), b=Math.min(sourceW,x+dilationPx+1);
+      if (prefix[b]-prefix[a]>0) horizontalMask[row+x]=1;
+    }
+  }
+  const mask=new Uint8Array(pixels);
+  let protectedPixels=0;
+  for (let x=0;x<sourceW;x+=1) {
+    const prefix=new Int32Array(h+1);
+    for (let y=0;y<h;y+=1) prefix[y+1]=prefix[y]+horizontalMask[y*sourceW+x];
     for (let y=0;y<h;y+=1) {
-      const oi=(y*targetW+targetXColumn)*4;
-      const a=(y*sourceW+x0)*4;
-      const b=(y*sourceW+x1)*4;
-      for (let c=0;c<3;c+=1) output[oi+c]=Math.round(sourceRgba[a+c]*(1-alpha)+sourceRgba[b+c]*alpha);
+      const a=Math.max(0,y-dilationPx), b=Math.min(h,y+dilationPx+1);
+      if (prefix[b]-prefix[a]>0) {
+        mask[y*sourceW+x]=1;
+        protectedPixels+=1;
+      }
+    }
+  }
+
+  let sumR=0,sumG=0,sumB=0,backgroundCount=0;
+  for (let p=0,i=0;p<pixels;p+=1,i+=4) {
+    if (!mask[p]) {
+      sumR+=sourceRgba[i]; sumG+=sourceRgba[i+1]; sumB+=sourceRgba[i+2];
+      backgroundCount+=1;
+    }
+  }
+  const fallback=[
+    backgroundCount ? sumR/backgroundCount : 20,
+    backgroundCount ? sumG/backgroundCount : 100,
+    backgroundCount ? sumB/backgroundCount : 90,
+  ];
+
+  // Inpaint each protected run from the nearest unprotected pixels on both sides.
+  // This is not a row-average generator: untouched background pixels remain 2D
+  // source pixels, while only protected glyph/detail runs are reconstructed.
+  const cleaned=new Float32Array(pixels*3);
+  for (let y=0;y<h;y+=1) {
+    const row=y*sourceW;
+    const left=new Int32Array(sourceW);
+    const right=new Int32Array(sourceW);
+    let last=-1;
+    for (let x=0;x<sourceW;x+=1) {
+      if (!mask[row+x]) last=x;
+      left[x]=last;
+    }
+    last=-1;
+    for (let x=sourceW-1;x>=0;x-=1) {
+      if (!mask[row+x]) last=x;
+      right[x]=last;
+    }
+    for (let x=0;x<sourceW;x+=1) {
+      const p=row+x;
+      const oi=p*3;
+      if (!mask[p]) {
+        const si=p*4;
+        cleaned[oi]=sourceRgba[si];
+        cleaned[oi+1]=sourceRgba[si+1];
+        cleaned[oi+2]=sourceRgba[si+2];
+        continue;
+      }
+      const lx=left[x], rx=right[x];
+      if (lx>=0 && rx>=0 && rx!==lx) {
+        const t=(x-lx)/(rx-lx);
+        const li=(row+lx)*4, ri=(row+rx)*4;
+        for (let c=0;c<3;c+=1) cleaned[oi+c]=sourceRgba[li+c]*(1-t)+sourceRgba[ri+c]*t;
+      } else if (lx>=0 || rx>=0) {
+        const sx=lx>=0 ? lx : rx;
+        const si=(row+sx)*4;
+        cleaned[oi]=sourceRgba[si];
+        cleaned[oi+1]=sourceRgba[si+1];
+        cleaned[oi+2]=sourceRgba[si+2];
+      } else {
+        cleaned[oi]=fallback[0]; cleaned[oi+1]=fallback[1]; cleaned[oi+2]=fallback[2];
+      }
+    }
+  }
+
+  // A small separable 2D box blur removes residual glyph shadows while retaining
+  // the cover's broad color/leaf/texture flow. It is deliberately not a row median.
+  const blurRadius=Math.min(8,Math.max(2,Math.round(sourceW*blurFraction)));
+  const horizontalBlur=new Float32Array(cleaned.length);
+  for (let y=0;y<h;y+=1) {
+    const row=y*sourceW;
+    for (let c=0;c<3;c+=1) {
+      const prefix=new Float64Array(sourceW+1);
+      for (let x=0;x<sourceW;x+=1) prefix[x+1]=prefix[x]+cleaned[(row+x)*3+c];
+      for (let x=0;x<sourceW;x+=1) {
+        const a=Math.max(0,x-blurRadius), b=Math.min(sourceW,x+blurRadius+1);
+        horizontalBlur[(row+x)*3+c]=(prefix[b]-prefix[a])/(b-a);
+      }
+    }
+  }
+  const blurred=new Float32Array(cleaned.length);
+  for (let x=0;x<sourceW;x+=1) {
+    for (let c=0;c<3;c+=1) {
+      const prefix=new Float64Array(h+1);
+      for (let y=0;y<h;y+=1) prefix[y+1]=prefix[y]+horizontalBlur[(y*sourceW+x)*3+c];
+      for (let y=0;y<h;y+=1) {
+        const a=Math.max(0,y-blurRadius), b=Math.min(h,y+blurRadius+1);
+        blurred[(y*sourceW+x)*3+c]=(prefix[b]-prefix[a])/(b-a);
+      }
+    }
+  }
+
+  // Stretch the cleaned 2D background field once to the final spine width.
+  // The exact original center is restored by compositeNativeSpineCore() afterward.
+  const output=new Uint8ClampedArray(targetW*h*4);
+  for (let tx=0;tx<targetW;tx+=1) {
+    const sx=targetW<=1 ? 0 : tx*(sourceW-1)/(targetW-1);
+    const x0=Math.floor(sx), x1=Math.min(sourceW-1,x0+1), alpha=sx-x0;
+    for (let y=0;y<h;y+=1) {
+      const oi=(y*targetW+tx)*4;
+      const p0=(y*sourceW+x0)*3, p1=(y*sourceW+x1)*3;
+      for (let c=0;c<3;c+=1) output[oi+c]=Math.round(blurred[p0+c]*(1-alpha)+blurred[p1+c]*alpha);
       output[oi+3]=255;
     }
-  };
-
-  // Left extension: a single broad source field is smoothly unfolded outward.
-  // The pixel touching the native core samples the exact native edge, so there is
-  // no seam and no repeated/tiled interval.
-  for (let tx=0;tx<leftExtra;tx+=1) {
-    const t=leftExtra<=1?1:tx/(leftExtra-1); // 0 outer -> 1 join
-    const distance=Math.pow(1-t,curvePower)*sourceBandPx;
-    sampleColumn(coreStart+distance,tx);
   }
 
-  // Seed the middle with the exact source core. compositeNativeSpineCore() below
-  // certifies and restores the same source pixels again after QA metrics are built.
-  for (let x=0;x<coreWidth;x+=1) {
-    const sx=coreStart+x;
-    const tx=targetX+x;
-    for (let y=0;y<h;y+=1) {
-      const si=(y*sourceW+sx)*4;
-      const ti=(y*targetW+tx)*4;
-      output[ti]=sourceRgba[si];
-      output[ti+1]=sourceRgba[si+1];
-      output[ti+2]=sourceRgba[si+2];
-      output[ti+3]=255;
-    }
-  }
-
-  // Right extension: same one-pass field growth, anchored exactly to the right
-  // native edge and moving inward only once toward the outer edge.
-  for (let j=0;j<rightExtra;j+=1) {
-    const t=rightExtra<=1?0:j/(rightExtra-1); // 0 join -> 1 outer
-    const distance=Math.pow(t,curvePower)*sourceBandPx;
-    sampleColumn((coreEnd-1)-distance,targetX+coreWidth+j);
-  }
-
-  const leftStretch=leftExtra?leftExtra/sourceBandPx:1;
-  const rightStretch=rightExtra?rightExtra/sourceBandPx:1;
+  const fieldStretch=targetW/sourceW;
   return {
     rgba:output,
     metrics:{
-      mode:'single-pass-edge-flow',
+      mode:'protected-2d-background',
       usesTiling:false,
       usesRowFlattening:false,
       usesElasticColumnRedistribution:false,
+      protectedContentMask:true,
       insetPx,
       coreStart,
       coreEnd,
@@ -375,11 +510,16 @@ export function buildSinglePassEdgeFlowUnderlay(sourceRgba, sourceWidth, height,
       targetX,
       leftExtra,
       rightExtra,
-      sourceBandPx,
-      leftExtensionStretch:leftStretch,
-      rightExtensionStretch:rightStretch,
-      maxExtensionStretch:Math.max(1,leftStretch,rightStretch),
-      curvePower,
+      sourceBandPx:sourceW,
+      leftExtensionStretch:fieldStretch,
+      rightExtensionStretch:fieldStretch,
+      maxExtensionStretch:Math.max(1,fieldStretch),
+      curvePower:1,
+      rawProtectedPixelFraction:rawProtected/pixels,
+      protectedPixelFraction:protectedPixels/pixels,
+      gradientThreshold,
+      dilationPx,
+      blurRadius,
     },
   };
 }
@@ -517,7 +657,7 @@ export function analyzeSpineRasterQuality(rgba, width, height, { protectedMedian
         ? `Original spine core is composited back at exact 1:1 raster scale across ${(native.protectedCoreFraction*100).toFixed(1)}% of the source width; opaque-core pixel error ${native.nativeCoreMeanAbsError.toFixed(2)}.`
         : 'The manufactured spine did not prove exact 1:1 preservation of the original spine core.' },
     { id:'wrap-art-content-protection', status:nativeRequired ? (nativeReady?'pass':'error') : (protectedP90Stretch<=1.08?'pass':'error'), label:'Spine artwork protection', message:nativeRequired && nativeReady
-      ? `The elastic retarget is background underlay only. Original lettering, ornament, and central texture are restored from source pixels at 1:1 scale; underlay high-detail stretch was median ${protectedMedianStretch.toFixed(2)}× / P90 ${protectedP90Stretch.toFixed(2)}×.`
+      ? `The stretchable layer is a protected-content background underlay only. Original lettering, ornament, and central texture are restored from source pixels at 1:1 scale; underlay high-detail stretch was median ${protectedMedianStretch.toFixed(2)}× / P90 ${protectedP90Stretch.toFixed(2)}×.`
       : `High-detail spine columns: median ${protectedMedianStretch.toFixed(2)}×, 90th percentile ${protectedP90Stretch.toFixed(2)}× stretch (limit 1.08× when no native core is present).` },
     { id:'wrap-art-horizontal-banding', status:worstBand<=4?'pass':'error', label:'Horizontal banding detector', message:`Worst outer-spine banding score ${worstBand.toFixed(2)} (limit 4.00).` },
     { id:'wrap-art-periodic-repetition', status:worstRepeat<=1.9?'pass':'error', label:'Repeated texture detector', message:`Worst short-period repetition score ${worstRepeat.toFixed(2)} (limit 1.90).${worstRepeat>1.9 ? ` Repeating pattern detected near ${leftRepeat.score>=rightRepeat.score?leftRepeat.lag:rightRepeat.lag}px.` : ''}` },
@@ -544,10 +684,9 @@ function renderSpineContentAware(ctx, image, { sourceLeftPx, sourceSpinePx, targ
   sourceCtx.drawImage(image,sourceLeftPx,0,Math.max(1,sourceSpinePx),image.height,0,0,sourceCanvas.width,sourceCanvas.height);
   const sourceData=sourceCtx.getImageData(0,0,sourceCanvas.width,sourceCanvas.height);
 
-  // v7 production path: do NOT redistribute source columns across the wider spine.
-  // Grow each newly required outer side from one broad 2D source field exactly once,
-  // then restore the native center. The older energy/stretch functions remain as
-  // diagnostics/regression coverage, not as the final manufacturing underlay.
+  // v8 production path: strip typography/high-detail pixels from the stretchable
+  // background field, reconstruct only those protected runs, expand the cleaned 2D
+  // field once, then restore the exact native spine center.
   const edgeFlow=buildSinglePassEdgeFlowUnderlay(
     sourceData.data,
     sourceCanvas.width,
@@ -569,10 +708,10 @@ function renderSpineContentAware(ctx, image, { sourceLeftPx, sourceSpinePx, targ
     nativeCore:nativeCore.metrics,
   });
   visualQuality.checks.unshift({
-    id:'wrap-art-edge-flow-extension',
-    status:edgeFlow.metrics.usesTiling || edgeFlow.metrics.usesElasticColumnRedistribution ? 'error' : 'pass',
-    label:'Single-pass 2D edge-flow extension',
-    message:`Outer spine width is grown once from ${edgeFlow.metrics.sourceBandPx}px-wide 2D edge fields (left ${edgeFlow.metrics.leftExtensionStretch.toFixed(2)}×, right ${edgeFlow.metrics.rightExtensionStretch.toFixed(2)}×). No tiling or per-column elastic redistribution is used.`,
+    id:'wrap-art-protected-background-extension',
+    status:edgeFlow.metrics.usesTiling || edgeFlow.metrics.usesElasticColumnRedistribution || !edgeFlow.metrics.protectedContentMask ? 'error' : 'pass',
+    label:'Protected-content 2D background extension',
+    message:`YasReady removed ${(edgeFlow.metrics.protectedPixelFraction*100).toFixed(1)}% of the source spine from the stretchable background mask, reconstructed only those protected regions, and expanded the cleaned 2D field once at ${edgeFlow.metrics.maxExtensionStretch.toFixed(2)}×. Original spine art is restored separately at 1:1 scale.`,
   });
   visualQuality.ready=visualQuality.checks.every((item)=>item.status!=='error');
   visualQuality.summary={
@@ -675,9 +814,9 @@ export async function renderFullWrapArtworkPdf({ asset, geometry, production = {
     label:'Spine continuity audit',
     message:spineAdaptation.mode==='exact'
       ? 'No synthesized join exists because the source spine already matches final geometry.'
-      : 'Single-pass 2D edge-flow extension plus native-core preservation passed 1:1 artwork fidelity, banding, repetition, and extension-stretch checks. No repeated source strip, row-flattened texture, or per-column elastic redistribution is used.',
+      : 'Protected-content 2D background synthesis plus native-core preservation passed 1:1 artwork fidelity, text-fragment suppression, banding, repetition, and stretch checks. No repeated source strip, row-flattened texture, or per-column elastic redistribution is used.',
   };
-  const engineCheck={ id:'wrap-art-engine', status:'pass', label:'Cover manufacturing engine', message:`Native-core spine engine v${FULL_WRAP_ART_VERSION}; front/back panels stay fixed, broad 2D edge fields grow the new outer width once, and the original spine core is restored at exact 1:1 raster scale.` };
+  const engineCheck={ id:'wrap-art-engine', status:'pass', label:'Cover manufacturing engine', message:`Native-core spine engine v${FULL_WRAP_ART_VERSION}; front/back panels stay fixed, protected typography/high-detail content is removed from the stretchable underlay, the cleaned 2D background expands once, and the original spine core is restored at exact 1:1 raster scale.` };
   const checks=[...analysis.checks,engineCheck,...visualChecks,seamCheck,...baseAudit.checks];
   const errors=checks.filter((item)=>item.status==='error').length;
   const warnings=checks.filter((item)=>item.status==='warning').length;
