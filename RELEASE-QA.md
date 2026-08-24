@@ -1,4 +1,4 @@
-# YasReady Publish v1.0.26 — Kindle Previewer Compatibility QA
+# YasReady Publish v1.0.27 — Kindle Previewer Compatibility QA
 
 **Automated release gate:** 208 automated tests passing + static verification + Superman audit.
 
@@ -15,7 +15,7 @@ Produce a Kindle-bound EPUB whose package structure follows the compatibility ru
 - Superman audit PASS
 - ZIP/XML compatibility audit PASS
 
-## v1.0.26 regressions covered
+## v1.0.27 regressions covered
 
 - `mimetype` remains the first stored/uncompressed ZIP entry
 - logical `nav.xhtml` is not placed in the reading-order spine
@@ -26,7 +26,7 @@ Produce a Kindle-bound EPUB whose package structure follows the compatibility ru
 - publishable OPF contains no private `yasready:` Story Lock/source-file metadata
 - Kindle-bound image preflight allows JPEG/PNG and blocks unsupported image types
 - all XML/XHTML/OPF/NCX files parse successfully in the package audit
-- migration to 1.0.26 leaves Story Lock source content unchanged
+- migration to 1.0.27 leaves Story Lock source content unchanged
 
 ## v1.0.17 regressions covered
 

@@ -53,8 +53,8 @@ test('1.0.15 migration advances the real 1.0.14 project without mutating Story-L
   const p=project();
   const before=JSON.stringify(p.manuscript.blocks);
   const again=migrateProject(p);
-  assert.equal(again.version, 26);
-  assert.equal(again.appVersion, '1.0.26');
+  assert.equal(again.version, 27);
+  assert.equal(again.appVersion, '1.0.27');
   assert.equal(JSON.stringify(again.manuscript.blocks),before);
   assert.equal(again.editions.ebook.design.themeStudio.themeId,'tres-amigos-private');
 });
@@ -116,7 +116,7 @@ test('1.0.15 custom scene-break artwork is packaged in the EPUB while locked sou
   const opf=String(data.files.get('OEBPS/package.opf'));
   assert.match(opf,/theme-scene-break-artwork/);
   const chapter=String(data.files.get('OEBPS/text/chapter-001.xhtml'));
-  assert.match(chapter,/scene-source-hidden">\*\*\*</);
+  assert.doesNotMatch(chapter,/scene-source-hidden/);
   assert.match(chapter,/scene-break-artwork/);
 });
 

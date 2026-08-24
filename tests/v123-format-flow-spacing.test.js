@@ -31,7 +31,7 @@ test('1.0.24 new imports assume no edition until the author chooses one', async 
     arrayBuffer:bytes,
     parsed,
   });
-  assert.equal(project.appVersion, '1.0.26');
+  assert.equal(project.appVersion, '1.0.27');
   assert.equal(project.editions.ebook.enabled,false);
   assert.equal(project.editions.paperback.enabled,false);
   assert.equal(project.editions.hardcover.enabled,false);
@@ -48,7 +48,7 @@ test('1.0.24 migration preserves existing edition choices and manuscript text', 
   };
   const before=JSON.stringify(raw.manuscript.blocks);
   const p=migrateProject(raw);
-  assert.equal(p.appVersion, '1.0.26');
+  assert.equal(p.appVersion, '1.0.27');
   assert.equal(p.editions.ebook.enabled,true);
   assert.equal(p.editions.paperback.enabled,false);
   assert.equal(p.editions.hardcover.enabled,false);

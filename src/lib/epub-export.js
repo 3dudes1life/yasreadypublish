@@ -1,4 +1,4 @@
-import { buildEbookSections, ebookFontStack, ebookTocEntries, matterSectionHeading, normalizeEbookDesign, verifyEbookSourceCoverage } from './ebook-model.js';
+import { buildEbookSections, ebookTocEntries, matterSectionHeading, normalizeEbookDesign, verifyEbookSourceCoverage } from './ebook-model.js';
 import { blankRenderMode } from './spacing-policy.js';
 import { getBlockPresentationOverride } from './presentation-overrides.js';
 import { semanticRoleForBlock } from './semantic-styles.js';
@@ -63,6 +63,8 @@ function inlineRuns(block, project = null, noteContext = null) {
     if (run.underline) value = `<span class="underline">${value}</span>`;
     if (run.italic) value = `<em>${value}</em>`;
     if (run.bold) value = `<strong>${value}</strong>`;
+    const href = String(run.href || '').trim();
+    if (href && /^(?:https?:|mailto:|tel:|#)/i.test(href)) value = `<a href="${escapeXml(href)}">${value}</a>`;
     return value;
   }).join('');
 }
@@ -180,17 +182,17 @@ function sceneOrnamentHtml(content, design, previewMode = false) {
   const treatment = design?.sceneBreakTreatment || 'source';
   const studio = normalizeEbookThemeStudio(design?.themeStudio || {});
   if (treatment === 'source') return content;
-  if (treatment === 'whitespace') return `<span class="scene-source-hidden">${content}</span><span class="scene-whitespace" aria-hidden="true"></span>`;
+  if (treatment === 'whitespace') return `<span class="scene-whitespace" aria-hidden="true"></span>`;
   if (treatment === 'custom-image') {
     const image = artworkHtml(design, 'scene-break', previewMode, 'scene-break-artwork');
-    return image ? `<span class="scene-source-hidden">${content}</span>${image}` : content;
+    return image || content;
   }
   const ornament = treatment === 'dots' ? '• • •'
     : treatment === 'diamond' ? '◆'
       : treatment === 'flourish' ? '✦'
         : treatment === 'custom-text' ? (studio.sceneBreakCustomText || '✦')
           : '* * *';
-  return `<span class="scene-source-hidden">${content}</span><span class="scene-ornament" aria-hidden="true">${escapeXml(ornament)}</span>`;
+  return `<span class="scene-ornament" aria-hidden="true">${escapeXml(ornament)}</span>`;
 }
 
 function renderBlock(block, { blankMode = 'preserve', sectionType = 'chapter', design, project = null, previewMode = false, afterBreak = false } = {}) {
@@ -251,7 +253,7 @@ function renderBlock(block, { blankMode = 'preserve', sectionType = 'chapter', d
   if (role === 'written-note') return `<aside id="${id}" class="written-note${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}><p>${content}</p></aside>`;
   if (role === 'verse') return `<p id="${id}" class="verse${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</p>`;
   if (role === 'scene-break') return `<p id="${id}" class="scene-break${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${sceneOrnamentHtml(content, design, previewMode)}</p>`;
-  if (role === 'text-message') return `<p id="${id}" class="text-message${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</p>`;
+  if (role === 'text-message') return `<div id="${id}" class="text-message${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}><p>${content}</p></div>`;
   const openingClass = block.kind === 'chapter-opening' ? ' chapter-opening' : '';
   const afterBreakClass = afterBreak ? ' paragraph-after-break' : '';
   return `<p id="${id}" class="body${openingClass}${afterBreakClass}${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</p>`;
@@ -465,46 +467,82 @@ function sectionNotesHtml(section, project) {
   return `<section class="ebook-notes" aria-label="Notes">${asides}</section>`;
 }
 
+function renderChapterBlocks(section, project, design, previewMode = false) {
+  const blocks = section.blocks || [];
+  const out = [];
+  let index = 0;
+  while (index < blocks.length) {
+    const block = blocks[index];
+    const listInfo = block?.numbering;
+    const simpleList = listInfo && String(listInfo.ilvl || '0') === '0' && !['blank','chapter-title'].includes(block.kind);
+    if (simpleList) {
+      const tag = /bullet/i.test(String(listInfo.numFmt || '')) ? 'ul' : 'ol';
+      const numId = String(listInfo.numId || '');
+      const items = [];
+      while (index < blocks.length) {
+        const item = blocks[index];
+        const n = item?.numbering;
+        if (!n || String(n.ilvl || '0') !== '0' || String(n.numId || '') !== numId || ['blank','chapter-title'].includes(item.kind)) break;
+        const id = escapeXml(item.id || '');
+        const attrs = previewAttrs(item, previewMode);
+        const inspectClass = previewMode ? ' yrp-inspectable' : '';
+        const semanticAttr = ' data-yrp-semantic-role="list-item"';
+        const overrideStyle = presentationStyle(project, item, 'chapter');
+        const media = renderMediaForBlock(item, project, previewMode);
+        items.push(`<li id="${id}" class="semantic-list-item${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${inlineRuns(item, project)}${media}</li>`);
+        index += 1;
+      }
+      out.push(`<${tag} class="semantic-list">${items.join('')}</${tag}>`);
+      continue;
+    }
+    const blankMode = blankRenderMode({ blocks, index, sectionType:'chapter', policy:design.bodyBlankPolicy });
+    let afterBreak = false;
+    if (block.kind !== 'blank') {
+      for (let previousIndex = index - 1; previousIndex >= 0; previousIndex -= 1) {
+        const previous = blocks[previousIndex];
+        if (!previous || previous.kind === 'blank') continue;
+        afterBreak = semanticRoleForBlock(project, previous, 'chapter') === 'scene-break';
+        break;
+      }
+    }
+    out.push(renderBlock(block, { blankMode, sectionType:'chapter', design, project, previewMode, afterBreak }));
+    index += 1;
+  }
+  return out.join('\n');
+}
+
 function renderSectionBody(section, project, design, previewMode = false) {
   const body = section.type !== 'chapter' && design.frontMatterMode === 'clean'
     ? renderCleanMatterSection(section, project, design, previewMode)
-    : (section.blocks || []).map((block, index) => {
-      const blankMode = section.type === 'chapter'
-        ? blankRenderMode({ blocks:section.blocks, index, sectionType:section.type, policy:design.bodyBlankPolicy })
-        : 'collapse';
-      let afterBreak = false;
-      if (section.type === 'chapter' && block.kind !== 'blank') {
-        for (let previousIndex = index - 1; previousIndex >= 0; previousIndex -= 1) {
-          const previous = section.blocks[previousIndex];
-          if (!previous || previous.kind === 'blank') continue;
-          afterBreak = semanticRoleForBlock(project, previous, section.type) === 'scene-break';
-          break;
-        }
-      }
-      return renderBlock(block, { blankMode, sectionType:section.type, design, project, previewMode, afterBreak });
-    }).join('\n');
+    : section.type === 'chapter'
+      ? renderChapterBlocks(section, project, design, previewMode)
+      : (section.blocks || []).map((block, index) => renderBlock(block, { blankMode:'collapse', sectionType:section.type, design, project, previewMode, afterBreak:false })).join('\n');
   return `${body}${sectionNotesHtml(section, project)}`;
 }
 
 function stylesheet(designInput) {
   const design = normalizeEbookDesign(designInput);
   const studio = normalizeEbookThemeStudio(design.themeStudio || {});
-  const bodyAlignment = design.bodyAlignment === 'reader' ? '' : ` text-align:${design.bodyAlignment};`;
   const firstParagraphCss = studio.firstParagraphTreatment === 'drop-cap'
     ? `p.chapter-opening::first-letter { float:left; font-size:3.05em; line-height:.82; padding:.08em .08em 0 0; font-weight:700; }`
     : studio.firstParagraphTreatment === 'small-caps'
       ? `p.chapter-opening::first-line { font-variant:small-caps; letter-spacing:.035em; }`
       : '';
+  const pct = (em, multiplier = 4) => `${Math.max(0, Math.min(12, Number(em || 0) * multiplier)).toFixed(2).replace(/\.00$/, '')}%`;
+  const quoteIndent = pct(design.blockQuoteIndentEm);
+  const noteIndent = design.writtenNoteStyle === 'inset' ? '5%' : '0';
+  const verseIndent = pct(design.verseIndentEm);
+  const textIndent = pct(design.textMessageIndentEm);
   const textMessageExtra = design.textMessageStyle === 'bubbles'
     ? `.text-message { border:.08em solid currentColor; border-radius:.75em; padding:.55em .7em; margin-top:.4em; }`
     : design.textMessageStyle === 'left-right'
       ? `.text-message { max-width:78%; border:.08em solid currentColor; border-radius:.75em; padding:.5em .65em; margin-top:.4em; } .text-message:nth-of-type(even) { margin-left:auto; }`
       : design.textMessageStyle === 'transcript'
-        ? `.text-message { margin-left:${Math.max(.4, design.textMessageIndentEm * .5)}em; margin-right:${Math.max(.4, design.textMessageIndentEm * .5)}em; }`
+        ? `.text-message { margin-left:${textIndent}; margin-right:${textIndent}; }`
         : '';
   return `@charset "UTF-8";
 html { -webkit-text-size-adjust: 100%; }
-body { margin:0; padding:0; font-family:${ebookFontStack(design.fontFamily)};${bodyAlignment} }
+body { margin:0; padding:0; }
 p { margin:0; }
 p.body { margin:0 0 ${design.paragraphGapEm}em 0; text-indent: ${design.firstLineIndentEm}em; }
 p.chapter-opening, p.paragraph-after-break { text-indent: 0; }
@@ -556,14 +594,15 @@ p.scene-break { margin:${design.sceneBreakSpaceEm}em 0; text-indent:0; text-alig
 .scene-whitespace { display:block; min-height:.4em; }
 .scene-break-artwork { display:block; width:auto; max-width:${studio.sceneBreakArtworkWidthEm}em; max-height:2.5em; margin:0 auto; }
 .subhead { margin:1.35em 0 .6em; text-align:${design.subheadAlignment}; font-size:${design.subheadSizeEm}em; line-height:1.25; font-weight:700; break-after:avoid; page-break-after:avoid; }
-.block-quote { margin:.8em ${design.blockQuoteIndentEm}em; padding:0; border:0; ${design.blockQuoteStyle === 'italic' ? 'font-style:italic;' : ''} }
+.block-quote { margin-top:.8em; margin-bottom:.8em; margin-left:${quoteIndent}; margin-right:${quoteIndent}; padding:0; border:0; ${design.blockQuoteStyle === 'italic' ? 'font-style:italic;' : ''} }
 .block-quote p { margin:0; text-indent:0; }
-.written-note { margin:.95em ${design.writtenNoteStyle === 'inset' ? '1.15' : '0'}em; padding:${design.writtenNoteStyle === 'inset' ? '.75em .9em' : '0'}; border-left:${design.writtenNoteStyle === 'inset' ? '.16em solid currentColor' : '0'}; }
+.written-note { margin-top:.95em; margin-bottom:.95em; margin-left:${noteIndent}; margin-right:${noteIndent}; padding:${design.writtenNoteStyle === 'inset' ? '.75em .9em' : '0'}; border-left:${design.writtenNoteStyle === 'inset' ? '.16em solid currentColor' : '0'}; }
 .written-note p { margin:0; text-indent:0; }
-.verse { margin:.8em 0 .8em ${design.verseIndentEm}em; text-indent:0; white-space:normal; }
-.text-message { margin:0 ${design.textMessageStyle === 'compact' ? Math.max(.35, design.textMessageIndentEm * .55) : design.textMessageIndentEm}em ${design.paragraphGapEm}em; text-indent:0; }
+.verse { margin-top:.8em; margin-bottom:.8em; margin-left:${verseIndent}; margin-right:0; text-indent:0; white-space:normal; }
+.text-message { margin-top:0; margin-bottom:${design.paragraphGapEm}em; margin-left:${textIndent}; margin-right:${textIndent}; text-indent:0; }
+.text-message p { margin:0; text-indent:0; }
 ${textMessageExtra}
-.media-block { margin:1em 0; text-align:center; }
+.semantic-list { margin-top:.7em; margin-bottom:.9em; padding-left:7%; padding-right:0; }\n.semantic-list-item { margin:.25em 0; padding:0; }\n.media-block { margin:1em 0; text-align:center; }
 figure.inline-image { margin:0 auto .55em; max-width:100%; }
 figure.inline-image img { display:block; max-width:100%; height:auto; margin:0 auto; }
 p.media-caption { text-indent:0; text-align:center; font-size:.92em; }

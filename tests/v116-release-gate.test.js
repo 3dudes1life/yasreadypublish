@@ -47,8 +47,8 @@ const flow=()=>({hardReady:true,blockers:[],reviews:[],acknowledged:[]});
 test('1.0.16 migrates the exact 1.0.15 project to schema 25 without touching manuscript blocks', () => {
   const p=project();
   const before=JSON.stringify(p.manuscript.blocks);
-  assert.equal(p.version, 26);
-  assert.equal(p.appVersion, '1.0.26');
+  assert.equal(p.version, 27);
+  assert.equal(p.appVersion, '1.0.27');
   assert.equal(JSON.stringify(p.manuscript.blocks),before);
   assert.equal(p.editions.ebook.releaseGate.version,1);
   assert.equal(p.editions.ebook.releaseGate.visualProof,null);
@@ -113,6 +113,6 @@ test('1.0.16 Release Gate requires current visual proof before freeze and stamps
 test('1.0.16 UI exposes batch review, safe auto-fixes, accessibility, visual proof, release report, and Kindle freeze', () => {
   const main=readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
   const css=readFileSync(new URL('../src/styles/app.css',import.meta.url),'utf8');
-  for (const marker of ['Kindle Release Gate · v1.0.16','Apply all safe fixes','Mark current reviews intentional','Mark visual proof complete','Freeze Kindle release','Download release report','FINAL NEXT ACTION']) assert.match(main,new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
+  for (const marker of ['Amazon Hard Mode · v1.0.27','Apply all safe fixes','Mark current reviews intentional','Mark visual proof complete','Lock EPUB build','Download Amazon report','NEXT AMAZON ACTION','Confirm Previewer opened','Confirm Enhanced Typesetting']) assert.match(main,new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
   for (const marker of ['kindle-release-gate','release-gate-steps','release-accessibility','release-next-action']) assert.match(css,new RegExp(marker));
 });

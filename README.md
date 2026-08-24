@@ -1,12 +1,14 @@
 # YasReady Publish
 
-**Current release: v1.0.26 — Kindle Previewer Compatibility**
+**Current release: v1.0.27 — Amazon Hard Mode**
 
-## v1.0.26 — Kindle Previewer Compatibility
+## v1.0.27 — Amazon Hard Mode
 
-YasReady now packages Kindle EPUBs around stricter Kindle conversion rules rather than relying only on generic EPUB validity. Logical navigation is separated from the visible Contents page; hidden/display-none TOC navigation is removed; the OPF includes Kindle-friendly guide and cover declarations; private YasReady Story Lock metadata stays inside YasReady instead of the publishable OPF; and Kindle image export is restricted to JPEG/PNG. The internal release audit fails if these compatibility rules regress.
+YasReady now audits the **finished EPUB package** against Kindle-specific production rules before calling a book ready for external testing. Normal prose no longer forces a body font, base size, line-height, color, background, or alignment; differentiated fiction elements use reflow-safe percentage side margins; generated XHTML is checked by actual packaged byte size and file count; hidden source text and unsafe positioning are blocked; and Kindle-bound images receive stricter dimension/format diagnostics.
 
-Kindle Previewer remains the final external acceptance test. YasReady can validate the package structure locally, but the production EPUB should still be opened in Amazon Kindle Previewer before KDP submission.
+New DOCX imports also preserve source hyperlinks and export simple Word lists as semantic `<ol>/<ul>` structures. Source tables are no longer silently flattened into a supposedly-ready Kindle file: they block export until a semantic table workflow exists or the author resolves them. All of this remains outside Story Lock source wording.
+
+The release pipeline is deliberately honest: passing YasReady means **Ready for Kindle Previewer**, not “Amazon approved.” Kindle Previewer, Enhanced Typesetting, and KDP Online Preview are token-bound external confirmations for the exact EPUB build. Any source/design/cover/review change makes those confirmations stale.
 
 ## v1.0.25 — Book Brain · Smart eBook Interpretation
 
@@ -37,7 +39,7 @@ YasReady may change presentation. It may not rewrite manuscript language.
 - Source paragraphs remain immutable.
 - Content-style and layout choices are stored as edition presentation metadata by source block ID.
 - Intentional-review decisions are QA metadata only; they never change source text or EPUB content.
-- Scene-break ornaments may visually replace source marks, but the locked source marks remain preserved in the EPUB source.
+- Scene-break ornaments may visually replace source marks in the exported EPUB; the exact locked source marks remain preserved in YasReady's canonical Story Lock model rather than being duplicated as hidden EPUB text.
 - New DOCX imports use canonical Story Lock v2 so note wording and embedded-image fingerprints are protected alongside body paragraphs.
 - Existing projects keep their original Story Lock algorithm and hash during migration.
 

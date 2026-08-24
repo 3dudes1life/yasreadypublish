@@ -1,13 +1,17 @@
-## 1.0.26 — Kindle Previewer Compatibility
+## 1.0.27 — Amazon Hard Mode
 
-- Separates the EPUB 3 logical navigation document from the visible Contents page so Kindle navigation metadata no longer shares the reader-facing TOC spine item.
-- Removes hidden/display-none navigation from the TOC path and adds regression checks for Kindle conversion compatibility.
-- Adds Kindle-friendly OPF guide targets for cover, contents, and Begin Reading while retaining EPUB 3 navigation.
-- Declares the internal cover with both EPUB 3 `cover-image` properties and legacy Kindle cover metadata when a cover exists.
-- Removes private YasReady/Story Lock metadata from the publishable OPF; Story Lock remains enforced inside YasReady and its release report.
-- Restricts Kindle-bound manuscript and Theme Studio artwork to JPEG/PNG and blocks unsupported image types before export.
-- Adds dedicated Kindle package tests covering nav/spine separation, visible Contents links, guide/cover metadata, private metadata exclusion, and image compatibility.
-- Story-Locked manuscript text, order, notes, media fingerprints, semantic decisions, and Book Brain interpretations remain unchanged by migration.
+- Removes forced normal-body Kindle typography so reflowable prose remains reader-controlled for font face, base size, line-height, color/background, and alignment.
+- Converts differentiated fiction side indents (block quotes, notes, verse, text messages) to reflow-safe percentage margins and audits production CSS for unsafe positioning/negative margins.
+- Audits the **actual generated EPUB XHTML** for Amazon-oriented file-count and per-file byte ceilings rather than relying on manuscript-size approximations.
+- Eliminates exported hidden source text from scene-break presentation and fails Amazon Hard Mode when non-empty hidden source content survives in production XHTML.
+- Preserves source hyperlinks on new DOCX imports and exports safe HTTP/HTTPS/mailto/tel/fragment links. Older projects with source hyperlinks are told to re-import rather than silently losing targets.
+- Exports consecutive simple Word lists as semantic `<ol>/<ul>/<li>` structures; complex/nested list cases remain reviewable instead of being guessed.
+- Blocks Kindle export when source tables exist until a semantic table workflow can preserve them faithfully; YasReady no longer flattens a table and calls the EPUB ready.
+- Adds stricter JPEG/PNG diagnostics for actual dimensions, 1-pixel conversion hazards, transparency warnings, and likely-CMYK JPEG warnings.
+- Adds exact-release-token external Amazon checkpoints for Kindle Previewer opened, Enhanced Typesetting confirmed, and KDP Online Preview approved.
+- Changes the internal success state to **Ready for Kindle Previewer**. YasReady does not claim Amazon acceptance until the author confirms the external Amazon gates for that exact build.
+- Keeps 1.0.26 Kindle navigation/visible-Contents separation, OPF guide/cover compatibility, and private Story Lock metadata exclusion from the publishable OPF.
+- Story-Locked manuscript wording, order, notes, media fingerprints, semantic interpretation, and canonical hashes remain unchanged by migration.
 
 ## 1.0.25 — Book Brain · Smart eBook Interpretation
 

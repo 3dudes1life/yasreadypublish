@@ -2,7 +2,7 @@ import { buildEpubPackageData } from './epub-export.js';
 import { applyKindleIntelligenceFix } from './kindle-intelligence.js';
 import { kindleReviewDecision, markKindleReviewIntentional } from './kindle-production-flow.js';
 
-export const KINDLE_RELEASE_GATE_VERSION = 1;
+export const KINDLE_RELEASE_GATE_VERSION = 2;
 
 function stableStringify(value) {
   if (value == null || typeof value !== 'object') return JSON.stringify(value);
@@ -31,12 +31,14 @@ export function ensureKindleReleaseState(project) {
       freeze: null,
       safeFixRuns: [],
       reviewRuns: [],
+      external: {},
     };
   }
   const state = project.editions.ebook.releaseGate;
   state.version = KINDLE_RELEASE_GATE_VERSION;
   if (!Array.isArray(state.safeFixRuns)) state.safeFixRuns = [];
   if (!Array.isArray(state.reviewRuns)) state.reviewRuns = [];
+  if (!state.external || typeof state.external !== 'object' || Array.isArray(state.external)) state.external = {};
   return state;
 }
 
@@ -58,7 +60,28 @@ export function kindleReleaseToken(project) {
     presentationOverrides: project?.presentationOverrides?.ebook || {},
     reviewDecisions: ebook.reviewDecisions || {},
   };
-  return `k16-${fnv1a(stableStringify(payload))}`;
+  return `k27-${fnv1a(stableStringify(payload))}`;
+}
+
+export const KINDLE_EXTERNAL_CHECKS = Object.freeze(['kindlePreviewerOpened','enhancedTypesetting','kdpOnlinePreviewApproved']);
+
+export function kindleExternalStatus(project) {
+  const state = ensureKindleReleaseState(project);
+  const token = kindleReleaseToken(project);
+  const current = {};
+  for (const key of KINDLE_EXTERNAL_CHECKS) {
+    const record = state.external?.[key];
+    current[key] = Boolean(record && record.value === true && record.token === token);
+  }
+  return { token, ...current, records:state.external || {} };
+}
+
+export function setKindleExternalConfirmation(project, key, value = true) {
+  if (!KINDLE_EXTERNAL_CHECKS.includes(key)) throw new Error('Unknown Kindle external confirmation.');
+  const state = ensureKindleReleaseState(project);
+  const token = kindleReleaseToken(project);
+  state.external[key] = { value:Boolean(value), token, checkedAt:new Date().toISOString() };
+  return kindleExternalStatus(project);
 }
 
 export function visualProofStatus(project) {
@@ -208,6 +231,7 @@ export function markAllCurrentReviewsIntentional(project, quality, intelligence)
 export function buildKindleReleaseGate({ project, report, quality, intelligence, flow } = {}) {
   const accessibility = auditKindleAccessibility(project);
   const proof = visualProofStatus(project);
+  const external = kindleExternalStatus(project);
   const safeFixes = buildSafeFixBatch(project, intelligence);
   const technicalReady = Boolean(report?.ready && quality?.ready && intelligence?.ready && flow?.hardReady);
   const reviewsClear = Number(flow?.reviews?.length || 0) === 0;
@@ -216,28 +240,29 @@ export function buildKindleReleaseGate({ project, report, quality, intelligence,
   const freezeReady = technicalReady && reviewsClear && blockersClear && accessibilityReady && proof.current;
   const state = ensureKindleReleaseState(project);
   const frozen = Boolean(state.freeze?.token && state.freeze.token === proof.token && state.freeze.status === 'frozen');
+  const readyForPreviewer = frozen;
+  const previewerConfirmed = readyForPreviewer && external.kindlePreviewerOpened;
+  const enhancedConfirmed = previewerConfirmed && external.enhancedTypesetting;
+  const kdpUploadReady = enhancedConfirmed;
+  const amazonFinalReady = kdpUploadReady && external.kdpOnlinePreviewApproved;
 
-  let nextAction = { type: 'visual-proof', label: 'Complete visual proof', detail: 'Review early, middle, and late chapters in the 3-View Torture Test.' };
-  if (!technicalReady || !blockersClear) nextAction = { type: 'production', label: 'Resolve production blockers', detail: 'Clear technical and whole-book blockers before final proof.' };
+  let nextAction = { type: 'visual-proof', label: 'Complete visual proof', detail: 'Review early, middle, and late chapters in Preview Studio.' };
+  if (!technicalReady || !blockersClear) nextAction = { type: 'production', label: 'Resolve Amazon Hard Mode blockers', detail: 'Clear technical, package, and whole-book blockers first.' };
   else if (safeFixes.length) nextAction = { type: 'safe-fixes', label: `Apply ${safeFixes.length} safe fix${safeFixes.length === 1 ? '' : 'es'}`, detail: 'Batch only presentation-only fixes that preserve Story Lock.' };
   else if (!reviewsClear) nextAction = { type: 'batch-review', label: `Review ${flow.reviews.length} item${flow.reviews.length === 1 ? '' : 's'}`, detail: 'Visit them individually or mark the current exact findings intentional.' };
-  else if (!accessibilityReady) nextAction = { type: 'accessibility', label: 'Fix accessibility blockers', detail: 'Resolve EPUB semantic/accessibility errors before freezing.' };
+  else if (!accessibilityReady) nextAction = { type: 'accessibility', label: 'Fix accessibility blockers', detail: 'Resolve EPUB semantic/accessibility errors before export.' };
   else if (!proof.current) nextAction = { type: 'visual-proof', label: 'Complete visual proof', detail: 'Run the final early/middle/late reader check, then stamp it complete.' };
-  else if (!frozen) nextAction = { type: 'freeze', label: 'Freeze Kindle release', detail: 'Stamp this exact source + design + cover + review state as release-ready.' };
-  else nextAction = { type: 'download', label: 'Download frozen EPUB', detail: 'The current release token is frozen and ready to submit.' };
+  else if (!frozen) nextAction = { type: 'freeze', label: 'Lock this EPUB build', detail: 'Lock this exact source + design + cover + review state for external testing.' };
+  else if (!external.kindlePreviewerOpened) nextAction = { type: 'previewer', label: 'Open in Kindle Previewer', detail: 'Export the EPUB and confirm the current build converts successfully in the latest Kindle Previewer.' };
+  else if (!external.enhancedTypesetting) nextAction = { type: 'enhanced-typesetting', label: 'Confirm Enhanced Typesetting', detail: 'In Kindle Previewer, confirm Enhanced Typesetting is supported for this build.' };
+  else if (!external.kdpOnlinePreviewApproved) nextAction = { type: 'kdp-upload', label: 'Upload to KDP', detail: 'The current build is ready for KDP upload; approve it in KDP Online Previewer afterward.' };
+  else nextAction = { type: 'amazon-final', label: 'Amazon pipeline complete', detail: 'Kindle Previewer, Enhanced Typesetting, and KDP Online Previewer are confirmed for this exact release token.' };
 
   return {
-    freezeReady,
-    frozen,
-    technicalReady,
-    reviewsClear,
-    blockersClear,
-    accessibility,
-    visualProof: proof,
-    safeFixes,
-    nextAction,
+    freezeReady, frozen, readyForPreviewer, previewerConfirmed, enhancedConfirmed, kdpUploadReady, amazonFinalReady,
+    technicalReady, reviewsClear, blockersClear, accessibility, visualProof:proof, external, safeFixes, nextAction,
     releaseToken: proof.token,
-    status: frozen ? 'frozen' : freezeReady ? 'ready' : 'working',
+    status: amazonFinalReady ? 'amazon-ready' : kdpUploadReady ? 'kdp-ready' : readyForPreviewer ? 'previewer-ready' : freezeReady ? 'ready' : 'working',
   };
 }
 
@@ -291,6 +316,20 @@ export function kindleReleaseReport({ project, report, quality, intelligence, fl
     },
     accessibility: gate?.accessibility || auditKindleAccessibility(project),
     visualProof: gate?.visualProof || visualProofStatus(project),
+    external: gate?.external || kindleExternalStatus(project),
+    amazonPipeline: {
+      readyForPreviewer:Boolean(gate?.readyForPreviewer),
+      previewerConfirmed:Boolean(gate?.previewerConfirmed),
+      enhancedTypesettingConfirmed:Boolean(gate?.enhancedConfirmed),
+      kdpUploadReady:Boolean(gate?.kdpUploadReady),
+      kdpOnlinePreviewApproved:Boolean(gate?.amazonFinalReady),
+    },
+    kdpMetadata: {
+      title:project?.title || '', author:project?.author || '',
+      language:project?.editions?.ebook?.design?.language || project?.design?.ebook?.language || '',
+      publisher:project?.editions?.ebook?.design?.publisher || project?.design?.ebook?.publisher || '',
+      subtitle:'', series:'', isbn:'',
+    },
     nextAction: gate?.nextAction || null,
   };
 }

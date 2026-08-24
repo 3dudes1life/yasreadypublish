@@ -59,10 +59,10 @@ import { addBug, deleteBug, loadBugLog, setBugStatus } from './lib/bug-log.js';
 import { bookBrainReviewItems, decideBookBrainInterpretation, reanalyzeBookBrain } from './lib/book-brain.js';
 import {
   applySafeFixBatch, auditKindleAccessibility, buildKindleReleaseGate, freezeKindleRelease,
-  kindleReleaseReport, markAllCurrentReviewsIntentional, markKindleVisualProofComplete,
+  kindleReleaseReport, markAllCurrentReviewsIntentional, markKindleVisualProofComplete, setKindleExternalConfirmation,
 } from './lib/kindle-release-gate.js';
 
-const VERSION = '1.0.26';
+const VERSION = '1.0.27';
 // Legacy capability labels retained for regression discovery only (not default UI): Amazon KDP · Reflowable EPUB 3 · Kindle Preview Studio · Semantic Style Palette · Kindle Release Gate · v1.0.16
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
@@ -1617,36 +1617,47 @@ function currentKindleReleaseGate(project = state.project) {
 function renderKindleReleaseGate(gate, flow) {
   const a11y = gate.accessibility;
   const proof = gate.visualProof;
-  const status = gate.frozen ? 'frozen' : gate.freezeReady ? 'ready' : gate.blockersClear ? 'review' : 'blocked';
+  const status = gate.amazonFinalReady ? 'frozen' : gate.kdpUploadReady ? 'ready' : gate.readyForPreviewer ? 'ready' : gate.blockersClear ? 'review' : 'blocked';
   const checks = [
-    ['Technical package', gate.technicalReady],
+    ['Amazon Hard Mode', gate.technicalReady],
     ['Polish queue', gate.reviewsClear && gate.blockersClear],
     ['Accessibility', a11y.ready],
     ['Visual proof', proof.current],
-    ['Release freeze', gate.frozen],
+    ['EPUB build locked', gate.frozen],
+    ['Kindle Previewer', gate.external?.kindlePreviewerOpened],
+    ['Enhanced Typesetting', gate.external?.enhancedTypesetting],
+    ['KDP Online Preview', gate.external?.kdpOnlinePreviewApproved],
   ].map(([label, ok]) => `<div class="release-gate-step ${ok ? 'done' : ''}"><span>${ok ? '✓' : '•'}</span><strong>${escapeHtml(label)}</strong></div>`).join('');
   const a11yRows = a11y.checks.map((item) => `<div class="release-a11y-row ${item.status}"><span>${item.status === 'pass' ? '✓' : item.status === 'warning' ? '!' : '×'}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.message)}</small></div></div>`).join('');
+  const headline = gate.amazonFinalReady ? 'Amazon pipeline complete'
+    : gate.kdpUploadReady ? 'Ready to upload to KDP'
+      : gate.readyForPreviewer ? 'Ready for Kindle Previewer'
+        : gate.freezeReady ? 'Internal Amazon checks are complete'
+          : 'Finish Amazon Hard Mode';
   return `<section class="kindle-release-gate ${status}" id="kindleReleaseGate">
     <div class="kindle-release-head">
-      <div><div class="eyebrow">Kindle Release Gate</div><h3>${gate.frozen ? 'Kindle release is frozen' : gate.freezeReady ? 'Every release gate is complete' : 'Finish the last production proof'}</h3><p>Batch review, safe presentation cleanup, accessibility, final visual proof, and an invalidating release token in one place.</p></div>
+      <div><div class="eyebrow">Amazon Hard Mode · v1.0.27</div><h3>${headline}</h3><p>YasReady validates the EPUB internally, then stops and waits for the real Amazon checkpoints. It never claims Kindle Previewer or KDP passed until you confirm them for this exact build.</p></div>
       <div class="kindle-release-score"><strong>${a11y.score}</strong><span>accessibility</span></div>
     </div>
     ${state.releaseGateMessage ? `<div class="notice info">${escapeHtml(state.releaseGateMessage)}</div>` : ''}
     <div class="release-gate-steps">${checks}</div>
     <div class="release-gate-summary">
-      <div><strong>${gate.safeFixes.length}</strong><span>safe fixes available</span></div>
+      <div><strong>${gate.safeFixes.length}</strong><span>safe fixes</span></div>
       <div><strong>${flow.reviews.length}</strong><span>active review</span></div>
       <div><strong>${a11y.warnings}</strong><span>a11y review</span></div>
-      <div><strong>${proof.current ? 'Current' : 'Needed'}</strong><span>visual proof</span></div>
+      <div><strong>${gate.readyForPreviewer ? 'YES' : 'NO'}</strong><span>Previewer ready</span></div>
     </div>
     <div class="release-gate-actions">
       <button class="btn secondary" id="applyKindleSafeFixBatch" type="button" ${gate.safeFixes.length ? '' : 'disabled'}>Apply all safe fixes</button>
       <button class="btn secondary" id="markKindleBatchIntentional" type="button" ${flow.reviews.length ? '' : 'disabled'}>Mark current reviews intentional</button>
       <button class="btn secondary" id="markKindleVisualProof" type="button">${proof.current ? 'Visual proof complete ✓' : 'Mark visual proof complete'}</button>
-      <button class="btn ${gate.freezeReady && !gate.frozen ? 'primary' : 'secondary'}" id="freezeKindleRelease" type="button" ${gate.freezeReady && !gate.frozen ? '' : 'disabled'}>${gate.frozen ? 'Kindle frozen ✓' : 'Freeze Kindle release'}</button>
-      <button class="btn secondary" id="downloadKindleReleaseReport" type="button">Download release report</button>
+      <button class="btn ${gate.freezeReady && !gate.frozen ? 'primary' : 'secondary'}" id="freezeKindleRelease" type="button" ${gate.freezeReady && !gate.frozen ? '' : 'disabled'}>${gate.frozen ? 'EPUB build locked ✓' : 'Lock EPUB build'}</button>
+      <button class="btn secondary" id="confirmKindlePreviewer" type="button" ${gate.frozen ? '' : 'disabled'}>${gate.external?.kindlePreviewerOpened ? 'Kindle Previewer passed ✓' : 'Confirm Previewer opened'}</button>
+      <button class="btn secondary" id="confirmEnhancedTypesetting" type="button" ${gate.external?.kindlePreviewerOpened ? '' : 'disabled'}>${gate.external?.enhancedTypesetting ? 'Enhanced Typesetting ✓' : 'Confirm Enhanced Typesetting'}</button>
+      <button class="btn secondary" id="confirmKdpOnlinePreview" type="button" ${gate.kdpUploadReady ? '' : 'disabled'}>${gate.external?.kdpOnlinePreviewApproved ? 'KDP Online Preview ✓' : 'Confirm KDP Online Preview'}</button>
+      <button class="btn secondary" id="downloadKindleReleaseReport" type="button">Download Amazon report</button>
     </div>
-    <div class="release-next-action"><small>FINAL NEXT ACTION</small><strong>${escapeHtml(gate.nextAction.label)}</strong><span>${escapeHtml(gate.nextAction.detail)}</span><code>${escapeHtml(gate.releaseToken)}</code></div>
+    <div class="release-next-action"><small>NEXT AMAZON ACTION</small><strong>${escapeHtml(gate.nextAction.label)}</strong><span>${escapeHtml(gate.nextAction.detail)}</span><code>${escapeHtml(gate.releaseToken)}</code></div>
     <details class="release-accessibility"><summary><span><strong>Accessibility & EPUB semantics</strong><small>${a11y.passes} pass · ${a11y.warnings} review · ${a11y.errors} error</small></span><b>⌄</b></summary><div>${a11yRows}</div></details>
   </section>`;
 }
@@ -1702,7 +1713,22 @@ async function freezeCurrentKindleRelease() {
   const gate = currentKindleReleaseGate();
   freezeKindleRelease(state.project, gate);
   state.project.updatedAt = new Date().toISOString();
-  state.releaseGateMessage = `Kindle release frozen at ${gate.releaseToken}. Any source, design, cover, local override, or review change automatically invalidates this freeze.`;
+  state.releaseGateMessage = `EPUB build locked at ${gate.releaseToken}. Export this exact build to Kindle Previewer. Any source, design, cover, local override, or review change invalidates the lock and external confirmations.`;
+  await saveProject(state.project);
+  state.projects = await listProjects();
+  updateMain();
+}
+
+async function confirmKindleExternal(key, label) {
+  if (!state.project) return;
+  const gate = currentKindleReleaseGate();
+  if (key === 'kindlePreviewerOpened' && !gate?.frozen) return;
+  if (key === 'enhancedTypesetting' && !gate?.external?.kindlePreviewerOpened) return;
+  if (key === 'kdpOnlinePreviewApproved' && !gate?.kdpUploadReady) return;
+  const current = Boolean(gate?.external?.[key]);
+  setKindleExternalConfirmation(state.project, key, !current);
+  state.project.updatedAt = new Date().toISOString();
+  state.releaseGateMessage = current ? `${label} confirmation cleared.` : `${label} confirmed for this exact release token.`;
   await saveProject(state.project);
   state.projects = await listProjects();
   updateMain();
@@ -2382,6 +2408,9 @@ function bindDynamicEvents() {
   document.querySelector('#markKindleVisualProof')?.addEventListener('click', completeKindleVisualProof);
   document.querySelector('#freezeKindleRelease')?.addEventListener('click', freezeCurrentKindleRelease);
   document.querySelector('#downloadKindleReleaseReport')?.addEventListener('click', downloadKindleReleaseReport);
+  document.querySelector('#confirmKindlePreviewer')?.addEventListener('click', () => confirmKindleExternal('kindlePreviewerOpened', 'Kindle Previewer'));
+  document.querySelector('#confirmEnhancedTypesetting')?.addEventListener('click', () => confirmKindleExternal('enhancedTypesetting', 'Enhanced Typesetting'));
+  document.querySelector('#confirmKdpOnlinePreview')?.addEventListener('click', () => confirmKindleExternal('kdpOnlinePreviewApproved', 'KDP Online Previewer'));
   document.querySelector('#toggleKindleFocusPreview')?.addEventListener('click', toggleKindleFocusPreview);
   document.querySelector('#focusEbookOnly')?.addEventListener('click', focusEbookOnly);
   document.querySelector('#chooseEbookCover')?.addEventListener('click', () => document.querySelector('#ebookCoverInput')?.click());

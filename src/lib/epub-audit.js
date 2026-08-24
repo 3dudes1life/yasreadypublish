@@ -14,6 +14,70 @@ function unescapeXml(value = '') {
     .replaceAll('&amp;', '&');
 }
 
+function byteLength(value = '') {
+  return new TextEncoder().encode(String(value || '')).length;
+}
+
+function stripTags(value = '') {
+  return String(value || '').replace(/<[^>]+>/g, '').replace(/&(?:nbsp|amp|lt|gt|quot|apos);/g, 'x').trim();
+}
+
+function hiddenTextCount(xhtml = '') {
+  let total = 0;
+  for (const match of String(xhtml).matchAll(/<([a-z0-9]+)\b[^>]*class="[^"]*(?:chapter-source-hidden|scene-source-hidden)[^"]*"[^>]*>([\s\S]*?)<\/\1>/gi)) {
+    total += stripTags(match[2]).length;
+  }
+  return total;
+}
+
+function dataUrlBytes(dataUrl = '') {
+  const match = String(dataUrl || '').match(/^data:[^;,]+;base64,(.+)$/s);
+  if (!match) return null;
+  try {
+    const binary = globalThis.atob ? globalThis.atob(match[1]) : Buffer.from(match[1], 'base64').toString('binary');
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  } catch { return null; }
+}
+
+function imageFacts(asset = {}) {
+  const mime = String(asset.mimeType || '').toLowerCase();
+  const bytes = dataUrlBytes(asset.dataUrl || '');
+  let width = Number(asset.width) || 0;
+  let height = Number(asset.height) || 0;
+  let transparent = false;
+  let cmyk = false;
+  if (bytes && mime === 'image/png' && bytes.length >= 26 && bytes[0] === 0x89 && bytes[1] === 0x50) {
+    const u32 = (i) => ((bytes[i]<<24)>>>0) + (bytes[i+1]<<16) + (bytes[i+2]<<8) + bytes[i+3];
+    width = width || u32(16); height = height || u32(20);
+    const colorType = bytes[25];
+    transparent = colorType === 4 || colorType === 6;
+    if (!transparent) {
+      const ascii = Array.from(bytes.slice(0, Math.min(bytes.length, 65536))).map((b) => String.fromCharCode(b)).join('');
+      transparent = ascii.includes('tRNS');
+    }
+  }
+  if (bytes && mime === 'image/jpeg' && bytes[0] === 0xff && bytes[1] === 0xd8) {
+    let i = 2;
+    while (i + 9 < bytes.length) {
+      if (bytes[i] !== 0xff) { i += 1; continue; }
+      const marker = bytes[i+1];
+      if (marker === 0xd9 || marker === 0xda) break;
+      const len = (bytes[i+2] << 8) + bytes[i+3];
+      if ([0xc0,0xc1,0xc2,0xc3,0xc5,0xc6,0xc7,0xc9,0xca,0xcb,0xcd,0xce,0xcf].includes(marker) && i + 9 < bytes.length) {
+        height = height || ((bytes[i+5] << 8) + bytes[i+6]);
+        width = width || ((bytes[i+7] << 8) + bytes[i+8]);
+        cmyk = bytes[i+9] === 4;
+        break;
+      }
+      if (!len || len < 2) break;
+      i += 2 + len;
+    }
+  }
+  return { mime, width, height, transparent, cmyk, readable:Boolean(bytes) };
+}
+
 export function auditEpubPackage({ project } = {}) {
   const data = buildEpubPackageData({ project });
   const files = data.files;
@@ -59,6 +123,29 @@ export function auditEpubPackage({ project } = {}) {
   const manuscriptMediaOk = manuscriptImageManifest.length === manuscriptMedia.length
     && manuscriptImageManifest.every((match) => filePaths.has(match[1]));
   const xhtmlEntries = [...files.entries()].filter(([path, content]) => /\.xhtml$/i.test(path) && typeof content === 'string');
+  const htmlFileCount = xhtmlEntries.length;
+  const htmlFileCountOk = htmlFileCount < 300;
+  const xhtmlSizes = xhtmlEntries.map(([path, content]) => ({ path, bytes:byteLength(content) }));
+  const oversizedXhtml = xhtmlSizes.filter((item) => item.bytes >= 30 * 1024 * 1024);
+  const bodyRule = css.match(/(?:^|\n)body\s*\{([^}]*)\}/i)?.[1] || '';
+  const forcedBodyTypography = /font-family|font-size|line-height|(?:^|;)\s*color\s*:|background(?:-color)?\s*:|text-align\s*:/i.test(bodyRule);
+  const imposedBodySides = /margin-(?:left|right)\s*:|padding-(?:left|right)\s*:/i.test(bodyRule);
+  const horizontalEmMargins = /(?:\.block-quote|\.written-note|\.verse|\.text-message)[^{]*\{[^}]*margin-(?:left|right)\s*:\s*[^;}]*em\b/i.test(css);
+  const positionCss = /(^|[;}\s])position\s*:\s*(?:absolute|fixed|relative|sticky)/i.test(css);
+  const negativeMargins = /margin(?:-(?:left|right|top|bottom))?\s*:\s*-[\d.]/i.test(css);
+  const hiddenChars = xhtmlEntries.reduce((sum, [, content]) => sum + hiddenTextCount(content), 0);
+  const sourceTables = Number(project?.manuscript?.metadata?.tableCount || 0);
+  const sourceHyperlinks = Number(project?.manuscript?.metadata?.hyperlinkCount || 0);
+  const preservedHyperlinks = (project?.manuscript?.blocks || []).flatMap((block) => block.runs || []).filter((run) => String(run.href || '').trim()).length;
+  const sourceNumberedBlocks = (project?.manuscript?.blocks || []).filter((block) => block.numbering).length;
+  const nestedNumberedBlocks = (project?.manuscript?.blocks || []).filter((block) => block.numbering && String(block.numbering.ilvl || '0') !== '0').length;
+  const semanticListItems = xhtmlEntries.reduce((sum, [, content]) => sum + count(content, /<li\b[^>]*class="[^"]*semantic-list-item/gi), 0);
+  const coverAsset = project?.editions?.ebook?.cover ? [project.editions.ebook.cover] : [];
+  const themeAssets = [project?.editions?.ebook?.design?.themeStudio?.chapterArtwork, project?.editions?.ebook?.design?.themeStudio?.sceneBreakArtwork].filter(Boolean);
+  const imageFactsRows = [...coverAsset, ...(project?.manuscript?.media || []), ...themeAssets].map((asset) => ({ asset, ...imageFacts(asset) }));
+  const imageDimensionFailures = imageFactsRows.filter((item) => !item.width || !item.height || item.width <= 1 || item.height <= 1);
+  const transparentImages = imageFactsRows.filter((item) => item.transparent);
+  const cmykImages = imageFactsRows.filter((item) => item.cmyk);
   const duplicateIds = [];
   const brokenFragmentTargets = [];
   for (const [path, content] of xhtmlEntries) {
@@ -95,6 +182,16 @@ export function auditEpubPackage({ project } = {}) {
     { id:'audit-note-targets', ok:noteTargetsOk, message:noteTargetsOk ? `${noteTargets.length} note reference${noteTargets.length === 1 ? '' : 's'} resolve to note text in the same XHTML document.` : 'One or more footnote/endnote references point to missing local note targets.' },
     { id:'audit-unique-xhtml-ids', ok:uniqueXhtmlIdsOk, message:uniqueXhtmlIdsOk ? 'Every XHTML id is unique within its document.' : `${duplicateIds.length} duplicate XHTML id${duplicateIds.length === 1 ? '' : 's'} were found.` },
     { id:'audit-local-fragments', ok:localFragmentsOk, message:localFragmentsOk ? 'Every fragment-only XHTML link resolves inside its own document.' : `${brokenFragmentTargets.length} local fragment link${brokenFragmentTargets.length === 1 ? '' : 's'} point to missing ids.` },
+    { id:'audit-amazon-body-defaults', ok:!forcedBodyTypography && !imposedBodySides, message:!forcedBodyTypography && !imposedBodySides ? 'Normal body text keeps Kindle reader-controlled font, size, line height, color, background, alignment, and side geometry.' : 'Production CSS forces one or more body-reading settings that Kindle readers should control.' },
+    { id:'audit-amazon-percent-margins', ok:!horizontalEmMargins, message:!horizontalEmMargins ? 'Special paragraph horizontal margins use Kindle-safe percentage geometry.' : 'One or more left/right margins use em units; Amazon recommends percentages for differentiated paragraphs.' },
+    { id:'audit-amazon-positioning', ok:!positionCss && !negativeMargins, message:!positionCss && !negativeMargins ? 'Production CSS uses no position property or negative margins.' : 'Production CSS contains positioned or negative-margin layout that can break reflow.' },
+    { id:'audit-amazon-hidden-text', ok:hiddenChars === 0, message:hiddenChars === 0 ? 'Production XHTML contains zero non-empty hidden source characters.' : `${hiddenChars} non-empty hidden character(s) remain in production XHTML.` },
+    { id:'audit-amazon-html-count', ok:htmlFileCountOk, message:htmlFileCountOk ? `${htmlFileCount} XHTML files; below Amazon’s 300-file ceiling.` : `${htmlFileCount} XHTML files; Amazon requires fewer than 300.` },
+    { id:'audit-amazon-html-size', ok:oversizedXhtml.length === 0, message:oversizedXhtml.length === 0 ? 'Every generated XHTML file is below Amazon’s 30 MB ceiling.' : `${oversizedXhtml.length} XHTML file(s) exceed Amazon’s 30 MB ceiling.` },
+    { id:'audit-amazon-images', ok:imageDimensionFailures.length === 0, message:imageDimensionFailures.length === 0 ? `${imageFactsRows.length} packaged image asset(s) have readable dimensions greater than 1 px.` : `${imageDimensionFailures.length} image asset(s) have missing/1-pixel dimensions that can break Kindle conversion.` },
+    { id:'audit-amazon-tables', ok:sourceTables === 0, message:sourceTables === 0 ? 'No source tables require semantic reconstruction.' : `${sourceTables} source table(s) detected. Hard Mode blocks export rather than silently flattening tables.` },
+    { id:'audit-amazon-hyperlinks', ok:sourceHyperlinks === 0 || preservedHyperlinks >= sourceHyperlinks, message:sourceHyperlinks === 0 ? 'No source hyperlinks require preservation.' : preservedHyperlinks >= sourceHyperlinks ? `${sourceHyperlinks} source hyperlink(s) are preserved in the ebook model.` : `${sourceHyperlinks} source hyperlink(s) were detected but only ${preservedHyperlinks} are preserved; re-import with 1.0.27.` },
+    { id:'audit-amazon-lists', ok:nestedNumberedBlocks === 0 && semanticListItems >= sourceNumberedBlocks, message:sourceNumberedBlocks === 0 ? 'No source numbered/bulleted lists require semantic reconstruction.' : nestedNumberedBlocks === 0 && semanticListItems >= sourceNumberedBlocks ? `${sourceNumberedBlocks} list item(s) are exported as semantic HTML lists.` : `${sourceNumberedBlocks} numbered/list paragraph(s) include ${nestedNumberedBlocks} nested item(s); nested list reconstruction needs review.` },
   ];
   return {
     ok: checks.every((item) => item.ok),
@@ -116,5 +213,6 @@ export function auditEpubPackage({ project } = {}) {
     brokenFragmentTargets,
     previewLeak,
     files: files.size,
+    amazonHardMode: { htmlFileCount, oversizedXhtml, hiddenChars, forcedBodyTypography, imposedBodySides, horizontalEmMargins, positionCss, negativeMargins, sourceTables, sourceHyperlinks, preservedHyperlinks, sourceNumberedBlocks, nestedNumberedBlocks, semanticListItems, imageDimensionFailures:imageDimensionFailures.length, transparentImages:transparentImages.length, cmykImages:cmykImages.length },
   };
 }

@@ -142,20 +142,27 @@ function runSegments(run) {
   return segments;
 }
 
-function paragraphTextAndRuns(paragraph) {
+function paragraphTextAndRuns(paragraph, relationships = null) {
   const runs = [];
   let text = '';
 
-  const walk = (node) => {
+  const walk = (node, activeHref = '') => {
     for (const child of Array.from(node.childNodes ?? [])) {
       if (child.nodeType !== 1) continue;
       if (child.localName === 'r') {
         for (const parsed of runSegments(child)) {
-          runs.push(parsed);
+          const record = activeHref && parsed.text ? { ...parsed, href: activeHref } : parsed;
+          runs.push(record);
           text += parsed.text;
         }
-      } else if (['hyperlink', 'smartTag', 'sdt', 'fldSimple', 'customXml', 'dir', 'bdo'].includes(child.localName)) {
-        walk(child);
+      } else if (child.localName === 'hyperlink') {
+        const relId = child.getAttributeNS(REL_NS, 'id') || child.getAttribute('r:id') || '';
+        const anchor = getAttr(child, 'anchor') || '';
+        const rel = relationships?.get?.(relId);
+        const href = rel?.target ? String(rel.target) : anchor ? `#${anchor}` : activeHref;
+        walk(child, href);
+      } else if (['smartTag', 'sdt', 'fldSimple', 'customXml', 'dir', 'bdo'].includes(child.localName)) {
+        walk(child, activeHref);
       }
     }
   };
@@ -384,7 +391,7 @@ export async function parseDocx(arrayBuffer) {
   // Use all body paragraphs in XML order, including paragraphs inside tables/text boxes.
   // We would rather preserve extra source content than silently drop a story paragraph.
   for (const element of Array.from(body.getElementsByTagNameNS(WORD_NS, 'p'))) {
-    const { text, runs } = paragraphTextAndRuns(element);
+    const { text, runs } = paragraphTextAndRuns(element, relationships);
     const style = paragraphStyle(element, styles);
     const numberingInfo = paragraphNumbering(element, numbering);
     const layout = paragraphLayout(element);

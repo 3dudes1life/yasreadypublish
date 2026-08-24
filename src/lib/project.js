@@ -18,8 +18,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
 
   const project = {
     id: crypto.randomUUID(),
-    version: 26,
-    appVersion: '1.0.26',
+    version: 27,
+    appVersion: '1.0.27',
     title: baseName,
     author: '',
     createdAt: now,
@@ -373,8 +373,27 @@ export function migrateProject(project) {
       }
     }
   }
-  project.version = Math.max(oldVersion, 26);
-  project.appVersion = '1.0.26';
+  // 1.0.27 Amazon Hard Mode invalidates prior Kindle proof/freeze state because
+  // production CSS/package validation is stricter and external Previewer/KDP gates
+  // are now tracked separately. Manuscript source, wording, media and hashes remain untouched.
+  if (oldVersion < 27 || priorAppVersion !== '1.0.27') {
+    ensureEditions(project);
+    if (project.editions?.ebook) {
+      project.editions.ebook.lastPreflight = null;
+      const gate = project.editions.ebook.releaseGate;
+      if (gate && typeof gate === 'object') {
+        gate.visualProof = null;
+        gate.freeze = null;
+        gate.external = gate.external && typeof gate.external === 'object' ? gate.external : {};
+        gate.external.kindlePreviewerOpened = false;
+        gate.external.enhancedTypesetting = false;
+        gate.external.kdpOnlinePreviewApproved = false;
+      }
+    }
+  }
+
+  project.version = Math.max(oldVersion, 27);
+  project.appVersion = '1.0.27';
   return project;
 }
 

@@ -98,7 +98,8 @@ test('1.0.12 scene-break ornaments are presentation-only and keep locked source 
   p.editions.ebook.design.sceneBreakTreatment='diamond';
   const before=p.manuscript.blocks.find(b=>b.id==='break').text;
   const xhtml=chapterXhtml(p);
-  assert.match(xhtml,/class="scene-source-hidden">\* \* \*<\/span>/);
+  assert.doesNotMatch(xhtml,/scene-source-hidden/);
+  assert.match(xhtml,/class="scene-ornament"[^>]*>◆<\/span>/);
   assert.match(xhtml,/class="scene-ornament" aria-hidden="true">◆<\/span>/);
   assert.equal(p.manuscript.blocks.find(b=>b.id==='break').text,before);
 });
@@ -168,8 +169,8 @@ test('1.0.12 migration preserves legacy Story Lock algorithm/hash and manuscript
   };
   const before=JSON.stringify(legacy.manuscript.blocks);
   const migrated=migrateProject(legacy);
-  assert.equal(migrated.version, 26);
-  assert.equal(migrated.appVersion, '1.0.26');
+  assert.equal(migrated.version, 27);
+  assert.equal(migrated.appVersion, '1.0.27');
   assert.equal(migrated.storyLock.canonicalVersion,1);
   assert.equal(migrated.source.manuscriptHash,'legacy-hash');
   assert.equal(JSON.stringify(migrated.manuscript.blocks),before);
