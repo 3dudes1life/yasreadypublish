@@ -1,3 +1,10 @@
+## 1.0.24 — Front Matter Typography & Copyright Fit
+
+- Pins the Tres Amigos title page to the Book 1 sans-serif display hierarchy across EPUB reading apps.
+- Renders publisher/imprint metadata on the title page when the source title page does not already contain it.
+- Compacts the copyright legal block and adds keep-together hints so ISBNs fit on one normal-size screen whenever the viewport permits.
+- Invalidates stale ebook visual proof/freeze after the renderer change.
+
 # v1.0.23 — Format-First Flow + Dedication Spacing
 
 - New DOCX imports start with **no edition assumed**. Authors explicitly choose Kindle eBook, Paperback, Hardcover, or any combination.

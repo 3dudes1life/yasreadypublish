@@ -18,7 +18,7 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
   const project = {
     id: crypto.randomUUID(),
     version: 25,
-    appVersion: '1.0.23',
+    appVersion: '1.0.24',
     title: baseName,
     author: '',
     createdAt: now,
@@ -349,14 +349,14 @@ export function migrateProject(project) {
     }
   }
 
-  // 1.0.23 is a workflow release. Existing projects keep their current edition
-  // selections exactly as saved; only newly imported projects begin with no
+  // 1.0.23 introduced the format-first workflow. Existing projects keep their
+  // edition selections exactly as saved; newly imported projects begin with no
   // assumed output so the author explicitly chooses Kindle/print after upload.
-  // Front-matter paragraph spacing changes are renderer-only.
-  // The renderer may visually separate "Chapter 10:" from its title and apply
-  // semantic front-matter layouts, but stored source text/order/hash remain exact.
+  // 1.0.24 hardens Book 1-style title/copyright rendering across reading apps.
+  // Publisher metadata may be displayed when the source title page omits it, and
+  // copyright spacing is compacted. Stored source text/order/hash remain exact.
   project.version = Math.max(oldVersion, 25);
-  project.appVersion = '1.0.23';
+  project.appVersion = '1.0.24';
   return project;
 }
 

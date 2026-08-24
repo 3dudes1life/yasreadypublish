@@ -1,6 +1,6 @@
 # YasReady Publish
 
-**Current release: v1.0.23 — Format-First Flow + Dedication Spacing**
+**Current release: v1.0.24 — Format-First Flow + Dedication Spacing**
 
 Private publishing studio for Story-Locked manuscripts.
 

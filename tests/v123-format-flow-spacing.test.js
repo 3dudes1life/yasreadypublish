@@ -23,7 +23,7 @@ function parsedFixture() {
   return { blocks, chapters:[], notes:[], media:[], stats:{chapters:1,words:20,paragraphs:blocks.length}, metadata:{canonicalVersion:2}, canonicalText:blocks.map(b=>b.text).join('\n') };
 }
 
-test('1.0.23 new imports assume no edition until the author chooses one', async () => {
+test('1.0.24 new imports assume no edition until the author chooses one', async () => {
   const parsed=parsedFixture();
   const bytes=new TextEncoder().encode('fake-docx').buffer;
   const project=await createProjectFromImport({
@@ -31,13 +31,13 @@ test('1.0.23 new imports assume no edition until the author chooses one', async 
     arrayBuffer:bytes,
     parsed,
   });
-  assert.equal(project.appVersion,'1.0.23');
+  assert.equal(project.appVersion,'1.0.24');
   assert.equal(project.editions.ebook.enabled,false);
   assert.equal(project.editions.paperback.enabled,false);
   assert.equal(project.editions.hardcover.enabled,false);
 });
 
-test('1.0.23 migration preserves existing edition choices and manuscript text', () => {
+test('1.0.24 migration preserves existing edition choices and manuscript text', () => {
   const parsed=parsedFixture();
   const raw={
     id:'existing',version:25,appVersion:'1.0.22',title:'Book',author:'Author',
@@ -48,14 +48,14 @@ test('1.0.23 migration preserves existing edition choices and manuscript text', 
   };
   const before=JSON.stringify(raw.manuscript.blocks);
   const p=migrateProject(raw);
-  assert.equal(p.appVersion,'1.0.23');
+  assert.equal(p.appVersion,'1.0.24');
   assert.equal(p.editions.ebook.enabled,true);
   assert.equal(p.editions.paperback.enabled,false);
   assert.equal(p.editions.hardcover.enabled,false);
   assert.equal(JSON.stringify(p.manuscript.blocks),before);
 });
 
-test('1.0.23 dedication paragraphs get real visual separation without changing source wording', () => {
+test('1.0.24 dedication paragraphs get real visual separation without changing source wording', () => {
   const parsed=parsedFixture();
   const raw={
     id:'dedication',version:25,appVersion:'1.0.22',title:'Book',author:'Author',
@@ -73,7 +73,7 @@ test('1.0.23 dedication paragraphs get real visual separation without changing s
   assert.equal(p.manuscript.blocks.map(b=>b.text).join('|'),before);
 });
 
-test('1.0.23 Simple Mode exposes format picker and post-Kindle print handoff', () => {
+test('1.0.24 Simple Mode exposes format picker and post-Kindle print handoff', () => {
   const main=readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
   assert.match(main,/What are you making\?/);
   assert.match(main,/Nothing is assumed after upload/);

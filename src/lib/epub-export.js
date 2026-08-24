@@ -370,6 +370,14 @@ function renderCleanMatterSection(section, project, design, previewMode = false)
       const style = presentationStyle(project, block, section.type);
       return `<p id="${id}" class="${cls}${inspectClass}"${attrs}${style ? ` style="${style}"` : ''}>${inlineRuns(block, project)}</p>`;
     });
+    const sourceTexts = visible.map((block) => String(block?.text || '').trim().toLowerCase()).filter(Boolean);
+    const publisher = String(design?.publisher || '').trim();
+    const publisherPresent = publisher && sourceTexts.some((text) => text === publisher.toLowerCase());
+    if (book1Match && publisher && !publisherPresent) {
+      // Metadata may legitimately supply the imprint even when the title page source does not.
+      // This is generated presentation only; it never alters Story Lock manuscript blocks.
+      lines.push(`<p class="matter-title-line matter-title-publisher" data-yrp-generated="publisher">${escapeXml(publisher)}</p>`);
+    }
     const blanks = blocks.filter((block) => block.kind === 'blank').map((block) => hiddenMatterBlank(block, previewMode));
     return `<div class="matter-title-page${book1Match ? ' matter-book1-title' : ''}">${lines.join('\n')}${blanks.join('')}</div>`;
   }
@@ -523,15 +531,17 @@ p.matter-body { text-indent:0; }
 .matter-title-line { margin:.45em 0 0; }
 .matter-dedication { text-align:center; max-width:31em; padding-top:2.2em; }
 .matter-dedication .matter-flow { margin-bottom:1.1em; }
-.matter-book1-title { max-width:31em; margin:0 auto; padding-top:8em; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif; }
+.matter-book1-title { max-width:31em; margin:0 auto; padding-top:8em; font-family:Arial,Helvetica,sans-serif !important; font-style:normal; }
+.matter-book1-title p { font-family:Arial,Helvetica,sans-serif !important; }
 .matter-book1-title .matter-title-primary { margin:0; font-size:1.45em; line-height:1.45; font-weight:400; letter-spacing:.14em; text-transform:uppercase; }
 .matter-book1-title .matter-title-secondary { margin:2.15em 0 0; font-size:1.02em; line-height:1.35; font-weight:400; }
 .matter-book1-title .matter-title-byline { margin:3.5em 0 0; font-size:1.06em; line-height:1.3; font-weight:400; }
-.matter-book1-title .matter-title-line { margin:5.4em 0 0; font-family:${ebookFontStack(design.fontFamily)}; font-size:1em; line-height:1.3; font-weight:700; }
-.matter-book1-copyright { max-width:31em; margin:0 auto; padding-top:5.1em; text-align:center; font-size:.94em; line-height:1.45; }
-.matter-book1-copyright .matter-flow { margin:0 0 .32em; text-indent:0; }
-.matter-book1-copyright .matter-flow.matter-after-blank { margin-top:1.18em; }
-.matter-book1-copyright .matter-copyright-lead { margin-bottom:.32em; font-size:1em; line-height:1.35; font-weight:400; }
+.matter-book1-title .matter-title-line { margin:5.4em 0 0; font-family:Georgia,"Times New Roman",serif !important; font-size:1em; line-height:1.3; font-weight:700; }
+.matter-book1-title .matter-title-publisher { display:block; }
+.matter-book1-copyright { max-width:34em; margin:0 auto; padding-top:2.4em; text-align:center; font-size:.82em; line-height:1.28; break-inside:avoid-page; page-break-inside:avoid; orphans:1; widows:1; }
+.matter-book1-copyright .matter-flow { margin:0 0 .18em; text-indent:0; }
+.matter-book1-copyright .matter-flow.matter-after-blank { margin-top:.68em; }
+.matter-book1-copyright .matter-copyright-lead { margin-bottom:.2em; font-size:1em; line-height:1.25; font-weight:400; }
 .matter-book1-copyright strong, .matter-book1-copyright .matter-copyright-lead strong { font-weight:400; }
 .matter-book1-dedication { max-width:29em; margin:0 auto; padding-top:6.4em; text-align:center; font-size:.96em; line-height:1.35; font-style:italic; }
 .matter-book1-dedication .matter-flow { margin:0 0 1.75em; text-indent:0; }
