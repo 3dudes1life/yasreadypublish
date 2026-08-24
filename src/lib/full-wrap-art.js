@@ -2,7 +2,8 @@ import { buildRasterPdf, auditPrintPdfBytes, PRINT_PDF_DPI } from './print-pdf.j
 import { paperbackSpineFactor } from './cover-brain.js';
 import { barcodePdfVectorCommands, normalizeBarcodeBrain, normalizePrintIsbn } from './barcode-brain.js';
 
-export const FULL_WRAP_ART_VERSION = 2;
+export const FULL_WRAP_ART_VERSION = 3;
+// Seamless spine expansion v3: text-safe statistical background reconstruction.
 
 function clamp(n, min, max) { return Math.min(max, Math.max(min, Number(n) || 0)); }
 
@@ -58,10 +59,10 @@ export function analyzeFullWrapArtwork({ asset, geometry, production = {}, pageC
       ? `Artwork already maps to the final ${targetWidth.toFixed(3)} × ${targetHeight.toFixed(3)} in wrap.`
       : `Artwork maps to about ${sourceWidthIn.toFixed(3)} × ${targetHeight.toFixed(3)} in with an inferred ${sourceSpineIn.toFixed(3)} in spine${inferredPages ? ` (roughly ${inferredPages} pages for this paper/ink profile)` : ''}; the current ${Number(pageCount)||0}-page book needs ${targetWidth.toFixed(3)} × ${targetHeight.toFixed(3)} in with a ${targetSpine.toFixed(3)} in spine.`
     : 'The image proportions do not contain a plausible back + spine + front wrap for the selected trim size.' });
-  checks.push({ id:'wrap-art-spine-adapter', status:ratioMatch || targetCanExtendSpine ? 'pass' : 'error', label:'Seamless spine expansion', message:ratioMatch
+  checks.push({ id:'wrap-art-spine-adapter', status:ratioMatch || targetCanExtendSpine ? 'pass' : 'error', label:'Text-safe spine reconstruction', message:ratioMatch
     ? 'No spine adaptation is needed.'
     : targetCanExtendSpine
-      ? `YasReady will preserve both covers and the spine artwork proportions, discard the stale fold-edge pixels, then synthesize and feather only the added spine texture from ${sourceSpineIn.toFixed(3)} to ${targetSpine.toFixed(3)} in.`
+      ? `YasReady will preserve both covers, reconstruct a clean spine background statistically so lettering cannot be duplicated into the new width, then composite the original spine artwork once at its original proportions while expanding from ${sourceSpineIn.toFixed(3)} to ${targetSpine.toFixed(3)} in.`
       : `The source spine (${Math.max(0,sourceSpineIn).toFixed(3)} in) is wider than the current ${targetSpine.toFixed(3)} in spine. Automatic cropping could damage spine text, so YasReady will not guess.` });
   const resolutionStatus = effectivePpi >= 295 ? 'pass' : effectivePpi >= 250 ? 'warning' : 'error';
   checks.push({ id:'wrap-art-resolution', status:resolutionStatus, label:'Full-wrap artwork resolution', message:`Effective source resolution is about ${Math.round(Number.isFinite(effectivePpi) ? effectivePpi : 0)} PPI at its inferred physical size.${effectivePpi >= 295 ? ' Production artwork meets the 300-PPI target.' : ` Use the original high-resolution export; about ${Math.ceil(sourceWidthIn*300)} × ${Math.ceil(targetHeight*300)}px would provide 300 PPI at this source geometry.`}` });
@@ -108,67 +109,157 @@ export function planSeamlessSpineExpansion({ sourceSpinePx = 0, targetSpinePx = 
   if (!(source > 0) || !(target > 0)) throw new Error('Valid source and target spine widths are required.');
   const scaledSource = source * scale;
   if (Math.abs(target - scaledSource) <= 1) {
-    return { mode:'exact', sourceSpinePx:source, targetSpinePx:target, sourceToTargetScale:scale, edgeInsetSourcePx:0, coreSourceWidthPx:source, coreTargetWidthPx:target, leftExtraPx:0, rightExtraPx:0, textureSliceSourcePx:0, textureTileTargetPx:0, featherPx:0 };
+    return {
+      mode:'exact', sourceSpinePx:source, targetSpinePx:target, sourceToTargetScale:scale,
+      edgeInsetSourcePx:0, coreSourceWidthPx:source, coreTargetWidthPx:target,
+      leftExtraPx:0, rightExtraPx:0, featherPx:0,
+      backgroundMode:'source-exact', rawArtworkCopiedIntoExtension:false,
+    };
   }
   if (target < scaledSource) throw new Error('Automatic spine adaptation would crop the existing spine artwork. Rebuild the source cover or choose a larger page-count geometry.');
 
-  // The old fold line is part of the stale spine rectangle. Remove a narrow band
-  // from each old edge before reusing the center artwork so that old fold pixels
-  // cannot be relocated into the middle of the new spine.
-  const edgeInsetSourcePx = Math.max(1, Math.min(source * 0.08, Math.max(4, source * 0.04)));
+  // Remove only the stale fold-edge pixels. Nothing sampled from the old spine is
+  // ever tiled into the added width; the added background is reconstructed from
+  // robust row statistics so source lettering cannot become "texture."
+  const edgeInsetSourcePx = Math.max(2, Math.min(source * 0.055, 18));
   const coreSourceWidthPx = Math.max(1, source - edgeInsetSourcePx * 2);
   const coreTargetWidthPx = coreSourceWidthPx * scale;
   const extraPx = Math.max(0, target - coreTargetWidthPx);
   const leftExtraPx = extraPx / 2;
   const rightExtraPx = extraPx - leftExtraPx;
-  const textureSliceSourcePx = Math.max(4, Math.min(coreSourceWidthPx * 0.28, source * 0.16));
-  const textureTileTargetPx = textureSliceSourcePx * scale;
-  const featherPx = Math.max(6, Math.min(coreTargetWidthPx * 0.14, Math.max(10, scaledSource * 0.06)));
-  return { mode:'seamless-expand', sourceSpinePx:source, targetSpinePx:target, sourceToTargetScale:scale, edgeInsetSourcePx, coreSourceWidthPx, coreTargetWidthPx, leftExtraPx, rightExtraPx, textureSliceSourcePx, textureTileTargetPx, featherPx };
+  const featherPx = Math.max(2, Math.min(8, coreTargetWidthPx * 0.025));
+  return {
+    mode:'text-safe-expand', sourceSpinePx:source, targetSpinePx:target, sourceToTargetScale:scale,
+    edgeInsetSourcePx, coreSourceWidthPx, coreTargetWidthPx, leftExtraPx, rightExtraPx, featherPx,
+    backgroundMode:'robust-row-median', rawArtworkCopiedIntoExtension:false,
+  };
 }
 
-function drawMirroredTextureBand(ctx, image, { sourceX, sourceWidth, targetX, targetWidth, targetHeightPx, tileTargetWidth, reverse = false }) {
-  if (!(targetWidth > 0) || !(sourceWidth > 0)) return;
-  const nominalTile = Math.max(1, Number(tileTargetWidth) || sourceWidth);
-  let cursor = 0;
-  let index = 0;
-  while (cursor < targetWidth - 0.01) {
-    const width = Math.min(nominalTile, targetWidth - cursor);
-    const dx = targetX + cursor;
-    const mirrored = ((index + (reverse ? 1 : 0)) % 2) === 1;
-    ctx.save();
-    if (mirrored) {
-      ctx.translate(dx + width, 0);
-      ctx.scale(-1, 1);
-      ctx.drawImage(image, sourceX, 0, Math.max(1, sourceWidth), image.height, 0, 0, width, targetHeightPx);
-    } else {
-      ctx.drawImage(image, sourceX, 0, Math.max(1, sourceWidth), image.height, dx, 0, width, targetHeightPx);
+function median(values) {
+  if (!values.length) return 0;
+  values.sort((a,b)=>a-b);
+  const mid = Math.floor(values.length / 2);
+  return values.length % 2 ? values[mid] : (values[mid-1] + values[mid]) / 2;
+}
+
+function buildRobustSpineBackground(image, { sourceX, sourceWidth, targetWidthPx, targetHeightPx }) {
+  const sourceCanvas = document.createElement('canvas');
+  const sw = Math.max(1, Math.round(sourceWidth));
+  const sh = Math.max(1, Math.round(targetHeightPx));
+  sourceCanvas.width = sw;
+  sourceCanvas.height = sh;
+  const sourceCtx = sourceCanvas.getContext('2d', { willReadFrequently:true });
+  if (!sourceCtx) throw new Error('Canvas rendering is unavailable while reconstructing the spine background.');
+  sourceCtx.drawImage(image, sourceX, 0, Math.max(1, sourceWidth), image.height, 0, 0, sw, sh);
+  const pixels = sourceCtx.getImageData(0,0,sw,sh).data;
+
+  // One robust background color per source row. Sampling every few columns keeps
+  // manufacture fast while the median rejects cream lettering, shadows, logos,
+  // hearts, and other foreground marks unless they occupy most of an entire row.
+  const rowR = new Float32Array(sh);
+  const rowG = new Float32Array(sh);
+  const rowB = new Float32Array(sh);
+  const rowSpread = new Float32Array(sh);
+  const xStep = Math.max(1, Math.floor(sw / 72));
+  for (let y=0; y<sh; y+=1) {
+    const rs=[]; const gs=[]; const bs=[];
+    for (let x=0; x<sw; x+=xStep) {
+      const i=(y*sw+x)*4;
+      rs.push(pixels[i]); gs.push(pixels[i+1]); bs.push(pixels[i+2]);
     }
-    ctx.restore();
-    cursor += width;
-    index += 1;
+    const r=median(rs), g=median(gs), b=median(bs);
+    rowR[y]=r; rowG[y]=g; rowB[y]=b;
+    const diffs=[];
+    for (let n=0; n<rs.length; n+=1) {
+      diffs.push((Math.abs(rs[n]-r)+Math.abs(gs[n]-g)+Math.abs(bs[n]-b))/3);
+    }
+    rowSpread[y]=median(diffs);
   }
+
+  // Smooth vertically enough to remove letter-shaped contamination while
+  // retaining the broad mottled/gradient character of the original spine.
+  const smoothR=new Float32Array(sh), smoothG=new Float32Array(sh), smoothB=new Float32Array(sh), smoothSpread=new Float32Array(sh);
+  const radius=Math.max(4,Math.round(sh/420));
+  for (let y=0; y<sh; y+=1) {
+    let r=0,g=0,b=0,s=0,count=0;
+    const y0=Math.max(0,y-radius), y1=Math.min(sh-1,y+radius);
+    for (let yy=y0; yy<=y1; yy+=1) { r+=rowR[yy]; g+=rowG[yy]; b+=rowB[yy]; s+=rowSpread[yy]; count+=1; }
+    smoothR[y]=r/count; smoothG[y]=g/count; smoothB[y]=b/count; smoothSpread[y]=s/count;
+  }
+
+  const outCanvas=document.createElement('canvas');
+  const tw=Math.max(1,Math.round(targetWidthPx));
+  outCanvas.width=tw; outCanvas.height=sh;
+  const outCtx=outCanvas.getContext('2d');
+  if (!outCtx) throw new Error('Canvas rendering is unavailable while painting the reconstructed spine background.');
+  const out=outCtx.createImageData(tw,sh);
+
+  // Deterministic low-amplitude grain prevents a plastic flat-fill look without
+  // copying any original glyph-shaped pixels. The same source always produces
+  // the same manufactured cover.
+  for (let y=0; y<sh; y+=1) {
+    const baseR=smoothR[y], baseG=smoothG[y], baseB=smoothB[y];
+    const amp=clamp(smoothSpread[y]*0.18,1.2,5.5);
+    for (let x=0; x<tw; x+=1) {
+      let h=(Math.imul(x+17,374761393)^Math.imul(y+31,668265263))>>>0;
+      h=(h^(h>>>13))>>>0;
+      const n=((h&1023)/1023)-0.5;
+      const wave=Math.sin((x/tw)*Math.PI*2 + (y/sh)*Math.PI*0.65)*0.7;
+      const delta=n*amp + wave;
+      const i=(y*tw+x)*4;
+      out.data[i]=clamp(Math.round(baseR+delta),0,255);
+      out.data[i+1]=clamp(Math.round(baseG+delta),0,255);
+      out.data[i+2]=clamp(Math.round(baseB+delta),0,255);
+      out.data[i+3]=255;
+    }
+  }
+  outCtx.putImageData(out,0,0);
+  return outCanvas;
 }
 
-function drawFeatheredSpineCore(ctx, image, { sourceX, sourceWidth, targetX, targetWidth, targetHeightPx, featherPx }) {
-  const layer = document.createElement('canvas');
-  layer.width = Math.max(1, Math.round(targetWidth));
-  layer.height = Math.max(1, Math.round(targetHeightPx));
-  const layerCtx = layer.getContext('2d');
-  if (!layerCtx) throw new Error('Canvas rendering is unavailable while blending the spine artwork.');
-  layerCtx.drawImage(image, sourceX, 0, Math.max(1, sourceWidth), image.height, 0, 0, layer.width, layer.height);
-  const feather = Math.max(1, Math.min(layer.width / 3, featherPx));
-  const stop = Math.min(0.49, feather / layer.width);
-  const mask = layerCtx.createLinearGradient(0, 0, layer.width, 0);
-  mask.addColorStop(0, 'rgba(0,0,0,0)');
-  mask.addColorStop(stop, 'rgba(0,0,0,1)');
-  mask.addColorStop(1 - stop, 'rgba(0,0,0,1)');
-  mask.addColorStop(1, 'rgba(0,0,0,0)');
-  layerCtx.globalCompositeOperation = 'destination-in';
-  layerCtx.fillStyle = mask;
-  layerCtx.fillRect(0, 0, layer.width, layer.height);
-  layerCtx.globalCompositeOperation = 'source-over';
-  ctx.drawImage(layer, targetX, 0, targetWidth, targetHeightPx);
+function drawOriginalSpineArtworkOnce(ctx, image, backgroundCanvas, {
+  sourceX, sourceWidth, targetX, targetWidth, targetSpineX, targetSpineWidth, targetHeightPx, featherPx,
+}) {
+  const layer=document.createElement('canvas');
+  const w=Math.max(1,Math.round(targetWidth));
+  const h=Math.max(1,Math.round(targetHeightPx));
+  layer.width=w; layer.height=h;
+  const lctx=layer.getContext('2d', { willReadFrequently:true });
+  if (!lctx) throw new Error('Canvas rendering is unavailable while preserving original spine artwork.');
+  lctx.drawImage(image,sourceX,0,Math.max(1,sourceWidth),image.height,0,0,w,h);
+  const original=lctx.getImageData(0,0,w,h);
+
+  // Compare the original core to the clean reconstructed background. Only pixels
+  // that differ materially from the statistical background become foreground.
+  // This preserves title/subtitle/script/logo/shadows once, while ordinary teal
+  // texture becomes transparent and cannot create a rectangular old-spine patch.
+  const bgctx=backgroundCanvas.getContext('2d',{willReadFrequently:true});
+  const spineBg=bgctx.getImageData(0,0,backgroundCanvas.width,backgroundCanvas.height).data;
+  const overlay=lctx.createImageData(w,h);
+  const bgW=backgroundCanvas.width;
+  const offset=Math.round(targetX-targetSpineX);
+  const edge=Math.max(1,Math.round(featherPx));
+  for (let y=0; y<h; y+=1) {
+    for (let x=0; x<w; x+=1) {
+      const oi=(y*w+x)*4;
+      const bx=clamp(offset+x,0,bgW-1);
+      const bi=(y*bgW+bx)*4;
+      const dr=original.data[oi]-spineBg[bi];
+      const dg=original.data[oi+1]-spineBg[bi+1];
+      const db=original.data[oi+2]-spineBg[bi+2];
+      const distance=Math.sqrt(dr*dr+dg*dg+db*db);
+      let alpha=clamp((distance-22)/38,0,1);
+      if (x<edge) alpha*=x/edge;
+      if (x>w-1-edge) alpha*=(w-1-x)/edge;
+      overlay.data[oi]=original.data[oi];
+      overlay.data[oi+1]=original.data[oi+1];
+      overlay.data[oi+2]=original.data[oi+2];
+      overlay.data[oi+3]=Math.round(alpha*255);
+    }
+  }
+  lctx.clearRect(0,0,w,h);
+  lctx.putImageData(overlay,0,0);
+  ctx.drawImage(layer,targetX,0,targetWidth,targetHeightPx);
 }
 
 function verticalSeamScore(ctx, x, targetHeightPx) {
@@ -200,61 +291,47 @@ function extendSpinePreservingArt(ctx, image, { sourceLeftPx, sourceSpinePx, tar
   const plan = planSeamlessSpineExpansion({ sourceSpinePx, targetSpinePx, sourceToTargetScale });
   if (plan.mode === 'exact') {
     drawPanel(ctx, image, sourceLeftPx, sourceSpinePx, targetLeftPx, targetSpinePx, targetHeightPx);
-    return { ...plan, seamScores:[0,0], worstSeamScore:0, rescueApplied:false };
+    return { ...plan, seamScores:[0,0], worstSeamScore:0, foregroundCopies:1, extensionArtworkCopies:0 };
   }
 
-  const sourceCoreX = sourceLeftPx + plan.edgeInsetSourcePx;
-  const targetCoreX = targetLeftPx + plan.leftExtraPx;
-  const leftSampleX = sourceLeftPx + plan.edgeInsetSourcePx;
-  const rightSampleX = sourceLeftPx + sourceSpinePx - plan.edgeInsetSourcePx - plan.textureSliceSourcePx;
+  const sourceCoreX=sourceLeftPx+plan.edgeInsetSourcePx;
+  const targetCoreX=targetLeftPx+plan.leftExtraPx;
+  const background=buildRobustSpineBackground(image, {
+    sourceX:sourceCoreX,
+    sourceWidth:plan.coreSourceWidthPx,
+    targetWidthPx:targetSpinePx,
+    targetHeightPx,
+  });
 
-  const paint = (featherScale = 1) => {
-    const feather = Math.min(plan.coreTargetWidthPx / 3, plan.featherPx * featherScale);
-    drawMirroredTextureBand(ctx, image, {
-      sourceX:leftSampleX,
-      sourceWidth:plan.textureSliceSourcePx,
-      targetX:targetLeftPx,
-      targetWidth:plan.leftExtraPx + feather,
-      targetHeightPx,
-      tileTargetWidth:plan.textureTileTargetPx,
-      reverse:true,
-    });
-    drawMirroredTextureBand(ctx, image, {
-      sourceX:rightSampleX,
-      sourceWidth:plan.textureSliceSourcePx,
-      targetX:targetCoreX + plan.coreTargetWidthPx - feather,
-      targetWidth:plan.rightExtraPx + feather,
-      targetHeightPx,
-      tileTargetWidth:plan.textureTileTargetPx,
-      reverse:false,
-    });
-    drawFeatheredSpineCore(ctx, image, {
-      sourceX:sourceCoreX,
-      sourceWidth:plan.coreSourceWidthPx,
-      targetX:targetCoreX,
-      targetWidth:plan.coreTargetWidthPx,
-      targetHeightPx,
-      featherPx:feather,
-    });
+  // Paint the clean synthesized background across the *entire* new spine first.
+  // Critically, no source strip is mirrored, tiled, or stretched into the extra area.
+  ctx.drawImage(background,targetLeftPx,0,targetSpinePx,targetHeightPx);
+
+  // Put the original useful spine artwork back exactly once, centered at its
+  // original physical width. The foreground mask removes ordinary old background
+  // pixels so the original narrow spine cannot show up as a visible rectangle.
+  drawOriginalSpineArtworkOnce(ctx,image,background,{
+    sourceX:sourceCoreX,
+    sourceWidth:plan.coreSourceWidthPx,
+    targetX:targetCoreX,
+    targetWidth:plan.coreTargetWidthPx,
+    targetSpineX:targetLeftPx,
+    targetSpineWidth:targetSpinePx,
+    targetHeightPx,
+    featherPx:plan.featherPx,
+  });
+
+  const seamScores=[
+    verticalSeamScore(ctx,targetCoreX,targetHeightPx),
+    verticalSeamScore(ctx,targetCoreX+plan.coreTargetWidthPx,targetHeightPx),
+  ];
+  return {
+    ...plan,
+    seamScores,
+    worstSeamScore:Math.max(...seamScores),
+    foregroundCopies:1,
+    extensionArtworkCopies:0,
   };
-
-  paint(1);
-  let seamScores = [verticalSeamScore(ctx, targetCoreX, targetHeightPx), verticalSeamScore(ctx, targetCoreX + plan.coreTargetWidthPx, targetHeightPx)];
-  let worstSeamScore = Math.max(...seamScores);
-  let rescueApplied = false;
-  if (worstSeamScore > 36) {
-    // A second, wider blend is cheaper and safer than asking the author to
-    // rebuild a correctly designed wrap in Photoshop.
-    ctx.save();
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(targetLeftPx, 0, targetSpinePx, targetHeightPx);
-    ctx.restore();
-    paint(1.8);
-    seamScores = [verticalSeamScore(ctx, targetCoreX, targetHeightPx), verticalSeamScore(ctx, targetCoreX + plan.coreTargetWidthPx, targetHeightPx)];
-    worstSeamScore = Math.max(...seamScores);
-    rescueApplied = true;
-  }
-  return { ...plan, seamScores, worstSeamScore, rescueApplied };
 }
 
 export async function renderFullWrapArtworkPdf({ asset, geometry, production = {}, pageCount = 0, barcodeBrain = {}, isbn = '', dpi = PRINT_PDF_DPI } = {}) {
@@ -313,10 +390,18 @@ export async function renderFullWrapArtworkPdf({ asset, geometry, production = {
   const seamMessage = spineAdaptation.mode === 'exact'
     ? 'The source spine already matches the final geometry; no synthesized join exists.'
     : seamStatus === 'pass'
-      ? `Seamless expansion removed stale fold-edge pixels and feathered the synthesized texture${spineAdaptation.rescueApplied ? ' with the wider rescue blend' : ''}. Internal seam score ${spineAdaptation.worstSeamScore.toFixed(1)}.`
-      : `The spine was rebuilt with the rescue blend, but the internal seam score is ${spineAdaptation.worstSeamScore.toFixed(1)}. Inspect the manufactured cover at 100% before KDP upload.`;
+      ? `Text-safe reconstruction built the added width from statistical background only and composited the source spine artwork once. Internal seam score ${spineAdaptation.worstSeamScore.toFixed(1)}.`
+      : `Text-safe reconstruction prevented duplicated source artwork, but the internal seam score is ${spineAdaptation.worstSeamScore.toFixed(1)}. Inspect the manufactured cover at 100% before KDP upload.`;
   const seamCheck = { id:'wrap-art-seam-audit', status:seamStatus, label:'Spine seam audit', message:seamMessage };
-  const checks = [...analysis.checks, seamCheck, ...baseAudit.checks];
+  const duplicationCheck = {
+    id:'wrap-art-text-duplication-guard',
+    status:spineAdaptation.extensionArtworkCopies === 0 ? 'pass' : 'error',
+    label:'Spine text duplication guard',
+    message:spineAdaptation.mode === 'exact'
+      ? 'No expansion occurred.'
+      : 'Added spine width contains synthesized background only; source title/subtitle/logo pixels are composited exactly once and never tiled into extension zones.',
+  };
+  const checks = [...analysis.checks, duplicationCheck, seamCheck, ...baseAudit.checks];
   const errors = checks.filter((item)=>item.status === 'error').length;
   const warnings = checks.filter((item)=>item.status === 'warning').length;
   return {
@@ -324,6 +409,7 @@ export async function renderFullWrapArtworkPdf({ asset, geometry, production = {
     blob:new Blob([pdf.bytes], { type:'application/pdf' }),
     analysis,
     barcode:barcodeInfo,
+    spineAdaptation,
     audit:{ ready:errors===0, checks, summary:{errors,warnings,passes:checks.length-errors-warnings,total:checks.length}, fileSize:pdf.bytes.length },
     geometry,
   };
