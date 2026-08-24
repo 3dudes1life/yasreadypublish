@@ -1,5 +1,6 @@
 import { normalizePrintProduction } from './print-brain.js';
 import { normalizeCoverBrain } from './cover-brain.js';
+import { FULL_WRAP_ART_VERSION } from './full-wrap-art.js';
 import { barcodeBrainChecks, barcodeFingerprint, normalizeBarcodeBrain, normalizePrintIsbn } from './barcode-brain.js';
 import { runAmazonPrintHardMode } from './amazon-print-hard-mode.js';
 
@@ -66,6 +67,8 @@ export function printReleaseToken(project, type = 'paperback') {
     metadata:edition.kdpMetadata || {},
     barcode:normalizeBarcodeBrain(edition.barcodeBrain || {}),
     barcodeFingerprint:barcodeFingerprint({ isbn:edition.kdpMetadata?.isbn || '', pageCount:Number(edition.lastPageCount)||0, brain:edition.barcodeBrain || {} }),
+    coverGeneratorVersion:edition.coverMode === 'upload-art' ? Number(edition.lastCoverAudit?.generatorVersion || 0) : 0,
+    coverVisualQualityReady:edition.coverMode === 'upload-art' ? edition.lastCoverAudit?.visualQuality?.ready === true : true,
   };
   return `p35-${fnv1a(stableStringify(payload))}`;
 }
@@ -133,7 +136,9 @@ export function buildPrintReleaseGate({ project, type = 'paperback', preflight =
   const cover = edition.lastCoverAudit || null;
   const proofSignature = preview?.proofSignature || '';
   const interiorCurrent = Boolean(interior?.ready && interior?.sha256 && (!proofSignature || interior.proofSignature === proofSignature) && Number(interior?.pageCount || interior?.metadata?.pageCount || 0) === pageCount);
-  const coverCurrent = Boolean(cover?.ready && cover?.sha256 && Number(cover?.pageCount || 0) === pageCount && (!proofSignature || cover.proofSignature === proofSignature));
+  const manufacturedCoverCurrent = edition.coverMode !== 'upload-art' || (Number(cover?.generatorVersion || 0) === FULL_WRAP_ART_VERSION && cover?.visualQuality?.ready === true);
+  const coverCurrent = Boolean(cover?.ready && cover?.sha256 && Number(cover?.pageCount || 0) === pageCount && (!proofSignature || cover.proofSignature === proofSignature) && manufacturedCoverCurrent);
+  const coverVisualChecks = edition.coverMode === 'upload-art' ? (cover?.visualQuality?.checks || []) : [];
   const metadata = metadataChecks(project, type);
   const metadataReady = metadata.every((item) => item.status !== 'error');
   const storedBarcodeBrain = edition.barcodeBrain && typeof edition.barcodeBrain === 'object' ? edition.barcodeBrain : null;
@@ -160,7 +165,8 @@ export function buildPrintReleaseGate({ project, type = 'paperback', preflight =
   const checks = [
     { id:'print-gate-preflight', status:preflight?.ready ? 'pass' : 'error', label:'Print Brain / KDP preflight', message:preflight?.ready ? `${pageCount} pages passed the physical-book gate.` : 'Resolve print preflight blockers first.' },
     { id:'print-gate-interior', status:interiorCurrent ? 'pass' : 'error', label:'Finished interior PDF', message:interiorCurrent ? `Current PDF ${String(interior.sha256).slice(0,12)}… matches this proof.` : 'Build the interior PDF again for the current proof.' },
-    { id:'print-gate-cover', status:coverCurrent ? 'pass' : 'error', label:'Finished cover PDF', message:coverCurrent ? `Current cover ${String(cover.sha256).slice(0,12)}… matches ${pageCount} interior pages.` : 'Build the cover PDF again after the final interior page count is known.' },
+    { id:'print-gate-cover', status:coverCurrent ? 'pass' : 'error', label:'Finished cover PDF', message:coverCurrent ? `Current cover ${String(cover.sha256).slice(0,12)}… matches ${pageCount} interior pages.` : !manufacturedCoverCurrent ? `Rebuild the manufactured cover with Cover Engine v${FULL_WRAP_ART_VERSION}; stale or visually unsafe generated covers cannot enter the release gate.` : 'Build the cover PDF again after the final interior page count is known.' },
+    ...coverVisualChecks,
     ...metadata,
     ...barcode.checks,
     ...hardMode.checks,

@@ -101,7 +101,7 @@ for (const marker of ['parsePrintCoverPdfBytes','auditUploadedPrintCoverPdf','up
 for (const marker of ['YOUR COVER','printCoverMode','printFullWrapCoverInput','I already have the final KDP PDF','Build my cover in YasReady']) if (!main.includes(marker)) throw new Error(`Missing v1.0.33 print cover UI marker: ${marker}`);
 
 const fullWrapArt = readFileSync(join(ROOT, 'src/lib/full-wrap-art.js'), 'utf8');
-for (const marker of ['analyzeFullWrapArtwork','renderFullWrapArtworkPdf','planSeamlessSpineExpansion','Seamless spine expansion','wrap-art-seam-audit','Full-wrap artwork resolution']) if (!fullWrapArt.includes(marker)) throw new Error(`Missing v1.0.37 full-wrap artwork adapter marker: ${marker}`);
+for (const marker of ['analyzeFullWrapArtwork','renderFullWrapArtworkPdf','planSeamlessSpineExpansion','computeSpineColumnEnergy','buildContentAwareStretchMap','analyzeSpineRasterQuality','Seamless spine expansion','wrap-art-seam-audit','wrap-art-horizontal-banding','wrap-art-periodic-repetition','Full-wrap artwork resolution']) if (!fullWrapArt.includes(marker)) throw new Error(`Missing v1.0.37 full-wrap artwork adapter marker: ${marker}`);
 for (const marker of ['FULL-WRAP ARTWORK ADAPTER · v1.0.37','upload-art','printFullWrapArtInput','renderSimpleFlowDock','simpleFlowDock','Continue to Preview →','Continue to Export →']) if (!main.includes(marker)) throw new Error(`Missing v1.0.37 cover intake/navigation marker: ${marker}`);
 for (const marker of ['matter-back-heading','matter-back-body']) if (!printMatter.includes(marker)) throw new Error(`Missing v1.0.37 back-matter alignment marker: ${marker}`);
 const barcodeBrain = readFileSync(join(ROOT, 'src/lib/barcode-brain.js'), 'utf8');

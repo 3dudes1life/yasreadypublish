@@ -149,7 +149,7 @@ for (const marker of ['BOOK_BRAIN_VERSION = 2','about-authors','join-journey','b
 
 
 const fullWrapArt = readFileSync('src/lib/full-wrap-art.js', 'utf8');
-for (const marker of ['analyzeFullWrapArtwork','renderFullWrapArtworkPdf','planSeamlessSpineExpansion','Seamless spine expansion','wrap-art-seam-audit','Full-wrap artwork resolution']) {
+for (const marker of ['analyzeFullWrapArtwork','renderFullWrapArtworkPdf','planSeamlessSpineExpansion','computeSpineColumnEnergy','buildContentAwareStretchMap','analyzeSpineRasterQuality','Seamless spine expansion','wrap-art-seam-audit','wrap-art-horizontal-banding','wrap-art-periodic-repetition','Full-wrap artwork resolution']) {
   if (!fullWrapArt.includes(marker)) throw new Error(`1.0.37 Full-Wrap Artwork Adapter is missing: ${marker}`);
 }
 for (const marker of ['FULL-WRAP ARTWORK ADAPTER · v1.0.37','upload-art','printFullWrapArtInput','renderSimpleFlowDock','simpleFlowDock','Continue to Preview →','Continue to Export →']) {
