@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import {
   analyzeSpineRasterQuality,
   buildContentAwareStretchMap,
+  buildSinglePassEdgeFlowUnderlay,
   compositeNativeSpineCore,
   planSeamlessSpineExpansion,
 } from '../src/lib/full-wrap-art.js';
@@ -24,7 +25,7 @@ function makeRgba(width, height, paint) {
 test('1.0.37 cover-engine rebuild uses content-aware elastic retargeting for Book 2 geometry', () => {
   const plan = planSeamlessSpineExpansion({ sourceSpinePx:285, targetSpinePx:547.5, sourceToTargetScale:1 });
   assert.equal(plan.mode, 'content-aware-elastic');
-  assert.equal(plan.backgroundMode, 'content-aware-underlay+native-core');
+  assert.equal(plan.backgroundMode, 'native-core+single-pass-edge-flow');
   assert.equal(plan.usesTiling, false);
   assert.equal(plan.usesRowFlattening, false);
   assert.equal(plan.contentAware, true);
@@ -34,7 +35,7 @@ test('1.0.37 cover-engine rebuild uses content-aware elastic retargeting for Boo
   assert.equal(plan.extraTargetPx, 263);
 });
 
-test('1.0.37 cover-engine v6 keeps elastic underlay bounded while background absorbs width', () => {
+test('1.0.37 cover-engine v7 keeps diagnostic elastic map bounded while production uses edge-flow', () => {
   const energy = new Float64Array(120);
   energy.fill(2);
   for (let x = 42; x < 78; x += 1) energy[x] = 100;
@@ -46,7 +47,7 @@ test('1.0.37 cover-engine v6 keeps elastic underlay bounded while background abs
 });
 
 
-test('1.0.37 cover-engine v6 restores the original spine core at exact 1:1 raster scale', () => {
+test('1.0.37 cover-engine v7 restores the original spine core at exact 1:1 raster scale', () => {
   const sourceWidth = 120, targetWidth = 220, height = 48;
   const source = makeRgba(sourceWidth,height,(x,y) => {
     const textBand = x >= 44 && x <= 76 && ((y % 17) < 8);
@@ -66,6 +67,27 @@ test('1.0.37 cover-engine v6 restores the original spine core at exact 1:1 raste
     nativeCore:native.metrics,
   });
   assert.equal(quality.checks.find((item)=>item.id==='wrap-art-native-core-preservation')?.status,'pass');
+});
+
+test('1.0.37 cover-engine v7 grows side texture once without tiling or elastic column redistribution', () => {
+  const sourceWidth=120, targetWidth=220, height=64;
+  const source=makeRgba(sourceWidth,height,(x,y) => {
+    const v=90+18*Math.sin(x*0.11+y*0.037)+9*Math.cos(x*0.031-y*0.071);
+    return [Math.max(0,v-15),Math.min(255,v+20),Math.min(255,v+10)];
+  });
+  const edge=buildSinglePassEdgeFlowUnderlay(source,sourceWidth,height,targetWidth);
+  assert.equal(edge.metrics.mode,'single-pass-edge-flow');
+  assert.equal(edge.metrics.usesTiling,false);
+  assert.equal(edge.metrics.usesRowFlattening,false);
+  assert.equal(edge.metrics.usesElasticColumnRedistribution,false);
+  assert.ok(edge.metrics.leftExtra>0 && edge.metrics.rightExtra>0);
+  assert.ok(edge.metrics.sourceBandPx>=12);
+  const quality=analyzeSpineRasterQuality(edge.rgba,targetWidth,height,{
+    protectedMedianStretch:1,
+    protectedP90Stretch:1,
+    maxAssignedStretch:edge.metrics.maxExtensionStretch,
+  });
+  assert.ok(quality.metrics.worstRepeat<=1.9, `edge-flow repetition ${quality.metrics.worstRepeat}`);
 });
 
 test('1.0.37 cover-engine visual QA rejects horizontal stripe/banding manufacture', () => {
@@ -109,6 +131,7 @@ test('1.0.37 cover-engine source contains no strip tiler or row-flattening gener
   assert.ok(source.includes('computeSpineColumnEnergy'));
   assert.ok(source.includes('buildContentAwareStretchMap'));
   assert.ok(source.includes('retargetSpineRgba'));
+  assert.ok(source.includes('buildSinglePassEdgeFlowUnderlay'));
   assert.ok(source.includes('compositeNativeSpineCore'));
   assert.ok(source.includes('wrap-art-native-core-preservation'));
   assert.ok(source.includes('analyzeSpineRasterQuality'));
@@ -118,6 +141,7 @@ test('1.0.37 cover-engine source contains no strip tiler or row-flattening gener
   assert.ok(!source.includes('selectCleanTextureSeed'));
   assert.ok(!source.includes('buildRobustSpineBackground'));
   assert.ok(!source.includes('robust-row-median'));
+  assert.ok(source.includes('usesElasticColumnRedistribution:false'));
 });
 
 test('1.0.37 exact spine geometry stays exact and wider source is never auto-cropped', () => {

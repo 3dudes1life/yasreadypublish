@@ -50,7 +50,7 @@ import {
   setEbookEditionDesign, setPrintEditionDesign, invalidateAllEditionProofs, invalidateEditionProof,
   getEbookCover, setEbookCover, clearEbookCover,
 } from './lib/editions.js';
-import { capturePrintSetupState, planPrintSetupInvalidation } from './lib/print-state-invalidation.js';
+import { capturePrintSetupState, planPrintSetupInvalidation, printProductionFingerprint } from './lib/print-state-invalidation.js';
 import {
   clearBlockPresentationOverride, countPresentationOverrides, ensurePresentationOverrides,
   getBlockPresentationOverride, setBlockPresentationOverride,
@@ -2529,6 +2529,7 @@ async function savePrintBrainSetup(useRecommended = false) {
   const production = useRecommended ? { ...recommendedPrintProduction(type), configured:true } : readPrintBrainForm(type);
   const edition = state.project.editions[type];
   const setupBefore = capturePrintSetupState(edition, type);
+  const productionChangedByForm = setupBefore.production !== printProductionFingerprint(production, type);
   const coverMode = readPrintCoverMode();
   const isbnMode = document.querySelector('#printBrainIsbnMode')?.value === 'own' ? 'own' : 'kdp-free';
   const isbnRaw = document.querySelector('#printBrainIsbn')?.value || '';
@@ -2565,14 +2566,19 @@ async function savePrintBrainSetup(useRecommended = false) {
   edition.barcodeBrain = normalizeBarcodeBrain(barcode);
   edition.coverBrain = normalizeCoverBrain({ ...(edition.coverBrain || {}), amazonBarcode:edition.barcodeBrain.coverPlacement === 'amazon' }, type);
   savePrintKdpMetadata(state.project, type, { ...(edition.kdpMetadata || {}), isbnMode, isbn:normalizedIsbn.valid ? normalizedIsbn.digits : '' });
-  edition.design = applyPrintBrainToDesign(edition.design, production, type, Number(edition.lastPageCount || 0));
+  // Do not silently re-style the interior while the user is merely accepting a
+  // cover. Print Brain only re-applies physical design when its production inputs
+  // actually changed (or Recommended was explicitly requested).
+  if (productionChangedByForm || useRecommended) {
+    edition.design = applyPrintBrainToDesign(edition.design, production, type, Number(edition.lastPageCount || 0));
+  }
   state.project.design.print = { ...edition.design };
   const setupAfter = capturePrintSetupState(edition, type);
   const setupInvalidation = planPrintSetupInvalidation(setupBefore, setupAfter);
-  edition.lastPreflight = null;
 
   if (setupInvalidation.interiorChanged) {
-    // Pagination-affecting changes invalidate the complete physical package.
+    // A real pagination-affecting change invalidates the complete physical package.
+    edition.lastPreflight = null;
     edition.lastPdfAudit = null;
     edition.lastCoverAudit = null;
     state.printPdfReport = null;
@@ -2580,10 +2586,13 @@ async function savePrintBrainSetup(useRecommended = false) {
     edition.lastPageCount = null;
     edition.lastBuiltAt = null;
     state.preview = null;
+    state.simpleStep = 'preview';
   } else if (setupInvalidation.coverChanged) {
-    // Cover-only changes preserve the finished interior PDF, preview and page count.
+    // Cover-only acceptance preserves the current pagination, preflight and finished
+    // interior audit. Return to Export so the user can manufacture only the new cover.
     edition.lastCoverAudit = null;
     state.coverPdfReport = null;
+    state.simpleStep = state.preview ? 'export' : 'preview';
   }
   state.finalCheck = null;
   state.project.updatedAt = new Date().toISOString();

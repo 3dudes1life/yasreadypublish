@@ -2,11 +2,11 @@ import { buildRasterPdf, auditPrintPdfBytes, PRINT_PDF_DPI } from './print-pdf.j
 import { paperbackSpineFactor } from './cover-brain.js';
 import { barcodePdfVectorCommands, normalizeBarcodeBrain, normalizePrintIsbn } from './barcode-brain.js';
 
-export const FULL_WRAP_ART_VERSION = 6;
-// v6: native-core spine preservation over a content-aware elastic underlay.
+export const FULL_WRAP_ART_VERSION = 7;
+// v7: native-core preservation over a single-pass 2D edge-flow underlay.
 // Legacy static-audit capability marker: Seamless spine expansion.
-// The original spine center is composited back at exact 1:1 raster scale so lettering and
-// the original 2D texture remain crisp while only the newly required outer width is retargeted.
+// The original spine center is composited back at exact 1:1 raster scale while each newly
+// required outer side is grown once from a broad 2D edge field—no tiling or elastic bunching.
 
 function clamp(n, min, max) { return Math.min(max, Math.max(min, Number(n) || 0)); }
 function quantile(values, q) {
@@ -72,7 +72,7 @@ export function analyzeFullWrapArtwork({ asset, geometry, production = {}, pageC
   checks.push({ id:'wrap-art-spine-adapter', status:ratioMatch || targetCanExtendSpine ? 'pass' : 'error', label:'Content-aware spine retargeting', message:ratioMatch
     ? 'No spine adaptation is needed.'
     : targetCanExtendSpine
-      ? `YasReady will keep the front and back panels fixed, build a content-aware background underlay for the extra width, then composite the original spine center back at exact 1:1 raster scale so lettering and the source 2D texture stay crisp while expanding from ${sourceSpineIn.toFixed(3)} to ${targetSpine.toFixed(3)} in.`
+      ? `YasReady will keep the front and back panels fixed, extend broad 2D texture fields outward once from each spine edge, then composite the original spine center back at exact 1:1 raster scale so lettering and source texture stay crisp while expanding from ${sourceSpineIn.toFixed(3)} to ${targetSpine.toFixed(3)} in.`
       : `The source spine (${Math.max(0,sourceSpineIn).toFixed(3)} in) is wider than the current ${targetSpine.toFixed(3)} in spine. YasReady will not crop finished spine artwork automatically.` });
   const resolutionStatus = effectivePpi >= 295 ? 'pass' : effectivePpi >= 250 ? 'warning' : 'error';
   checks.push({ id:'wrap-art-resolution', status:resolutionStatus, label:'Full-wrap artwork resolution', message:`Effective source resolution is about ${Math.round(Number.isFinite(effectivePpi) ? effectivePpi : 0)} PPI at its inferred physical size.${effectivePpi >= 295 ? ' Production artwork meets the 300-PPI target.' : ` Use the original high-resolution export; about ${Math.ceil(sourceWidthIn*300)} × ${Math.ceil(targetHeight*300)}px would provide 300 PPI at this source geometry.`}` });
@@ -135,7 +135,7 @@ export function planSeamlessSpineExpansion({ sourceSpinePx = 0, targetSpinePx = 
     sourceTargetWidthPx,
     targetWidthPx,
     extraTargetPx:targetWidthPx-sourceTargetWidthPx,
-    backgroundMode:'content-aware-underlay+native-core',
+    backgroundMode:'native-core+single-pass-edge-flow',
     usesTiling:false,
     usesRowFlattening:false,
     contentAware:true,
@@ -287,6 +287,101 @@ export function retargetSpineRgba(rgba, sourceWidth, height, stretchMap) {
     }
   }
   return output;
+}
+
+
+export function buildSinglePassEdgeFlowUnderlay(sourceRgba, sourceWidth, height, targetWidth, {
+  insetFraction=0.015,
+  sourceBandFraction=0.18,
+  curvePower=1.35,
+} = {}) {
+  const sourceW=Math.max(1,Math.round(sourceWidth));
+  const targetW=Math.max(1,Math.round(targetWidth));
+  const h=Math.max(1,Math.round(height));
+  if (!sourceRgba || sourceRgba.length < sourceW*h*4) throw new Error('Source spine raster is smaller than declared geometry.');
+  if (targetW < sourceW) throw new Error('Edge-flow spine extension cannot crop a wider source spine.');
+
+  const maxInset=Math.max(2,Math.floor((sourceW-8)/2));
+  const insetPx=Math.min(maxInset,Math.max(2,Math.round(sourceW*insetFraction)));
+  const coreStart=insetPx;
+  const coreEnd=Math.max(coreStart+4,sourceW-insetPx);
+  const coreWidth=coreEnd-coreStart;
+  const targetX=Math.round((targetW-coreWidth)/2);
+  const leftExtra=Math.max(0,targetX);
+  const rightExtra=Math.max(0,targetW-(targetX+coreWidth));
+  const maxBand=Math.max(4,Math.floor(coreWidth*0.32));
+  const sourceBandPx=Math.min(maxBand,Math.max(12,Math.round(coreWidth*sourceBandFraction)));
+  const output=new Uint8ClampedArray(targetW*h*4);
+
+  const sampleColumn=(sourceX,targetXColumn) => {
+    const sx=clamp(sourceX,coreStart,coreEnd-1);
+    const x0=Math.floor(sx);
+    const x1=Math.min(coreEnd-1,x0+1);
+    const alpha=sx-x0;
+    for (let y=0;y<h;y+=1) {
+      const oi=(y*targetW+targetXColumn)*4;
+      const a=(y*sourceW+x0)*4;
+      const b=(y*sourceW+x1)*4;
+      for (let c=0;c<3;c+=1) output[oi+c]=Math.round(sourceRgba[a+c]*(1-alpha)+sourceRgba[b+c]*alpha);
+      output[oi+3]=255;
+    }
+  };
+
+  // Left extension: a single broad source field is smoothly unfolded outward.
+  // The pixel touching the native core samples the exact native edge, so there is
+  // no seam and no repeated/tiled interval.
+  for (let tx=0;tx<leftExtra;tx+=1) {
+    const t=leftExtra<=1?1:tx/(leftExtra-1); // 0 outer -> 1 join
+    const distance=Math.pow(1-t,curvePower)*sourceBandPx;
+    sampleColumn(coreStart+distance,tx);
+  }
+
+  // Seed the middle with the exact source core. compositeNativeSpineCore() below
+  // certifies and restores the same source pixels again after QA metrics are built.
+  for (let x=0;x<coreWidth;x+=1) {
+    const sx=coreStart+x;
+    const tx=targetX+x;
+    for (let y=0;y<h;y+=1) {
+      const si=(y*sourceW+sx)*4;
+      const ti=(y*targetW+tx)*4;
+      output[ti]=sourceRgba[si];
+      output[ti+1]=sourceRgba[si+1];
+      output[ti+2]=sourceRgba[si+2];
+      output[ti+3]=255;
+    }
+  }
+
+  // Right extension: same one-pass field growth, anchored exactly to the right
+  // native edge and moving inward only once toward the outer edge.
+  for (let j=0;j<rightExtra;j+=1) {
+    const t=rightExtra<=1?0:j/(rightExtra-1); // 0 join -> 1 outer
+    const distance=Math.pow(t,curvePower)*sourceBandPx;
+    sampleColumn((coreEnd-1)-distance,targetX+coreWidth+j);
+  }
+
+  const leftStretch=leftExtra?leftExtra/sourceBandPx:1;
+  const rightStretch=rightExtra?rightExtra/sourceBandPx:1;
+  return {
+    rgba:output,
+    metrics:{
+      mode:'single-pass-edge-flow',
+      usesTiling:false,
+      usesRowFlattening:false,
+      usesElasticColumnRedistribution:false,
+      insetPx,
+      coreStart,
+      coreEnd,
+      coreWidth,
+      targetX,
+      leftExtra,
+      rightExtra,
+      sourceBandPx,
+      leftExtensionStretch:leftStretch,
+      rightExtensionStretch:rightStretch,
+      maxExtensionStretch:Math.max(1,leftStretch,rightStretch),
+      curvePower,
+    },
+  };
 }
 
 
@@ -448,22 +543,44 @@ function renderSpineContentAware(ctx, image, { sourceLeftPx, sourceSpinePx, targ
   sourceCtx.imageSmoothingQuality='high';
   sourceCtx.drawImage(image,sourceLeftPx,0,Math.max(1,sourceSpinePx),image.height,0,0,sourceCanvas.width,sourceCanvas.height);
   const sourceData=sourceCtx.getImageData(0,0,sourceCanvas.width,sourceCanvas.height);
-  const energy=computeSpineColumnEnergy(sourceData.data,sourceCanvas.width,sourceCanvas.height);
-  const stretchMap=buildContentAwareStretchMap(energy,plan.targetWidthPx);
-  const underlayRgba=retargetSpineRgba(sourceData.data,sourceCanvas.width,sourceCanvas.height,stretchMap);
 
-  // v6: the elastic result is only the underlay for the newly created width.
-  // Restore almost the entire original spine at native target-resolution scale so
-  // typography and the source texture do not suffer interpolation/smearing.
+  // v7 production path: do NOT redistribute source columns across the wider spine.
+  // Grow each newly required outer side from one broad 2D source field exactly once,
+  // then restore the native center. The older energy/stretch functions remain as
+  // diagnostics/regression coverage, not as the final manufacturing underlay.
+  const edgeFlow=buildSinglePassEdgeFlowUnderlay(
+    sourceData.data,
+    sourceCanvas.width,
+    sourceCanvas.height,
+    plan.targetWidthPx,
+  );
   const nativeCore=compositeNativeSpineCore(
-    underlayRgba,
+    edgeFlow.rgba,
     plan.targetWidthPx,
     sourceData.data,
     sourceCanvas.width,
     sourceCanvas.height,
   );
   const targetRgba=nativeCore.rgba;
-  const visualQuality=analyzeSpineRasterQuality(targetRgba,plan.targetWidthPx,sourceCanvas.height,{...stretchMap,nativeCore:nativeCore.metrics});
+  const visualQuality=analyzeSpineRasterQuality(targetRgba,plan.targetWidthPx,sourceCanvas.height,{
+    protectedMedianStretch:1,
+    protectedP90Stretch:1,
+    maxAssignedStretch:edgeFlow.metrics.maxExtensionStretch,
+    nativeCore:nativeCore.metrics,
+  });
+  visualQuality.checks.unshift({
+    id:'wrap-art-edge-flow-extension',
+    status:edgeFlow.metrics.usesTiling || edgeFlow.metrics.usesElasticColumnRedistribution ? 'error' : 'pass',
+    label:'Single-pass 2D edge-flow extension',
+    message:`Outer spine width is grown once from ${edgeFlow.metrics.sourceBandPx}px-wide 2D edge fields (left ${edgeFlow.metrics.leftExtensionStretch.toFixed(2)}×, right ${edgeFlow.metrics.rightExtensionStretch.toFixed(2)}×). No tiling or per-column elastic redistribution is used.`,
+  });
+  visualQuality.ready=visualQuality.checks.every((item)=>item.status!=='error');
+  visualQuality.summary={
+    errors:visualQuality.checks.filter((item)=>item.status==='error').length,
+    passes:visualQuality.checks.filter((item)=>item.status==='pass').length,
+    total:visualQuality.checks.length,
+  };
+  visualQuality.metrics.edgeFlow=edgeFlow.metrics;
   if (!visualQuality.ready) {
     const blockers=visualQuality.checks.filter((item)=>item.status==='error').map((item)=>`${item.label}: ${item.message}`).join(' ');
     throw new Error(`Cover Brain stopped a visually unsafe spine before export. ${blockers}`);
@@ -484,7 +601,8 @@ function renderSpineContentAware(ctx, image, { sourceLeftPx, sourceSpinePx, targ
   return {
     ...plan,
     generatorVersion:FULL_WRAP_ART_VERSION,
-    stretchMap:{ edgeGuardPx:stretchMap.edgeGuardPx, maxAssignedStretch:stretchMap.maxAssignedStretch, protectedMedianStretch:stretchMap.protectedMedianStretch, protectedP90Stretch:stretchMap.protectedP90Stretch },
+    stretchMap:{ edgeGuardPx:0, maxAssignedStretch:edgeFlow.metrics.maxExtensionStretch, protectedMedianStretch:1, protectedP90Stretch:1 },
+    edgeFlow:edgeFlow.metrics,
     nativeCore:nativeCore.metrics,
     visualQuality,
   };
@@ -557,9 +675,9 @@ export async function renderFullWrapArtworkPdf({ asset, geometry, production = {
     label:'Spine continuity audit',
     message:spineAdaptation.mode==='exact'
       ? 'No synthesized join exists because the source spine already matches final geometry.'
-      : 'Content-aware underlay plus native-core preservation passed 1:1 artwork fidelity, banding, repetition, and stretch-ceiling checks. No repeated source strip or row-flattened texture is used.',
+      : 'Single-pass 2D edge-flow extension plus native-core preservation passed 1:1 artwork fidelity, banding, repetition, and extension-stretch checks. No repeated source strip, row-flattened texture, or per-column elastic redistribution is used.',
   };
-  const engineCheck={ id:'wrap-art-engine', status:'pass', label:'Cover manufacturing engine', message:`Native-core spine engine v${FULL_WRAP_ART_VERSION}; front/back panels stay fixed, low-detail columns form the underlay, and the original spine core is restored at exact 1:1 raster scale.` };
+  const engineCheck={ id:'wrap-art-engine', status:'pass', label:'Cover manufacturing engine', message:`Native-core spine engine v${FULL_WRAP_ART_VERSION}; front/back panels stay fixed, broad 2D edge fields grow the new outer width once, and the original spine core is restored at exact 1:1 raster scale.` };
   const checks=[...analysis.checks,engineCheck,...visualChecks,seamCheck,...baseAudit.checks];
   const errors=checks.filter((item)=>item.status==='error').length;
   const warnings=checks.filter((item)=>item.status==='warning').length;

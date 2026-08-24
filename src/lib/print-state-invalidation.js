@@ -7,12 +7,18 @@ function stableStringify(value) {
   return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(',')}}`;
 }
 
+export function printProductionFingerprint(production = {}, type = 'paperback') {
+  return stableStringify(normalizePrintProduction(production || {}, type));
+}
+
 export function capturePrintSetupState(edition = {}, type = 'paperback') {
   const barcode = normalizeBarcodeBrain(edition.barcodeBrain || {});
   const metadata = edition.kdpMetadata || {};
   return {
     type,
-    production:stableStringify(normalizePrintProduction(edition.production || {}, type)),
+    production:printProductionFingerprint(edition.production || {}, type),
+    // Design is recorded for diagnosis, but Print Brain setup itself must not
+    // manufacture a design change during a cover-only save.
     design:stableStringify(edition.design || {}),
     coverMode:String(edition.coverMode || 'choose'),
     coverBrain:stableStringify(edition.coverBrain || {}),
@@ -25,12 +31,18 @@ export function capturePrintSetupState(edition = {}, type = 'paperback') {
   };
 }
 
-export function planPrintSetupInvalidation(before = {}, after = {}) {
+export function planPrintSetupInvalidation(before = {}, after = {}, {
+  printDesignWasIntentionallyChanged=false,
+} = {}) {
   const productionChanged = before.production !== after.production;
-  const designChanged = before.design !== after.design;
   const interiorBarcodeChanged = before.includeInterior !== after.includeInterior;
   const isbnChanged = before.isbnMode !== after.isbnMode || before.isbn !== after.isbn;
   const interiorUsesIsbn = Boolean(before.includeInterior || after.includeInterior);
+
+  // Styling changes are invalidated by the styling workflow itself. Print Brain
+  // must not infer an interior change merely because normalization produced a
+  // slightly different serialized design while accepting a cover.
+  const designChanged = Boolean(printDesignWasIntentionallyChanged);
 
   const interiorChanged = Boolean(
     productionChanged ||
