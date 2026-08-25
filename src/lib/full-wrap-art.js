@@ -1,6 +1,6 @@
 import { buildRasterPdf, auditPrintPdfBytes, PRINT_PDF_DPI } from './print-pdf.js';
 import { paperbackSpineFactor } from './cover-brain.js';
-import { barcodePdfVectorCommands, normalizeBarcodeBrain, normalizePrintIsbn } from './barcode-brain.js';
+import { barcodePdfVectorCommands, coverBarcodeRasterSpec, drawBarcodeToCanvas, normalizeBarcodeBrain, normalizePrintIsbn } from './barcode-brain.js';
 import { manufactureProtectedDonorAtlasSpine } from './spine-donor-atlas.js';
 
 export const FULL_WRAP_ART_VERSION = 13;
@@ -1347,11 +1347,35 @@ export async function renderFullWrapArtworkPdf({ asset, geometry, production = {
 
     const normalized=normalizePrintIsbn(isbn);
     if (!normalized.valid) throw new Error('A valid owned print ISBN is required before YasReady can place the cover barcode.');
-    overlayPdf=barcodePdfVectorCommands(normalized.digits,{xIn:b.x,yTopIn:b.y,widthIn:b.width,heightIn:b.height,pageHeightIn:geometry.height});
+
+    // v1.0.44 BARCODE FIDELITY:
+    // The cover must use the exact same 2 × 1.2in / 600 × 360px renderer as the
+    // approved 300-DPI PNG download. Do not substitute the old PDF-only barcode
+    // renderer here: that layout omitted the ISBN label and used bitmap digits.
+    const barcodeSpec=coverBarcodeRasterSpec({
+      dpi,
+      widthIn:Number(b.width),
+      heightIn:Number(b.height),
+    });
+    drawBarcodeToCanvas(ctx,normalized.digits,{
+      x:Number(b.x)*dpi,
+      y:Number(b.y)*dpi,
+      width:barcodeSpec.widthPx,
+      height:barcodeSpec.heightPx,
+      showIsbnLabel:true,
+    });
+    overlayPdf='';
     barcodeInfo={
       placement:'yasready',
       isbn:normalized.digits,
-      vector:true,
+      vector:false,
+      raster:true,
+      rasterDpi:barcodeSpec.dpi,
+      rasterWidthPx:barcodeSpec.widthPx,
+      rasterHeightPx:barcodeSpec.heightPx,
+      renderer:'drawBarcodeToCanvas',
+      exactDownloadPngLayout:true,
+      showIsbnLabel:true,
       backing:plan.backing,
       legacyPlaceholderDetected:legacyPlaceholder,
       backingWidthIn:Number(backing.width),

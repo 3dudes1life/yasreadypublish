@@ -160,7 +160,7 @@ test('1.0.42 cover-only migration preserves the certified 730-page interior',()=
   const kindle=JSON.stringify(old.editions.ebook.releaseGate);
   const migrated=migrateProject(old);
 
-  assert.equal(migrated.appVersion,'1.0.43');
+  assert.equal(migrated.appVersion,'1.0.44');
   assert.equal(migrated.editions.paperback.lastPageCount,730);
   assert.equal(migrated.editions.paperback.lastBuiltAt,builtAt);
   assert.equal(JSON.stringify(migrated.editions.paperback.lastPreflight),preflight);

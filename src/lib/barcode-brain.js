@@ -1,4 +1,5 @@
-export const BARCODE_BRAIN_VERSION = 2;
+export const BARCODE_BRAIN_VERSION = 3;
+export const COVER_BARCODE_RENDER_VERSION = 3;
 export const EAN13_MODULE_COUNT = 95;
 export const KDP_BARCODE_WIDTH_IN = 2;
 export const KDP_BARCODE_HEIGHT_IN = 1.2;
@@ -335,6 +336,23 @@ export function barcodeSvg(value = '', { widthIn = KDP_BARCODE_WIDTH_IN, heightI
   const label = showIsbnLabel ? `<text x="${width/2}" y="105" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="68" letter-spacing="5">${svgText(formatIsbnCompact(encoded.digits))}</text>` : '';
   const digits = `<text x="${width/2}" y="${height-55}" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="92" letter-spacing="14">${encoded.digits}</text>`;
   return `<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" width="${widthIn}in" height="${heightIn}in" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="#fff"/><g fill="#000">${bars.join('')}${label}${digits}</g></svg>`;
+}
+
+
+export function coverBarcodeRasterSpec({ dpi=300, widthIn=KDP_BARCODE_WIDTH_IN, heightIn=KDP_BARCODE_HEIGHT_IN } = {}) {
+  const actualDpi=Math.max(72,Math.round(Number(dpi)||300));
+  const width=Math.max(1,Math.round(Number(widthIn)*actualDpi));
+  const height=Math.max(1,Math.round(Number(heightIn)*actualDpi));
+  return {
+    version:COVER_BARCODE_RENDER_VERSION,
+    dpi:actualDpi,
+    widthIn:Number(widthIn),
+    heightIn:Number(heightIn),
+    widthPx:width,
+    heightPx:height,
+    showIsbnLabel:true,
+    renderer:'drawBarcodeToCanvas',
+  };
 }
 
 export function drawBarcodeToCanvas(ctx, value = '', { x=0, y=0, width=600, height=360, showIsbnLabel=true } = {}) {

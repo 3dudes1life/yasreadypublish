@@ -205,7 +205,7 @@ test('1.0.37 migration invalidates print cover proof but preserves Kindle releas
   const kindle = JSON.stringify(old.editions.ebook.releaseGate);
   const migrated = migrateProject(old);
   assert.equal(migrated.version,37);
-  assert.equal(migrated.appVersion,'1.0.43');
+  assert.equal(migrated.appVersion,'1.0.44');
   assert.equal(migrated.editions.paperback.lastPageCount,null);
   assert.equal(migrated.editions.paperback.lastPdfAudit,null);
   assert.equal(migrated.editions.paperback.lastCoverAudit,null);

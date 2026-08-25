@@ -23,7 +23,7 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
 }
 const main = readFileSync('src/main.js', 'utf8');
 for (const marker of [
-  "const VERSION = '1.0.43'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
+  "const VERSION = '1.0.44'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
   'Amazon KDP · Reflowable EPUB 3', 'Kindle Preview Studio', 'Adjust Layout', 'preview-studio-grid-v110',
   'Kindle Pro consistency scan', '3-View Torture Test', '11 pt reference', 'Semantic Style Palette', 'Content style',
   'saveEbookSemanticStyles', 'Kindle Intelligence', 'Compare Chapters', 'compareKindleChaptersButton', 'Undo', 'Redo',
@@ -52,8 +52,8 @@ for (const dynamicBinding of [
 }
 
 const project = readFileSync('src/lib/project.js', 'utf8');
-if (!project.includes("appVersion: '1.0.43'") || !project.includes('version: 37') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
-  throw new Error('Project app version was not migrated to 1.0.43 Cover Engine v13 state.');
+if (!project.includes("appVersion: '1.0.44'") || !project.includes('version: 37') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
+  throw new Error('Project app version was not migrated to 1.0.44 Cover Barcode Fidelity state.');
 }
 const editions = readFileSync('src/lib/editions.js', 'utf8');
 if (!editions.includes('reviewDecisions:')) throw new Error('Edition normalization does not preserve Kindle review decisions.');
@@ -201,8 +201,8 @@ if (project.includes("function primeDetectedPhysicalIsbn(project, type='paperbac
   throw new Error('1.0.39 ISBN helper still re-normalizes editions and can leave stale print state behind.');
 }
 const barcodeBrainV139 = readFileSync('src/lib/barcode-brain.js','utf8');
-for (const marker of ['BARCODE_BRAIN_VERSION = 2','index-2','index+3','conflictPenalty','detectLabeledPrintIsbn']) {
-  if (!barcodeBrainV139.includes(marker)) throw new Error(`1.0.39 Barcode Brain v2 marker is missing: ${marker}`);
+for (const marker of ['index-2','index+3','conflictPenalty','detectLabeledPrintIsbn']) {
+  if (!barcodeBrainV139.includes(marker)) throw new Error(`1.0.39 Barcode Brain recovery marker is missing: ${marker}`);
 }
 
 const v142Production=fullWrapArt.slice(
@@ -236,6 +236,18 @@ if (v143Production.includes('selectArtworkLockedSpineCandidate(') || v143Product
 if (!project.includes("isAppVersionBefore(priorAppVersion, '1.0.43')")) throw new Error('1.0.43 cover-only migration missing.');
 if (!main.includes('currentInteriorProofSignature') || !main.includes('certifiedProofSignature')) throw new Error('1.0.43 certified-interior reuse gate missing.');
 
+const fullWrapV144 = readFileSync('src/lib/full-wrap-art.js', 'utf8');
+for(const marker of ['coverBarcodeRasterSpec','drawBarcodeToCanvas','exactDownloadPngLayout:true','rasterDpi:barcodeSpec.dpi']){
+  if(!fullWrapV144.includes(marker)) throw new Error(`1.0.44 cover barcode fidelity marker is missing: ${marker}`);
+}
+const barcodeV144 = readFileSync('src/lib/barcode-brain.js','utf8');
+for(const marker of ['BARCODE_BRAIN_VERSION = 3','COVER_BARCODE_RENDER_VERSION = 3','coverBarcodeRasterSpec']){
+  if(!barcodeV144.includes(marker)) throw new Error(`1.0.44 Barcode Brain marker is missing: ${marker}`);
+}
+if(!project.includes("isAppVersionBefore(priorAppVersion, '1.0.44')")){
+  throw new Error('1.0.44 cover-only barcode migration is missing.');
+}
+
 const barcodeBrain = readFileSync('src/lib/barcode-brain.js', 'utf8');
 for (const barcodeMarker of ['encodeEan13','decodeEan13Bits','barcodeRoundTrip','appendInteriorBarcodePages','barcodePdfVectorCommands','barcodeFingerprint']) {
   if (!barcodeBrain.includes(barcodeMarker)) throw new Error(`1.0.34 Barcode Brain is missing: ${barcodeMarker}`);
@@ -247,7 +259,7 @@ for (const barcodeMarker of ['stampBarcodeOnUploadedCoverPdf','PDF_LIB_ESM_URL',
 for (const barcodeMarker of ['BARCODE BRAIN · v1.0.37','printBrainIncludeInteriorBarcode','printBrainCoverBarcode','downloadBarcodeSvg','downloadBarcodePng','Stamp barcode + download KDP cover PDF']) {
   if (!main.includes(barcodeMarker)) throw new Error(`1.0.34 Barcode Brain UI is missing: ${barcodeMarker}`);
 }
-console.log('YasReady Publish v1.0.43 static verification passed.');
+console.log('YasReady Publish v1.0.44 static verification passed.');
 
 
 const amazonPrintHardMode = readFileSync('src/lib/amazon-print-hard-mode.js', 'utf8');

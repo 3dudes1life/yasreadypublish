@@ -33,7 +33,7 @@ function fixture(appVersion){
 
 test('1.0.40 upgrades 1.0.39 once while preserving 730-page ISBN/barcode/Kindle state',()=>{
   const old=fixture('1.0.39'); const kindle=JSON.stringify(old.editions.ebook.releaseGate); const migrated=migrateProject(old);
-  assert.equal(migrated.appVersion,'1.0.43');
+  assert.equal(migrated.appVersion,'1.0.44');
   assert.equal(migrated.editions.paperback.lastPageCount,730);
   assert.equal(migrated.editions.paperback.kdpMetadata.isbn,'9798998826948');
   assert.equal(migrated.editions.paperback.barcodeBrain.includeInterior,true);

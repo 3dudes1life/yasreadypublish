@@ -17,7 +17,7 @@ test('1.0.39 detects a paperback ISBN split across neighboring DOCX blocks', () 
   const detected=detectLabeledPrintIsbn(project,'paperback');
   assert.equal(detected?.isbn,ISBN);
   assert.equal(detected?.blockId,'c');
-  assert.equal(BARCODE_BRAIN_VERSION,2);
+  assert.ok(BARCODE_BRAIN_VERSION >= 2);
 });
 
 test('1.0.39 restores final barcode pagination from a 728-page base', () => {
@@ -107,7 +107,7 @@ test('1.0.39 migration repairs Book 2 ISBN/barcode state and preserves Kindle pr
   };
   const kindle=JSON.stringify(old.editions.ebook.releaseGate);
   const migrated=migrateProject(old);
-  assert.equal(migrated.appVersion,'1.0.43');
+  assert.equal(migrated.appVersion,'1.0.44');
   assert.equal(migrated.editions.paperback.kdpMetadata.isbnMode,'own');
   assert.equal(migrated.editions.paperback.kdpMetadata.isbn,ISBN);
   assert.equal(migrated.editions.paperback.barcodeBrain.enabled,true);

@@ -98,7 +98,7 @@ test('1.0.33 migration forces existing paperback authors to make an explicit cov
   const sourceBefore=JSON.stringify(p.manuscript.blocks);
   const migrated=migrateProject(p);
   assert.equal(migrated.version,37);
-  assert.equal(migrated.appVersion,'1.0.43');
+  assert.equal(migrated.appVersion,'1.0.44');
   assert.equal(migrated.editions.paperback.coverMode,'choose');
   assert.equal(migrated.editions.paperback.lastPageCount,null);
   assert.equal(migrated.editions.paperback.lastPdfAudit,null);

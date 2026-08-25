@@ -3,7 +3,7 @@ import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const VERSION = '1.0.43';
+const VERSION = '1.0.44';
 
 function walk(dir) {
   const out = [];
@@ -121,7 +121,7 @@ for (const marker of ['AMAZON PRINT GATE · v1.0.40','Amazon Paperback Hard Mode
 
 
 const supermanV139Barcode = readFileSync(join(ROOT, 'src/lib/barcode-brain.js'), 'utf8');
-for (const marker of ['BARCODE_BRAIN_VERSION = 2','index-2','index+3','conflictPenalty']) {
+for (const marker of ['index-2','index+3','conflictPenalty']) {
   if (!supermanV139Barcode.includes(marker)) throw new Error(`Missing v1.0.39 ISBN recovery marker: ${marker}`);
 }
 for (const marker of ['PRINT_PDF_VERSION = 4','matterPostDrawAdvance','reconcileBodyAdvance','visibleOverflowDecision','rasterBottomMarginOverflowEvidence','overflowEvidence?.ok === false']) {
@@ -159,6 +159,13 @@ if (!v143SpineProduction.includes('manufactureProtectedDonorAtlasSpine(')) throw
 if (v143SpineProduction.includes('selectArtworkLockedSpineCandidate(')) throw new Error('v11 phase quilting is still an active production call.');
 if (!project.includes("isAppVersionBefore(priorAppVersion, '1.0.43')")) throw new Error('Missing v1.0.43 cover-only migration.');
 if (!main.includes('currentInteriorProofSignature')) throw new Error('Cover engine upgrade cannot reuse certified interior.');
+
+for(const marker of ['coverBarcodeRasterSpec','drawBarcodeToCanvas','exactDownloadPngLayout:true']){
+  if(!fullWrapArt.includes(marker)) throw new Error(`Missing v1.0.44 cover-barcode fidelity marker: ${marker}`);
+}
+if(!project.includes("isAppVersionBefore(priorAppVersion, '1.0.44')")){
+  throw new Error('Missing v1.0.44 cover-only migration.');
+}
 
 const epub = readFileSync(join(ROOT, 'src/lib/epub-export.js'), 'utf8');
 for (const marker of ['epub:type="landmarks"','properties="cover-image"','itemref idref="visible-toc"','text/contents.xhtml','<guide>']) {
