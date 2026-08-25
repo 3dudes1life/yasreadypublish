@@ -1333,54 +1333,21 @@ export async function renderFullWrapArtworkPdf({ asset, geometry, production = {
   const barcode=normalizeBarcodeBrain(barcodeBrain||{});
   let overlayPdf='';
   let barcodeInfo={placement:barcode.coverPlacement,isbn:'',vector:false};
-  if (barcode.coverPlacement==='amazon') {
-    barcodeInfo={placement:'amazon',isbn:'',vector:false,artworkUntouched:true,backing:'none'};
-  } else if (barcode.coverPlacement==='yasready') {
+  if (barcode.coverPlacement!=='none') {
     const b=geometry.barcode;
-    const legacyPlaceholder=detectLegacyBarcodeFootprint(ctx,geometry,dpi);
-    const plan=coverBarcodeBackingPlan({placement:'yasready',legacyPlaceholder});
-    const backing=plan.backing==='legacy-knockout' ? (b.knockout||b) : b;
+    const backing=b?.knockout||b;
+    if (!backing) throw new Error('KDP barcode reserve geometry is unavailable.');
     ctx.save();
     ctx.fillStyle='#ffffff';
     ctx.fillRect(backing.x*dpi,backing.y*dpi,backing.width*dpi,backing.height*dpi);
     ctx.restore();
-
-    const normalized=normalizePrintIsbn(isbn);
-    if (!normalized.valid) throw new Error('A valid owned print ISBN is required before YasReady can place the cover barcode.');
-
-    // v1.0.44 BARCODE FIDELITY:
-    // The cover must use the exact same 2 × 1.2in / 600 × 360px renderer as the
-    // approved 300-DPI PNG download. Do not substitute the old PDF-only barcode
-    // renderer here: that layout omitted the ISBN label and used bitmap digits.
-    const barcodeSpec=coverBarcodeRasterSpec({
-      dpi,
-      widthIn:Number(b.width),
-      heightIn:Number(b.height),
-    });
-    drawBarcodeToCanvas(ctx,normalized.digits,{
-      x:Number(b.x)*dpi,
-      y:Number(b.y)*dpi,
-      width:barcodeSpec.widthPx,
-      height:barcodeSpec.heightPx,
-      showIsbnLabel:true,
-    });
-    overlayPdf='';
     barcodeInfo={
-      placement:'yasready',
-      isbn:normalized.digits,
-      vector:false,
-      raster:true,
-      rasterDpi:barcodeSpec.dpi,
-      rasterWidthPx:barcodeSpec.widthPx,
-      rasterHeightPx:barcodeSpec.heightPx,
-      renderer:'drawBarcodeToCanvas',
-      exactDownloadPngLayout:true,
-      showIsbnLabel:true,
-      backing:plan.backing,
-      legacyPlaceholderDetected:legacyPlaceholder,
-      backingWidthIn:Number(backing.width),
-      backingHeightIn:Number(backing.height),
+      placement:'amazon',isbn:'',vector:false,raster:false,
+      reservedForAmazon:true,barcodePlaced:false,artworkUntouched:false,
+      backing:'amazon-reserve',backingWidthIn:Number(backing.width),backingHeightIn:Number(backing.height),
     };
+  } else {
+    barcodeInfo={placement:'none',isbn:'',vector:false,raster:false,reservedForAmazon:false,barcodePlaced:false,artworkUntouched:true,backing:'none'};
   }
 
   const jpegBytes=dataUrlToJpegBytes(canvas.toDataURL('image/jpeg',1.0));

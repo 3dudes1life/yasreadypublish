@@ -64,25 +64,27 @@ test('1.0.44 approved canvas barcode includes the exact ISBN label and human-rea
   assert.match(calls.texts[1].font,/34px Arial/);
 });
 
-test('1.0.44 manufactured full-wrap cover uses the approved canvas renderer instead of the old PDF-only barcode layout',()=>{
+test('1.0.44 KDP hotfix reserves a blank Amazon zone in manufactured full-wrap covers', () => {
   const source=readFileSync(new URL('../src/lib/full-wrap-art.js',import.meta.url),'utf8');
-  const manufacture=source.slice(
-    source.indexOf("} else if (barcode.coverPlacement==='yasready')"),
-    source.indexOf("const jpegBytes=dataUrlToJpegBytes",source.indexOf("} else if (barcode.coverPlacement==='yasready')")),
-  );
-
-  assert.ok(manufacture.includes('coverBarcodeRasterSpec'));
-  assert.ok(manufacture.includes('drawBarcodeToCanvas'));
-  assert.ok(manufacture.includes('showIsbnLabel:true'));
-  assert.ok(manufacture.includes("exactDownloadPngLayout:true"));
-  assert.ok(!manufacture.includes('barcodePdfVectorCommands(normalized.digits'));
+  const manufacture=source.slice(source.indexOf('const barcode=normalizeBarcodeBrain'),source.indexOf('const jpegBytes='));
+  assert.ok(manufacture.includes("barcode.coverPlacement!=='none'"));
+  assert.ok(manufacture.includes('reservedForAmazon:true'));
+  assert.ok(manufacture.includes('barcodePlaced:false'));
+  assert.ok(manufacture.includes('const backing=b?.knockout||b'));
+  assert.ok(!manufacture.includes('drawBarcodeToCanvas('));
 });
 
-test('1.0.44 cover renderer records a 300-DPI raster barcode instead of claiming the old vector barcode was used',()=>{
-  const source=readFileSync(new URL('../src/lib/full-wrap-art.js',import.meta.url),'utf8');
-  assert.ok(source.includes("renderer:'drawBarcodeToCanvas'"));
-  assert.ok(source.includes('rasterDpi:barcodeSpec.dpi'));
-  assert.ok(source.includes('vector:false'));
+test('1.0.44 KDP hotfix removes custom retail barcode output from built and uploaded cover PDFs', () => {
+  const built=readFileSync(new URL('../src/lib/cover-pdf.js',import.meta.url),'utf8');
+  assert.ok(built.includes("const overlayPdf = '';"));
+  assert.ok(built.includes('reservedForAmazon:barcodeBrain.coverPlacement'));
+  assert.ok(!built.includes('AMAZON BARCODE RESERVED'));
+  assert.ok(!built.includes('barcodePdfVectorCommands('));
+  const uploaded=readFileSync(new URL('../src/lib/barcode-cover-stamp.js',import.meta.url),'utf8');
+  const production=uploaded.slice(uploaded.indexOf('export async function stampBarcodeOnUploadedCoverPdf'));
+  assert.ok(production.includes('reservedForAmazon:true'));
+  assert.ok(production.includes('barcodePlaced:false'));
+  assert.ok(!production.includes('for (let i=0;i<encoded.bits.length;i+=1)'));
 });
 
 test('1.0.44 migration preserves the certified 730-page interior and invalidates cover proof only',()=>{

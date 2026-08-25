@@ -1,6 +1,6 @@
 import { buildRasterPdf, auditPrintPdfBytes, PRINT_PDF_DPI } from './print-pdf.js';
 import { coverBrainChecks, coverGeometry, COVER_FILE_LIMIT_BYTES } from './cover-brain.js';
-import { barcodePdfVectorCommands, normalizeBarcodeBrain } from './barcode-brain.js';
+import { normalizeBarcodeBrain } from './barcode-brain.js';
 
 function loadImage(dataUrl) {
   return new Promise((resolve, reject) => {
@@ -130,11 +130,6 @@ export async function renderCoverPdf({ project, editionType = 'paperback', produ
     ctx.save();
     ctx.fillStyle='#ffffff';
     ctx.fillRect(px(knockout.x), px(knockout.y), px(knockout.width), px(knockout.height));
-    ctx.fillRect(px(b.x), px(b.y), px(b.width), px(b.height));
-    if (barcodeBrain.coverPlacement === 'amazon') {
-      ctx.fillStyle='#777777'; ctx.font=`400 ${Math.round(0.055*dpi)}px Arial, sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText('AMAZON BARCODE RESERVED', px(b.x+b.width/2), px(b.y+b.height/2), px(b.width-0.12));
-    }
     ctx.restore();
   }
 
@@ -153,9 +148,8 @@ export async function renderCoverPdf({ project, editionType = 'paperback', produ
   }
 
   const jpegBytes = dataUrlToBytes(canvas.toDataURL('image/jpeg', 0.94));
-  const overlayPdf = barcodeBrain.coverPlacement === 'yasready'
-    ? barcodePdfVectorCommands(brain.barcodeIsbn, { xIn:geometry.barcode.x, yTopIn:geometry.barcode.y, widthIn:geometry.barcode.width, heightIn:geometry.barcode.height, pageHeightIn:geometry.height })
-    : '';
+  // Amazon/KDP places the retail cover barcode. YasReady emits no barcode overlay.
+  const overlayPdf = '';
   const pdf = buildRasterPdf({ pages:[{ jpegBytes, widthPx, heightPx, overlayPdf }], pageWidthIn:geometry.width, pageHeightIn:geometry.height, dpi });
   const baseAudit = auditPrintPdfBytes(pdf.bytes, { pageCount:1, pageWidthIn:geometry.width, pageHeightIn:geometry.height, dpi });
   const coverChecks = [...brain.checks];
@@ -167,7 +161,7 @@ export async function renderCoverPdf({ project, editionType = 'paperback', produ
     bytes:pdf.bytes,
     blob:new Blob([pdf.bytes], { type:'application/pdf' }),
     geometry,
-    barcode:{ placement:barcodeBrain.coverPlacement, isbn:brain.barcodeIsbn || '', vectorOverlay:Boolean(overlayPdf) },
+    barcode:{ placement:barcodeBrain.coverPlacement === 'none' ? 'none' : 'amazon', isbn:brain.barcodeIsbn || '', vectorOverlay:false, reservedForAmazon:barcodeBrain.coverPlacement !== 'none' },
     audit:{ ready:errors===0, checks:[...baseAudit.checks,...coverChecks], summary:{errors,warnings,passes:baseAudit.checks.length+coverChecks.length-errors-warnings}, fileSize:pdf.bytes.length },
   };
 }

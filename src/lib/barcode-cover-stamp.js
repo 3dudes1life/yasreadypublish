@@ -77,17 +77,11 @@ export async function stampBarcodeOnUploadedCoverPdf({ asset, geometry, isbn, le
   // remaining visible around a newly-stamped barcode.
   page.drawRectangle({ x:kx, y:ky, width:kw, height:kh, color:white, borderWidth:0 });
   page.drawRectangle({ x, y, width:w, height:h, color:white, borderWidth:0 });
-  const quiet = w*0.05; const topPad=h*0.16; const digitArea=h*0.23; const barH=h-topPad-digitArea;
-  const module=(w-quiet*2)/95;
-  for (let i=0;i<encoded.bits.length;i+=1) {
-    if (encoded.bits[i] !== '1') continue;
-    const guard = i<3 || (i>=45 && i<50) || i>=92;
-    page.drawRectangle({ x:x+quiet+i*module, y:y+digitArea, width:module*1.02, height:barH+(guard?h*0.055:0), color:black, borderWidth:0 });
-  }
-  const cell=Math.min(h*0.0205,(w*0.84)/(13*6)); const glyph=cell*5; const gap=cell*1.15; const total=13*glyph+12*gap;
-  let dx=x+(w-total)/2; const dy=y+h*0.035;
-  for (const digit of encoded.digits) { drawDigit(page,digit,dx,dy,cell,black); dx += glyph+gap; }
-
+  // Amazon/KDP places the retail barcode; keep the knockout above empty.
   const output = await pdfDoc.save({ useObjectStreams:false, addDefaultPage:false, updateFieldAppearances:false });
-  return { bytes:output instanceof Uint8Array ? output : new Uint8Array(output), isbn:normalized.digits, widthIn:widthPt/72, heightIn:heightPt/72, engine:'pdf-lib-1.17.1', vector:true };
+  return {
+    bytes:output instanceof Uint8Array ? output : new Uint8Array(output),
+    isbn:normalized.digits,widthIn:widthPt/72,heightIn:heightPt/72,
+    engine:'pdf-lib-1.17.1',vector:false,reservedForAmazon:true,barcodePlaced:false,
+  };
 }

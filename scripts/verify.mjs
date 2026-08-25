@@ -155,7 +155,7 @@ if (projectV140.includes("if (priorAppVersion !== '1.0.38')") || projectV140.inc
 const coverBrain = readFileSync('src/lib/cover-brain.js', 'utf8');
 for (const marker of ['coverGeometry','coverBrainChecks','paperbackSpineWidth','hardcoverGeometryConfirmed','0.0025','0.51','0.4','0.635']) if (!coverBrain.includes(marker)) throw new Error(`1.0.30 Cover Brain is missing: ${marker}`);
 const coverPdf = readFileSync('src/lib/cover-pdf.js', 'utf8');
-for (const marker of ['renderCoverPdf','buildRasterPdf','auditPrintPdfBytes','AMAZON BARCODE RESERVED']) if (!coverPdf.includes(marker)) throw new Error(`1.0.30 Cover PDF pipeline is missing: ${marker}`);
+for (const marker of ['renderCoverPdf','buildRasterPdf','auditPrintPdfBytes','reservedForAmazon']) if (!coverPdf.includes(marker)) throw new Error(`1.0.30 Cover PDF pipeline is missing: ${marker}`);
 for (const marker of ['COVER BRAIN + BARCODE BRAIN · v1.0.37','buildCoverPdf','Save Cover Brain']) if (!main.includes(marker)) throw new Error(`1.0.30 Cover Brain UI is missing: ${marker}`);
 for (const marker of ['renderBackMatterFeatureSection','matter-about-authors','matter-join-journey','sanitizeKindleProductionXhtml','sanitizeKindleProductionCss']) {
   if (!epub.includes(marker)) throw new Error(`1.0.32 Kindle back-matter/package repair is missing: ${marker}`);
@@ -237,9 +237,11 @@ if (!project.includes("isAppVersionBefore(priorAppVersion, '1.0.43')")) throw ne
 if (!main.includes('currentInteriorProofSignature') || !main.includes('certifiedProofSignature')) throw new Error('1.0.43 certified-interior reuse gate missing.');
 
 const fullWrapV144 = readFileSync('src/lib/full-wrap-art.js', 'utf8');
-for(const marker of ['coverBarcodeRasterSpec','drawBarcodeToCanvas','exactDownloadPngLayout:true','rasterDpi:barcodeSpec.dpi']){
-  if(!fullWrapV144.includes(marker)) throw new Error(`1.0.44 cover barcode fidelity marker is missing: ${marker}`);
+for(const marker of ["barcode.coverPlacement!=='none'",'reservedForAmazon:true','barcodePlaced:false',"backing:'amazon-reserve'"]){
+  if(!fullWrapV144.includes(marker)) throw new Error(`1.0.44 Amazon cover-barcode reserve marker is missing: ${marker}`);
 }
+const v144BarcodeProduction=fullWrapV144.slice(fullWrapV144.indexOf('const barcode=normalizeBarcodeBrain'),fullWrapV144.indexOf('const jpegBytes='));
+if(v144BarcodeProduction.includes('drawBarcodeToCanvas(') || v144BarcodeProduction.includes('barcodePdfVectorCommands(')) throw new Error('1.0.44 custom retail cover barcode renderer is still active.');
 const barcodeV144 = readFileSync('src/lib/barcode-brain.js','utf8');
 for(const marker of ['BARCODE_BRAIN_VERSION = 3','COVER_BARCODE_RENDER_VERSION = 3','coverBarcodeRasterSpec']){
   if(!barcodeV144.includes(marker)) throw new Error(`1.0.44 Barcode Brain marker is missing: ${marker}`);
@@ -256,7 +258,7 @@ const barcodeStamp = readFileSync('src/lib/barcode-cover-stamp.js', 'utf8');
 for (const barcodeMarker of ['stampBarcodeOnUploadedCoverPdf','PDF_LIB_ESM_URL','pdf-lib@1.17.1']) {
   if (!barcodeStamp.includes(barcodeMarker)) throw new Error(`1.0.34 uploaded-cover barcode stamping is missing: ${barcodeMarker}`);
 }
-for (const barcodeMarker of ['BARCODE BRAIN · v1.0.37','printBrainIncludeInteriorBarcode','printBrainCoverBarcode','downloadBarcodeSvg','downloadBarcodePng','Stamp barcode + download KDP cover PDF']) {
+for (const barcodeMarker of ['BARCODE BRAIN · v1.0.37','printBrainIncludeInteriorBarcode','printBrainCoverBarcode','downloadBarcodeSvg','downloadBarcodePng','Prepare Amazon/KDP cover PDF']) {
   if (!main.includes(barcodeMarker)) throw new Error(`1.0.34 Barcode Brain UI is missing: ${barcodeMarker}`);
 }
 console.log('YasReady Publish v1.0.44 static verification passed.');
