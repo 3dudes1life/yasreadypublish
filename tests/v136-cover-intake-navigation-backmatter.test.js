@@ -84,7 +84,7 @@ test('1.0.36 migration invalidates print production proofs while preserving earn
   const kindle=JSON.stringify(old.editions.ebook.releaseGate);
   const migrated=migrateProject(old);
   assert.equal(migrated.version,37);
-  assert.equal(migrated.appVersion,'1.0.39');
+  assert.equal(migrated.appVersion,'1.0.40');
   assert.equal(migrated.editions.paperback.lastPageCount,null);
   assert.equal(migrated.editions.paperback.lastPdfAudit,null);
   assert.equal(migrated.editions.paperback.lastCoverAudit,null);

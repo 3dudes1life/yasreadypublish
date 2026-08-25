@@ -4,7 +4,7 @@ import { runningHeaderText } from './structure-model.js';
 import { printMatterStyleSpec } from './print-matter.js';
 import { drawBarcodeToCanvas } from './barcode-brain.js';
 
-export const PRINT_PDF_VERSION = 3;
+export const PRINT_PDF_VERSION = 4;
 export const PRINT_PDF_DPI = 300;
 export const KDP_PRINT_FILE_LIMIT_BYTES = 650 * 1024 * 1024;
 
@@ -503,9 +503,49 @@ function rasterContentInkEvidence(ctx, canvas, { page, design, production } = {}
 }
 
 
+function rasterBottomMarginOverflowEvidence(ctx, canvas, { page, design, production, contentX=0, contentWidth=0, contentBottom=0, cursorOverflowPx=0, toleranceIn=0.02 } = {}) {
+  const cursorOverflow=Math.max(0,Number(cursorOverflowPx)||0);
+  if(cursorOverflow<=1 || page?.intentionalBlank || page?.barcodePage) return {ok:true,cursorOverflowPx:cursorOverflow,darkSamples:0,scanned:false};
+  const dpi=PRINT_PDF_DPI;
+  const bleed=Boolean(production?.bleed);
+  const trimOffsetY=bleed ? 0.125*dpi : 0;
+  const trimBottom=Math.min(canvas.height,Math.floor(trimOffsetY+design.trimHeight*dpi));
+  const tolerancePx=Math.max(1,Math.round(Math.max(0,Number(toleranceIn)||0)*dpi));
+  const y=Math.max(0,Math.min(trimBottom,Math.floor(contentBottom+tolerancePx)));
+  const x=Math.max(0,Math.floor(contentX));
+  const width=Math.max(1,Math.min(canvas.width-x,Math.floor(contentWidth)));
+  const height=Math.max(0,trimBottom-y);
+  if(!height) return {ok:true,cursorOverflowPx:cursorOverflow,darkSamples:0,scanned:false,tolerancePx};
+  const image=ctx.getImageData(x,y,width,height);
+  const step=2;
+  let darkSamples=0;
+  for(let py=0;py<image.height;py+=step){
+    for(let px=0;px<image.width;px+=step){
+      const i=(py*image.width+px)*4;
+      const r=image.data[i],g=image.data[i+1],b=image.data[i+2];
+      if(r<235||g<235||b<235){
+        darkSamples+=1;
+        if(visibleOverflowDecision({cursorOverflowPx:cursorOverflow,darkSamples})) return {ok:false,cursorOverflowPx:cursorOverflow,darkSamples,scanned:true,tolerancePx};
+      }
+    }
+  }
+  return {ok:true,cursorOverflowPx:cursorOverflow,darkSamples,scanned:true,tolerancePx};
+}
+
 export function matterPostDrawAdvance({ measuredHeightPx=0, topPx=0, bottomPx=0, drawnHeightPx=0 } = {}) {
   const allocatedInner=Math.max(0,Number(measuredHeightPx||0)-Number(topPx||0)-Number(bottomPx||0));
   return Math.max(allocatedInner,Number(drawnHeightPx||0))+Math.max(0,Number(bottomPx||0));
+}
+
+export function reconcileBodyAdvance({ measuredHeightPx=0, drawnHeightPx=0, tolerancePx=PRINT_PDF_DPI*0.02 } = {}) {
+  const measured=Math.max(0,Number(measuredHeightPx)||0);
+  const drawn=Math.max(0,Number(drawnHeightPx)||0);
+  const tolerance=Math.max(0,Number(tolerancePx)||0);
+  return drawn > measured + tolerance ? drawn : measured;
+}
+
+export function visibleOverflowDecision({ cursorOverflowPx=0, darkSamples=0 } = {}) {
+  return Number(cursorOverflowPx||0)>1 && Number(darkSamples||0)>=3;
 }
 
 function drawWrappedFragment(ctx, fragment, block, design, { x, y, width, fontSizePt, lineHeight, alignment = 'left', firstIndentIn = 0, bold = false, italic = false, runsOverride = null } = {}) {
@@ -665,9 +705,14 @@ function renderPreviewPageToCanvas(ctx, canvas, { page, design, project, product
       const indent = fragment.kind === 'body' && !fragment.continuation && !fragment.suppressIndent ? design.firstLineIndent : 0;
       const alignment = fragment.kind === 'body' ? design.bodyAlignment : fragment.kind === 'text-message' ? 'left' : 'left';
       const drawnBodyHeight=drawWrappedFragment(ctx, fragment, block, design, { x:contentX, y, width:contentWidth, fontSizePt:design.bodyFontSize, lineHeight:design.lineHeight, alignment, firstIndentIn:indent });
-      y += Math.max(heightPx,drawnBodyHeight);
+      y += reconcileBodyAdvance({ measuredHeightPx:heightPx, drawnHeightPx:drawnBodyHeight });
     }
   }
+
+  // v1.0.40: cursor math is diagnostic; actual raster ink is the blocker.
+  // Audit before running headers/folios so page furniture cannot create a false overflow.
+  const cursorOverflowPx=Math.max(0,y-contentBottom);
+  const overflowEvidence=rasterBottomMarginOverflowEvidence(ctx,canvas,{page,design,production,contentX,contentWidth,contentBottom,cursorOverflowPx});
 
   if (!page.intentionalBlank && design.runningHeaders && page.showRunningHeader) {
     const headerText = runningHeaderText({ side:page.side, projectTitle:project.title || '', author:project.author || '', chapterTitle:page.chapterTitle || '', mode:design.runningHeaderMode });
@@ -695,7 +740,7 @@ function renderPreviewPageToCanvas(ctx, canvas, { page, design, project, product
     ctx.fillText(text, fx, baseline);
   }
   ctx.restore();
-  return { finalY:y, contentBottom, overflowPx:Math.max(0,y-contentBottom) };
+  return { finalY:y, contentBottom, overflowPx:cursorOverflowPx, overflowEvidence };
 }
 
 function canvasToJpegBytes(canvas, quality = 0.98) {
@@ -739,8 +784,8 @@ export async function renderProductionPrintPdf({ project, preview, editionType =
   for (let index = 0; index < preview.pages.length; index += 1) {
     const page = preview.pages[index];
     const pageFlow=renderPreviewPageToCanvas(ctx, canvas, { page, design, project, production, blocksById });
-    if (pageFlow?.overflowPx > 1) {
-      throw new Error(`Print Fidelity blocked export: physical page ${index + 1} exceeded the content box by ${(pageFlow.overflowPx/PRINT_PDF_DPI).toFixed(3)} in after real 300-DPI line wrapping.`);
+    if (pageFlow?.overflowEvidence?.ok === false) {
+      throw new Error(`Print Fidelity blocked export: physical page ${index + 1} painted visible manuscript content below the safe content box after real 300-DPI rendering (cursor drift ${(pageFlow.overflowPx/PRINT_PDF_DPI).toFixed(3)} in).`);
     }
 
     // Container geometry is not enough. For semantic book-matter pages, prove

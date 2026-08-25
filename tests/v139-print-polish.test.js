@@ -29,11 +29,13 @@ test('1.0.39 restores final barcode pagination from a 728-page base', () => {
 });
 
 test('1.0.39 back-matter renderer advances by actual canvas wrapping', () => {
-  assert.equal(PRINT_PDF_VERSION,3);
+  assert.equal(PRINT_PDF_VERSION,4);
   assert.equal(matterPostDrawAdvance({measuredHeightPx:100,topPx:10,bottomPx:10,drawnHeightPx:110}),120);
   const source=readFileSync(new URL('../src/lib/print-pdf.js',import.meta.url),'utf8');
   assert.ok(source.includes('const drawnHeight=drawWrappedFragment'));
-  assert.ok(source.includes('pageFlow?.overflowPx > 1'));
+  assert.ok(source.includes('overflowEvidence?.ok === false'));
+  assert.ok(source.includes('reconcileBodyAdvance'));
+  assert.ok(!source.includes('if (pageFlow?.overflowPx > 1)'));
   assert.ok(source.includes('const drawnBodyHeight=drawWrappedFragment'));
 });
 
@@ -105,7 +107,7 @@ test('1.0.39 migration repairs Book 2 ISBN/barcode state and preserves Kindle pr
   };
   const kindle=JSON.stringify(old.editions.ebook.releaseGate);
   const migrated=migrateProject(old);
-  assert.equal(migrated.appVersion,'1.0.39');
+  assert.equal(migrated.appVersion,'1.0.40');
   assert.equal(migrated.editions.paperback.kdpMetadata.isbnMode,'own');
   assert.equal(migrated.editions.paperback.kdpMetadata.isbn,ISBN);
   assert.equal(migrated.editions.paperback.barcodeBrain.enabled,true);

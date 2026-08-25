@@ -3,10 +3,10 @@ import { paperbackSpineFactor } from './cover-brain.js';
 import { barcodePdfVectorCommands, normalizeBarcodeBrain, normalizePrintIsbn } from './barcode-brain.js';
 
 export const FULL_WRAP_ART_VERSION = 9;
-// v8: protected-content 2D background synthesis + native-core preservation.
+// v9: unified protected-content 2D background + artwork-only preservation.
 // Legacy static-audit capability marker: Seamless spine expansion.
-// Typography/high-detail pixels are removed from the stretchable underlay before expansion;
-// the original spine center is then composited back at exact 1:1 raster scale.
+// Typography/ornament is removed from the stretchable underlay before expansion;
+// only protected artwork is restored at exact 1:1 scale — never the old spine rectangle.
 
 function clamp(n, min, max) { return Math.min(max, Math.max(min, Number(n) || 0)); }
 function quantile(values, q) {
@@ -72,7 +72,7 @@ export function analyzeFullWrapArtwork({ asset, geometry, production = {}, pageC
   checks.push({ id:'wrap-art-spine-adapter', status:ratioMatch || targetCanExtendSpine ? 'pass' : 'error', label:'Content-aware spine retargeting', message:ratioMatch
     ? 'No spine adaptation is needed.'
     : targetCanExtendSpine
-      ? `YasReady will keep the front and back panels fixed, remove typography/high-detail pixels from the stretchable background field, expand that cleaned 2D texture once, then composite the original spine center back at exact 1:1 raster scale so lettering stays crisp while expanding from ${sourceSpineIn.toFixed(3)} to ${targetSpine.toFixed(3)} in.`
+      ? `YasReady will keep the front and back panels fixed, remove typography/high-detail pixels from the stretchable background field, expand that cleaned 2D texture once, then restore only the original typography/ornament at exact 1:1 raster scale—never the old spine background rectangle—while expanding from ${sourceSpineIn.toFixed(3)} to ${targetSpine.toFixed(3)} in.`
       : `The source spine (${Math.max(0,sourceSpineIn).toFixed(3)} in) is wider than the current ${targetSpine.toFixed(3)} in spine. YasReady will not crop finished spine artwork automatically.` });
   const resolutionStatus = effectivePpi >= 295 ? 'pass' : effectivePpi >= 250 ? 'warning' : 'error';
   checks.push({ id:'wrap-art-resolution', status:resolutionStatus, label:'Full-wrap artwork resolution', message:`Effective source resolution is about ${Math.round(Number.isFinite(effectivePpi) ? effectivePpi : 0)} PPI at its inferred physical size.${effectivePpi >= 295 ? ' Production artwork meets the 300-PPI target.' : ` Use the original high-resolution export; about ${Math.ceil(sourceWidthIn*300)} × ${Math.ceil(targetHeight*300)}px would provide 300 PPI at this source geometry.`}` });

@@ -107,7 +107,7 @@ test('1.0.14 migration advances schema and creates review state without changing
   const p=project();
   const before=JSON.stringify(p.manuscript.blocks);
   assert.equal(p.version, 37);
-  assert.equal(p.appVersion, '1.0.39');
+  assert.equal(p.appVersion, '1.0.40');
   assert.deepEqual(p.editions.ebook.reviewDecisions,{});
   assert.equal(JSON.stringify(p.manuscript.blocks),before);
 });

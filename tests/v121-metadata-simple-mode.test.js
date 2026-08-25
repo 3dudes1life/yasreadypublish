@@ -21,7 +21,7 @@ test('1.0.22 migration preserves manuscript and schema while bumping app version
     design:{print:{},ebook:{}},
     editions:{ebook:{enabled:true,design:{language:'en',publisher:'Imprint',themeId:'tres-amigos-private',themeStudio:{themeId:'tres-amigos-private',chapterDivider:'none'}},reviewDecisions:{},releaseGate:{version:1}},paperback:{enabled:false,design:{}},hardcover:{enabled:false,design:{}},activePrint:'paperback'}
   });
-  assert.equal(p.appVersion, '1.0.39');
+  assert.equal(p.appVersion, '1.0.40');
   assert.equal(p.version, 37);
   assert.equal(p.manuscript.blocks[0].text,'Exact words stay exact.');
   assert.equal(p.editions.ebook.design.language,'en');

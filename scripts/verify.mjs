@@ -23,7 +23,7 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
 }
 const main = readFileSync('src/main.js', 'utf8');
 for (const marker of [
-  "const VERSION = '1.0.39'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
+  "const VERSION = '1.0.40'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
   'Amazon KDP · Reflowable EPUB 3', 'Kindle Preview Studio', 'Adjust Layout', 'preview-studio-grid-v110',
   'Kindle Pro consistency scan', '3-View Torture Test', '11 pt reference', 'Semantic Style Palette', 'Content style',
   'saveEbookSemanticStyles', 'Kindle Intelligence', 'Compare Chapters', 'compareKindleChaptersButton', 'Undo', 'Redo',
@@ -52,8 +52,8 @@ for (const dynamicBinding of [
 }
 
 const project = readFileSync('src/lib/project.js', 'utf8');
-if (!project.includes("appVersion: '1.0.39'") || !project.includes('version: 37') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
-  throw new Error('Project app version was not migrated to 1.0.39 Print Polish state.');
+if (!project.includes("appVersion: '1.0.40'") || !project.includes('version: 37') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
+  throw new Error('Project app version was not migrated to 1.0.40 Production Unblock state.');
 }
 const editions = readFileSync('src/lib/editions.js', 'utf8');
 if (!editions.includes('reviewDecisions:')) throw new Error('Edition normalization does not preserve Kindle review decisions.');
@@ -135,7 +135,7 @@ if (!readFileSync('src/lib/kindle-quality.js','utf8').includes('effectiveStats(p
 
 const printPdf = readFileSync('src/lib/print-pdf.js','utf8');
 for (const marker of ['renderProductionPrintPdf','buildRasterPdf','auditPrintPdfBytes','PRINT_PDF_DPI = 300','/MediaBox','/DCTDecode']) if (!printPdf.includes(marker)) throw new Error(`1.0.29 Print PDF Hard Mode is missing: ${marker}`);
-for (const marker of ['PRINT_PDF_VERSION = 3','auditPrintFrontMatterManifest','content-fidelity','runsForLocalRange','rasterContentInkEvidence']) {
+for (const marker of ['PRINT_PDF_VERSION = 4','auditPrintFrontMatterManifest','content-fidelity','runsForLocalRange','rasterContentInkEvidence']) {
   if (!printPdf.includes(marker)) throw new Error(`1.0.38 Print Fidelity Recovery is missing: ${marker}`);
 }
 const preflightV138 = readFileSync('src/lib/preflight-model.js', 'utf8');
@@ -148,6 +148,10 @@ if (!main.includes('certifiedProofSignature') || !main.includes('liveProofSignat
 if (main.includes('const preflightForCover = currentPreflight(false);')) {
   throw new Error('1.0.38 cover manufacture still contains the false Story-Lock preflight bug.');
 }
+const projectV140 = readFileSync('src/lib/project.js','utf8');
+for (const marker of ['isAppVersionBefore', "isAppVersionBefore(priorAppVersion, '1.0.38')", "isAppVersionBefore(priorAppVersion, '1.0.39')", "isAppVersionBefore(priorAppVersion, '1.0.40')"]) if (!projectV140.includes(marker)) throw new Error(`1.0.40 migration guard missing: ${marker}`);
+if (projectV140.includes("if (priorAppVersion !== '1.0.38')") || projectV140.includes("if (priorAppVersion !== '1.0.39')")) throw new Error('Non-monotonic print migration guard remains.');
+
 const coverBrain = readFileSync('src/lib/cover-brain.js', 'utf8');
 for (const marker of ['coverGeometry','coverBrainChecks','paperbackSpineWidth','hardcoverGeometryConfirmed','0.0025','0.51','0.4','0.635']) if (!coverBrain.includes(marker)) throw new Error(`1.0.30 Cover Brain is missing: ${marker}`);
 const coverPdf = readFileSync('src/lib/cover-pdf.js', 'utf8');
@@ -183,13 +187,14 @@ for (const marker of ['matter-back-heading','matter-back-body',"alignment:'cente
   if (!printMatterV136.includes(marker)) throw new Error(`1.0.37 back-matter alignment is missing: ${marker}`);
 }
 
-for (const marker of ['matterPostDrawAdvance','pageFlow?.overflowPx > 1','const drawnBodyHeight=drawWrappedFragment','PRINT_PDF_VERSION = 3']) {
-  if (!printPdf.includes(marker)) throw new Error(`1.0.39 Print PDF overlap guard is missing: ${marker}`);
+for (const marker of ['matterPostDrawAdvance','reconcileBodyAdvance','visibleOverflowDecision','rasterBottomMarginOverflowEvidence','overflowEvidence?.ok === false','PRINT_PDF_VERSION = 4']) {
+  if (!printPdf.includes(marker)) throw new Error(`1.0.40 Print PDF visible-overflow guard is missing: ${marker}`);
 }
+if (printPdf.includes('if (pageFlow?.overflowPx > 1)')) throw new Error('Logical cursor drift is still a production blocker.');
 for (const marker of ['FULL_WRAP_ART_VERSION = 9','compositeProtectedSpineArtwork','artworkOnlyOverlay:true','fullNativeCore:false','coverBarcodeBackingPlan','artworkUntouched:true']) {
   if (!fullWrapArt.includes(marker)) throw new Error(`1.0.39 Cover Engine v9 marker is missing: ${marker}`);
 }
-if (!project.includes('primeDetectedPhysicalIsbn') || !project.includes("project.appVersion = '1.0.39'")) {
+if (!project.includes('primeDetectedPhysicalIsbn') || !project.includes("project.appVersion = '1.0.40'")) {
   throw new Error('1.0.39 ISBN/barcode migration recovery is missing.');
 }
 if (project.includes("function primeDetectedPhysicalIsbn(project, type='paperback') {\n  ensureEditions(project);")) {
@@ -211,7 +216,7 @@ for (const barcodeMarker of ['stampBarcodeOnUploadedCoverPdf','PDF_LIB_ESM_URL',
 for (const barcodeMarker of ['BARCODE BRAIN · v1.0.37','printBrainIncludeInteriorBarcode','printBrainCoverBarcode','downloadBarcodeSvg','downloadBarcodePng','Stamp barcode + download KDP cover PDF']) {
   if (!main.includes(barcodeMarker)) throw new Error(`1.0.34 Barcode Brain UI is missing: ${barcodeMarker}`);
 }
-console.log('YasReady Publish v1.0.39 static verification passed.');
+console.log('YasReady Publish v1.0.40 static verification passed.');
 
 
 const amazonPrintHardMode = readFileSync('src/lib/amazon-print-hard-mode.js', 'utf8');
@@ -227,6 +232,6 @@ for (const marker of ['buildPrintReleaseGate','printReleaseToken','freezePrintRe
 }
 if (main.includes('id="confirmPhysicalProof"') || main.includes('Physical proof approved')) throw new Error('1.0.35 must not make physical proof a YasReady release-gate control.');
 if (!printGate.includes("PRINT_EXTERNAL_CHECKS = Object.freeze(['kdpPrintPreviewApproved'])")) throw new Error('1.0.35 external print gate must contain only KDP Print Previewer confirmation.');
-for (const marker of ['AMAZON PRINT GATE · v1.0.37','Amazon Paperback Hard Mode','Ready for KDP Print Previewer','Confirm KDP Print Previewer','Download Print Gate report','NEXT PRINT ACTION']) {
+for (const marker of ['AMAZON PRINT GATE · v1.0.40','Amazon Paperback Hard Mode','Ready for KDP Print Previewer','Confirm KDP Print Previewer','Download Print Gate report','NEXT PRINT ACTION']) {
   if (!main.includes(marker)) throw new Error(`1.0.32 Amazon Print Gate UI is missing: ${marker}`);
 }

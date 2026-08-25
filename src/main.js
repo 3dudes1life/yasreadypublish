@@ -79,7 +79,7 @@ import {
   kindleReleaseReport, markAllCurrentReviewsIntentional, markKindleVisualProofComplete, setKindleExternalConfirmation,
 } from './lib/kindle-release-gate.js';
 
-const VERSION = '1.0.39';
+const VERSION = '1.0.40';
 // Legacy capability labels retained for regression discovery only (not default UI): Amazon KDP · Reflowable EPUB 3 · Kindle Preview Studio · Semantic Style Palette · Kindle Release Gate · v1.0.16
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
@@ -1229,7 +1229,7 @@ function renderPrintReleaseGate() {
   const checks = gate.checks.map((item) => `<div class="release-a11y-row ${item.status}"><span>${item.status === 'pass' ? '✓' : item.status === 'warning' ? '!' : '×'}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.message)}</small></div></div>`).join('');
   const hardChecks = hard.checks.map((item) => `<div class="release-a11y-row ${item.status}"><span>${item.status === 'pass' ? '✓' : item.status === 'warning' ? '!' : '×'}</span><div><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.message)}</small></div></div>`).join('');
   return `<section class="kindle-release-gate ${gate.kdpPublishReady ? 'ready' : gate.readyForKdpPreviewer ? 'ready' : gate.technicalReady ? 'review' : 'blocked'}" id="printReleaseGate">
-    <div class="kindle-release-head"><div><div class="eyebrow">AMAZON PRINT GATE · v1.0.37</div><h3>${headline}</h3><p>YasReady binds the exact interior PDF, cover PDF, final page count, barcode, manufacturing settings, and KDP metadata into one release token. Amazon confirmations expire automatically if any production file changes.</p></div><div class="kindle-release-score"><strong>${gate.pageCount}</strong><span>pages</span></div></div>
+    <div class="kindle-release-head"><div><div class="eyebrow">AMAZON PRINT GATE · v1.0.40</div><h3>${headline}</h3><p>YasReady binds the exact interior PDF, cover PDF, final page count, barcode, manufacturing settings, and KDP metadata into one release token. Amazon confirmations expire automatically if any production file changes.</p></div><div class="kindle-release-score"><strong>${gate.pageCount}</strong><span>pages</span></div></div>
     ${state.printGateMessage ? `<div class="notice info">${escapeHtml(state.printGateMessage)}</div>` : ''}
     <div class="release-gate-steps">${steps}</div>
     <div class="release-gate-summary"><div><strong>${gate.interiorCurrent ? 'YES' : 'NO'}</strong><span>interior current</span></div><div><strong>${gate.coverCurrent ? 'YES' : 'NO'}</strong><span>cover current</span></div><div><strong>${gate.hardModeReady ? 'YES' : 'NO'}</strong><span>Hard Mode</span></div><div><strong>${gate.kdpPublishReady ? 'YES' : 'NO'}</strong><span>KDP ready</span></div></div>

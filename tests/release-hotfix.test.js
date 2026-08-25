@@ -14,7 +14,7 @@ test('1.0.4 retains 1.0.1 migration and the old Tres Amigos paragraph gap and Co
   const before = project.manuscript.blocks[0].text;
   migrateProject(project);
   assert.equal(project.version, 37);
-  assert.equal(project.appVersion, '1.0.39');
+  assert.equal(project.appVersion, '1.0.40');
   assert.equal(project.design.print.paragraphGap, 0.12);
   assert.equal(project.design.print.tocStartSide, 'left');
   assert.equal(project.manuscript.blocks[0].text, before);
