@@ -59,7 +59,7 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
   const project = {
     id: crypto.randomUUID(),
     version: 37,
-    appVersion: '1.0.41',
+    appVersion: '1.0.42',
     title: baseName,
     author: '',
     createdAt: now,
@@ -117,7 +117,7 @@ export function migrateProject(project) {
   if (!project) return project;
   const oldVersion = Number(project.version) || 1;
   const priorAppVersion = String(project.appVersion || '');
-  const alreadyCurrent = oldVersion >= 37 && priorAppVersion === '1.0.41';
+  const alreadyCurrent = oldVersion >= 37 && priorAppVersion === '1.0.42';
   // 1.0.34 is a print-only renderer/pagination upgrade. Preserve the exact
   // Kindle release proof when upgrading a real 1.0.33 project so a paperback
   // barcode change cannot erase already-confirmed Kindle Previewer work.
@@ -734,11 +734,30 @@ export function migrateProject(project) {
     }
   }
 
+  // 1.0.42 Cover Engine v11 — COVER ONLY.
+  // The v1.0.41 interior is already certified and must survive this upgrade.
+  // Preserve lastPageCount, lastBuiltAt, lastPreflight, lastPdfAudit, ISBN,
+  // Barcode Brain, uploaded artwork and Kindle state. Invalidate cover/package
+  // proof only so the v11 spine can be manufactured without re-rendering 730 pages.
+  if (isAppVersionBefore(priorAppVersion, '1.0.42')) {
+    ensureEditions(project);
+    for (const type of ['paperback','hardcover']) {
+      const edition=project.editions?.[type];
+      if(!edition)continue;
+      edition.lastCoverAudit=null;
+      if(edition.printGate&&typeof edition.printGate==='object'){
+        edition.printGate.visualProof=null;
+        edition.printGate.freeze=null;
+        edition.printGate.external={kdpPrintPreviewApproved:false};
+      }
+    }
+  }
+
   if (priorEbookReleaseGateFor134 && project.editions?.ebook) {
     project.editions.ebook.releaseGate = priorEbookReleaseGateFor134;
   }
   project.version = Math.max(oldVersion, 37);
-  project.appVersion = '1.0.41';
+  project.appVersion = '1.0.42';
   return project;
 }
 

@@ -23,7 +23,7 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
 }
 const main = readFileSync('src/main.js', 'utf8');
 for (const marker of [
-  "const VERSION = '1.0.41'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
+  "const VERSION = '1.0.42'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
   'Amazon KDP · Reflowable EPUB 3', 'Kindle Preview Studio', 'Adjust Layout', 'preview-studio-grid-v110',
   'Kindle Pro consistency scan', '3-View Torture Test', '11 pt reference', 'Semantic Style Palette', 'Content style',
   'saveEbookSemanticStyles', 'Kindle Intelligence', 'Compare Chapters', 'compareKindleChaptersButton', 'Undo', 'Redo',
@@ -52,8 +52,8 @@ for (const dynamicBinding of [
 }
 
 const project = readFileSync('src/lib/project.js', 'utf8');
-if (!project.includes("appVersion: '1.0.41'") || !project.includes('version: 37') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
-  throw new Error('Project app version was not migrated to 1.0.41 Artwork Lock state.');
+if (!project.includes("appVersion: '1.0.42'") || !project.includes('version: 37') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
+  throw new Error('Project app version was not migrated to 1.0.42 Cover Engine v11 state.');
 }
 const editions = readFileSync('src/lib/editions.js', 'utf8');
 if (!editions.includes('reviewDecisions:')) throw new Error('Edition normalization does not preserve Kindle review decisions.');
@@ -169,7 +169,7 @@ const fullWrapArt = readFileSync('src/lib/full-wrap-art.js', 'utf8');
 for (const marker of ['analyzeFullWrapArtwork','renderFullWrapArtworkPdf','planSeamlessSpineExpansion','computeSpineColumnEnergy','buildContentAwareStretchMap','analyzeSpineRasterQuality','Seamless spine expansion','wrap-art-seam-audit','wrap-art-horizontal-banding','wrap-art-periodic-repetition','Full-wrap artwork resolution']) {
   if (!fullWrapArt.includes(marker)) throw new Error(`1.0.37 Full-Wrap Artwork Adapter is missing: ${marker}`);
 }
-for (const marker of ['FULL_WRAP_ART_VERSION = 10','protectedContentMask:true','protectedPixelFraction','neutralHighDetail']) {
+for (const marker of ['FULL_WRAP_ART_VERSION = 11','protectedContentMask:true','protectedPixelFraction','neutralHighDetail']) {
   if (!fullWrapArt.includes(marker)) throw new Error(`1.0.37 Cover Engine v8 protected-background guard is missing: ${marker}`);
 }
 const v8Preflight = readFileSync('src/lib/preflight-model.js','utf8');
@@ -191,8 +191,8 @@ for (const marker of ['matterPostDrawAdvance','reconcileBodyAdvance','visibleOve
   if (!printPdf.includes(marker)) throw new Error(`1.0.40 Print PDF visible-overflow guard is missing: ${marker}`);
 }
 if (printPdf.includes('if (pageFlow?.overflowPx > 1)')) throw new Error('Logical cursor drift is still a production blocker.');
-for (const marker of ['FULL_WRAP_ART_VERSION = 10','compositeProtectedSpineArtwork','artworkOnlyOverlay:true','fullNativeCore:false','coverBarcodeBackingPlan','artworkUntouched:true']) {
-  if (!fullWrapArt.includes(marker)) throw new Error(`1.0.41 Cover Engine v10 marker is missing: ${marker}`);
+for (const marker of ['FULL_WRAP_ART_VERSION = 11','compositeProtectedSpineArtwork','artworkOnlyOverlay:true','fullNativeCore:false','coverBarcodeBackingPlan','artworkUntouched:true']) {
+  if (!fullWrapArt.includes(marker)) throw new Error(`1.0.42 Cover Engine v11 marker is missing: ${marker}`);
 }
 if (!project.includes('primeDetectedPhysicalIsbn')) {
   throw new Error('1.0.39 ISBN/barcode migration recovery is missing.');
@@ -205,7 +205,24 @@ for (const marker of ['BARCODE_BRAIN_VERSION = 2','index-2','index+3','conflictP
   if (!barcodeBrainV139.includes(marker)) throw new Error(`1.0.39 Barcode Brain v2 marker is missing: ${marker}`);
 }
 
-const v141Production=fullWrapArt.slice(fullWrapArt.indexOf('function renderSpineContentAware'),fullWrapArt.indexOf('export function coverBarcodeBackingPlan'));for(const m of ['FULL_WRAP_ART_VERSION = 10','buildArtworkLockedSpineExtension','analyzeArtworkLockedSpineQuality','sourceCoreExact','rowInpainting:false','verticalBlur:false'])if(!fullWrapArt.includes(m))throw new Error(`1.0.41 Artwork Lock marker missing: ${m}`);if(v141Production.includes('buildSinglePassEdgeFlowUnderlay(')||v141Production.includes('compositeProtectedSpineArtwork('))throw new Error('v9 reconstruction is still active in production');if(!project.includes("isAppVersionBefore(priorAppVersion, '1.0.41')"))throw new Error('1.0.41 cover-only migration missing');
+const v142Production=fullWrapArt.slice(
+  fullWrapArt.indexOf('function renderSpineContentAware'),
+  fullWrapArt.indexOf('export function coverBarcodeBackingPlan'),
+);
+for(const marker of [
+  'FULL_WRAP_ART_VERSION = 11',
+  'buildArtworkLockedSpineExtension',
+  'selectArtworkLockedSpineCandidate',
+  'analyzeArtworkLockedSpineQuality',
+  'multi-candidate-2d-phase-quilt',
+  'sameRowOnly:false',
+  'sourceCoreExact',
+]){
+  if(!fullWrapArt.includes(marker))throw new Error(`1.0.42 Cover Engine v11 marker missing: ${marker}`);
+}
+if(!v142Production.includes('selectArtworkLockedSpineCandidate'))throw new Error('v11 production does not perform candidate selection.');
+if(v142Production.includes('buildSinglePassEdgeFlowUnderlay(')||v142Production.includes('compositeProtectedSpineArtwork('))throw new Error('legacy reconstruction is still active in production');
+if(!project.includes("isAppVersionBefore(priorAppVersion, '1.0.42')"))throw new Error('1.0.42 cover-only migration missing');
 const barcodeBrain = readFileSync('src/lib/barcode-brain.js', 'utf8');
 for (const barcodeMarker of ['encodeEan13','decodeEan13Bits','barcodeRoundTrip','appendInteriorBarcodePages','barcodePdfVectorCommands','barcodeFingerprint']) {
   if (!barcodeBrain.includes(barcodeMarker)) throw new Error(`1.0.34 Barcode Brain is missing: ${barcodeMarker}`);
@@ -217,7 +234,7 @@ for (const barcodeMarker of ['stampBarcodeOnUploadedCoverPdf','PDF_LIB_ESM_URL',
 for (const barcodeMarker of ['BARCODE BRAIN · v1.0.37','printBrainIncludeInteriorBarcode','printBrainCoverBarcode','downloadBarcodeSvg','downloadBarcodePng','Stamp barcode + download KDP cover PDF']) {
   if (!main.includes(barcodeMarker)) throw new Error(`1.0.34 Barcode Brain UI is missing: ${barcodeMarker}`);
 }
-console.log('YasReady Publish v1.0.41 static verification passed.');
+console.log('YasReady Publish v1.0.42 static verification passed.');
 
 
 const amazonPrintHardMode = readFileSync('src/lib/amazon-print-hard-mode.js', 'utf8');
