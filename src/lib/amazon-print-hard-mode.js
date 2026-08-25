@@ -99,6 +99,7 @@ export function runAmazonPrintHardMode({ project, type = 'paperback', preview = 
   const pdfInteractive = findAuditCheck(interiorAudit,'interactive');
   const pdfMarks = findAuditCheck(interiorAudit,'trim-marks');
   const pdfFileSize = findAuditCheck(interiorAudit,'file-size');
+  const pdfContentFidelity = findAuditCheck(interiorAudit,'content-fidelity');
   checks.push(check('amazon-interior-container','Finished interior PDF container',interiorAudit?.ready && pdfHeader?.status === 'pass' && pdfPageCount?.status === 'pass' ? 'pass' : 'error',interiorAudit?.ready ? `${pageCount} finished PDF page objects are present.` : 'Build and audit the finished interior PDF.'));
   checks.push(check('amazon-trim-bleed','Exact trim / bleed page size',pdfSize?.status === 'pass' ? 'pass' : interiorAudit ? 'error' : 'warning',pdfSize?.status === 'pass' ? pdfSize.message : interiorAudit ? 'Finished PDF MediaBoxes must exactly match the selected trim/bleed dimensions.' : 'Pending finished interior PDF audit.'));
   checks.push(check('amazon-300dpi','Interior raster resolution',pdfImages?.status === 'pass' ? 'pass' : interiorAudit ? 'error' : 'warning',pdfImages?.status === 'pass' ? pdfImages.message : interiorAudit ? 'Every rendered interior page must be 300 DPI.' : 'Pending finished interior PDF audit.'));
@@ -106,9 +107,39 @@ export function runAmazonPrintHardMode({ project, type = 'paperback', preview = 
   checks.push(check('amazon-interior-security','Interior PDF security / interaction',pdfSecurity?.status === 'pass' && pdfAnnotations?.status === 'pass' && pdfInteractive?.status === 'pass' ? 'pass' : interiorAudit ? 'error' : 'warning',pdfSecurity?.status === 'pass' && pdfAnnotations?.status === 'pass' && pdfInteractive?.status === 'pass' ? 'No encryption, annotations/comments, forms, scripts, open actions, or bookmarks detected in the finished interior PDF.' : interiorAudit ? 'Remove encryption, annotations/comments, forms, scripts, open actions, or bookmarks before KDP upload.' : 'Pending finished interior PDF audit.'));
   checks.push(check('amazon-interior-marks','Crop/trim/template mark risk',pdfMarks?.status === 'warning' ? 'warning' : pdfMarks?.status === 'pass' ? 'pass' : interiorAudit ? 'error' : 'warning',pdfMarks?.message || (interiorAudit ? 'Finished PDF mark audit is unavailable.' : 'Pending finished interior PDF audit.')));
   checks.push(check('amazon-interior-filesize','Interior upload size',pdfFileSize?.status === 'pass' ? 'pass' : interiorAudit ? 'error' : 'warning',pdfFileSize?.message || (interiorAudit ? 'Finished interior PDF size audit is unavailable.' : 'Pending finished interior PDF audit.')));
+  checks.push(check(
+    'amazon-interior-content-fidelity',
+    'Interior book-content fidelity',
+    pdfContentFidelity?.status === 'pass'
+      ? 'pass'
+      : interiorAudit
+        ? 'error'
+        : 'warning',
+    pdfContentFidelity?.message ||
+      (interiorAudit
+        ? 'The finished PDF did not prove that expected semantic book content actually painted into the raster pages.'
+        : 'Pending finished interior PDF content-fidelity audit.')
+  ));
 
   const coverGeometryCheck = coverAudit?.checks?.find((item) => ['uploaded-cover-geometry','page-size'].includes(item.id) && item.status === 'pass');
-  checks.push(check('amazon-cover-one-page','Single-page cover wrap',coverAudit?.checks?.some((item) => item.id === 'uploaded-cover-one-page' && item.status === 'error') ? 'error' : coverAudit?.ready ? 'pass' : 'error',coverAudit?.ready ? 'One continuous cover PDF contains back + spine + front.' : 'Build/audit the final one-page cover PDF.'));
+  checks.push(check(
+    'amazon-cover-one-page',
+    'Single-page cover wrap',
+    coverAudit?.checks?.some((item) =>
+      item.id === 'uploaded-cover-one-page' && item.status === 'error'
+    )
+      ? 'error'
+      : coverAudit?.ready
+        ? 'pass'
+        : coverAudit
+          ? 'error'
+          : 'warning',
+    coverAudit?.ready
+      ? 'One continuous cover PDF contains back + spine + front.'
+      : coverAudit
+        ? 'The manufactured cover PDF did not pass the one-page wrap audit.'
+        : 'Pending final one-page cover manufacture.'
+  ));
   checks.push(check('amazon-cover-geometry','Exact full-wrap cover geometry',coverAudit?.ready && (coverGeometryCheck || edition.coverMode !== 'upload-pdf') ? 'pass' : coverAudit ? 'error' : 'warning',coverAudit?.ready ? `${cover.width.toFixed(4)} × ${cover.height.toFixed(4)} in final wrap is bound to ${pageCount} pages.` : coverAudit ? 'Cover PDF must match the final page count, trim, paper, ink, and bleed geometry.' : 'Pending final cover PDF audit.'));
   checks.push(check('amazon-cover-bleed','0.125 in cover bleed',cover.exact && Math.abs(Number(cover.bleed || 0) - 0.125) < 0.0001 ? 'pass' : type === 'hardcover' ? 'pass' : 'error',type === 'paperback' ? `Paperback wrap includes ${Number(cover.bleed || 0).toFixed(3)} in bleed on the outer cover edges.` : 'Hardcover uses KDP case-laminate wrap geometry.'));
   const hasSpineText = Boolean(String(edition.coverBrain?.spineTitle || '').trim() || String(edition.coverBrain?.spineAuthor || '').trim());

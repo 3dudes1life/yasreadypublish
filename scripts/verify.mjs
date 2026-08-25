@@ -23,7 +23,7 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
 }
 const main = readFileSync('src/main.js', 'utf8');
 for (const marker of [
-  "const VERSION = '1.0.37'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
+  "const VERSION = '1.0.38'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
   'Amazon KDP · Reflowable EPUB 3', 'Kindle Preview Studio', 'Adjust Layout', 'preview-studio-grid-v110',
   'Kindle Pro consistency scan', '3-View Torture Test', '11 pt reference', 'Semantic Style Palette', 'Content style',
   'saveEbookSemanticStyles', 'Kindle Intelligence', 'Compare Chapters', 'compareKindleChaptersButton', 'Undo', 'Redo',
@@ -52,8 +52,8 @@ for (const dynamicBinding of [
 }
 
 const project = readFileSync('src/lib/project.js', 'utf8');
-if (!project.includes("appVersion: '1.0.37'") || !project.includes('version: 37') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
-  throw new Error('Project app version was not migrated to 1.0.37 with full-wrap artwork/schema 36 state.');
+if (!project.includes("appVersion: '1.0.38'") || !project.includes('version: 37') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
+  throw new Error('Project app version was not migrated to 1.0.38 Print Fidelity Recovery state.');
 }
 const editions = readFileSync('src/lib/editions.js', 'utf8');
 if (!editions.includes('reviewDecisions:')) throw new Error('Edition normalization does not preserve Kindle review decisions.');
@@ -135,6 +135,19 @@ if (!readFileSync('src/lib/kindle-quality.js','utf8').includes('effectiveStats(p
 
 const printPdf = readFileSync('src/lib/print-pdf.js','utf8');
 for (const marker of ['renderProductionPrintPdf','buildRasterPdf','auditPrintPdfBytes','PRINT_PDF_DPI = 300','/MediaBox','/DCTDecode']) if (!printPdf.includes(marker)) throw new Error(`1.0.29 Print PDF Hard Mode is missing: ${marker}`);
+for (const marker of ['PRINT_PDF_VERSION = 2','auditPrintFrontMatterManifest','content-fidelity','runsForLocalRange','rasterContentInkEvidence']) {
+  if (!printPdf.includes(marker)) throw new Error(`1.0.38 Print Fidelity Recovery is missing: ${marker}`);
+}
+const preflightV138 = readFileSync('src/lib/preflight-model.js', 'utf8');
+for (const marker of ['intentional-blank-content','front-matter-sequence']) {
+  if (!preflightV138.includes(marker)) throw new Error(`1.0.38 front-matter preflight guard is missing: ${marker}`);
+}
+if (!main.includes('certifiedProofSignature') || !main.includes('liveProofSignature')) {
+  throw new Error('1.0.38 persistent interior certification is missing.');
+}
+if (main.includes('const preflightForCover = currentPreflight(false);')) {
+  throw new Error('1.0.38 cover manufacture still contains the false Story-Lock preflight bug.');
+}
 const coverBrain = readFileSync('src/lib/cover-brain.js', 'utf8');
 for (const marker of ['coverGeometry','coverBrainChecks','paperbackSpineWidth','hardcoverGeometryConfirmed','0.0025','0.51','0.4','0.635']) if (!coverBrain.includes(marker)) throw new Error(`1.0.30 Cover Brain is missing: ${marker}`);
 const coverPdf = readFileSync('src/lib/cover-pdf.js', 'utf8');
@@ -180,12 +193,15 @@ for (const barcodeMarker of ['stampBarcodeOnUploadedCoverPdf','PDF_LIB_ESM_URL',
 for (const barcodeMarker of ['BARCODE BRAIN · v1.0.37','printBrainIncludeInteriorBarcode','printBrainCoverBarcode','downloadBarcodeSvg','downloadBarcodePng','Stamp barcode + download KDP cover PDF']) {
   if (!main.includes(barcodeMarker)) throw new Error(`1.0.34 Barcode Brain UI is missing: ${barcodeMarker}`);
 }
-console.log('YasReady Publish v1.0.37 static verification passed.');
+console.log('YasReady Publish v1.0.38 static verification passed.');
 
 
 const amazonPrintHardMode = readFileSync('src/lib/amazon-print-hard-mode.js', 'utf8');
 for (const marker of ['runAmazonPrintHardMode','amazon-page-range','amazon-inside-margin','amazon-outside-margins','amazon-physical-parity','amazon-interior-security','amazon-interior-fonts','amazon-cover-geometry','amazon-cover-images','amazon-barcode-geometry','amazon-no-physical-proof']) {
   if (!amazonPrintHardMode.includes(marker)) throw new Error(`1.0.35 Amazon Paperback Hard Mode is missing: ${marker}`);
+}
+if (!amazonPrintHardMode.includes('amazon-interior-content-fidelity') || !amazonPrintHardMode.includes('Pending final one-page cover manufacture.')) {
+  throw new Error('1.0.38 Amazon Hard Mode does not understand Print Fidelity / pending cover manufacture.');
 }
 const printGate = readFileSync('src/lib/print-release-gate.js', 'utf8');
 for (const marker of ['buildPrintReleaseGate','printReleaseToken','freezePrintRelease','setPrintExternalConfirmation','printReleaseReport','physicalProofResponsibility']) {

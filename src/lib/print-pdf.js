@@ -4,7 +4,7 @@ import { runningHeaderText } from './structure-model.js';
 import { printMatterStyleSpec } from './print-matter.js';
 import { drawBarcodeToCanvas } from './barcode-brain.js';
 
-export const PRINT_PDF_VERSION = 1;
+export const PRINT_PDF_VERSION = 2;
 export const PRINT_PDF_DPI = 300;
 export const KDP_PRINT_FILE_LIMIT_BYTES = 650 * 1024 * 1024;
 
@@ -253,8 +253,12 @@ function wrapOffsets(ctx, textInput, maxWidthPx, firstIndentPx = 0) {
   return lines.filter((line, index) => line.end > line.start || index === 0);
 }
 
-function runsForLocalRange(runs, start, end) {
-  if (!runs?.length) return [{ text:'', sourceStart:start, sourceEnd:end }];
+export function runsForLocalRange(runs, start, end) {
+  // IMPORTANT: no source runs means "draw the supplied visible line using the
+  // fallback style". v1.0.37 returned a fake EMPTY run here. Title/copyright/
+  // dedication intentionally flatten source styling and pass block=null, so that
+  // fake run caused drawStyledLine() to paint absolutely nothing.
+  if (!runs?.length) return [];
   const out = [];
   for (const run of runs) {
     const a = Math.max(start, run.sourceStart ?? 0);
@@ -312,6 +316,190 @@ function lineRunsForFragment(block, fragment, line) {
 
 function fragmentInches(fragment) {
   return Math.max(0, Number(fragment?.measuredHeight || 0) / 96);
+}
+
+function visibleFragmentText(fragment = {}) {
+  return String(fragment?.displayText ?? fragment?.text ?? '').trim();
+}
+
+function visiblePageFragments(page = {}) {
+  return (page?.fragments || []).filter((fragment) =>
+    fragment?.kind !== 'blank' && visibleFragmentText(fragment)
+  );
+}
+
+function matterRolePhysicalPage(pages = [], role = '') {
+  const index = pages.findIndex((page) =>
+    (page?.fragments || []).some((fragment) => fragment?.matterRole === role)
+  );
+  return index >= 0 ? index + 1 : null;
+}
+
+export function auditPrintFrontMatterManifest(preview = {}) {
+  const pages = preview?.pages || [];
+
+  const rolePages = {
+    title: matterRolePhysicalPage(pages, 'title'),
+    copyright: matterRolePhysicalPage(pages, 'copyright'),
+    dedication: matterRolePhysicalPage(pages, 'dedication'),
+  };
+
+  const completeTresAmigosFrontMatter = Object.values(rolePages).every(
+    (page) => Number.isFinite(page)
+  );
+
+  // When all three semantic pages exist, this house style is not negotiable:
+  // physical 1 title, physical 2 copyright, physical 3 dedication.
+  const exactFrontSequence =
+    !completeTresAmigosFrontMatter ||
+    (
+      rolePages.title === 1 &&
+      rolePages.copyright === 2 &&
+      rolePages.dedication === 3
+    );
+
+  const blankContentConflicts = pages
+    .map((page, index) => ({ page, physical:index + 1 }))
+    .filter(({ page }) =>
+      page?.intentionalBlank && visiblePageFragments(page).length > 0
+    );
+
+  const tocIndex = pages.findIndex((page) =>
+    (page?.fragments || []).some((fragment) =>
+      fragment?.kind === 'generated-toc-title' ||
+      fragment?.kind === 'generated-toc-entry'
+    )
+  );
+
+  const tocPage = tocIndex >= 0 ? tocIndex + 1 : null;
+  const configuredMatterPages = Object.values(rolePages).filter(Number.isFinite);
+  const lastFrontMatterPage = configuredMatterPages.length
+    ? Math.max(...configuredMatterPages)
+    : null;
+
+  const tocOrderOk =
+    tocPage == null ||
+    lastFrontMatterPage == null ||
+    tocPage > lastFrontMatterPage;
+
+  const checks = [
+    check(
+      'front-matter-sequence',
+      'Semantic front-matter physical sequence',
+      exactFrontSequence ? 'pass' : 'error',
+      completeTresAmigosFrontMatter
+        ? exactFrontSequence
+          ? 'Title = physical 1, Copyright = physical 2, Dedication = physical 3.'
+          : `Expected Title/Copyright/Dedication on physical 1/2/3; found ${rolePages.title ?? '—'}/${rolePages.copyright ?? '—'}/${rolePages.dedication ?? '—'}.`
+        : 'The source does not contain all three semantic front-matter roles; exact Tres Amigos 1/2/3 enforcement is not required.'
+    ),
+    check(
+      'intentional-blank-content',
+      'Blank-page/content conflict',
+      blankContentConflicts.length ? 'error' : 'pass',
+      blankContentConflicts.length
+        ? `${blankContentConflicts.length} page(s) are marked intentional blank while still containing visible book content: ${blankContentConflicts.map((item) => item.physical).join(', ')}.`
+        : 'No content-bearing page is mislabeled as intentionally blank.'
+    ),
+    check(
+      'front-matter-before-toc',
+      'Front matter precedes Contents',
+      tocOrderOk ? 'pass' : 'error',
+      tocOrderOk
+        ? tocPage == null
+          ? 'No generated print Contents page is present.'
+          : `Generated Contents begins on physical page ${tocPage}, after configured front matter.`
+        : `Generated Contents begins on physical page ${tocPage} before front matter is complete.`
+    ),
+  ];
+
+  const errors = checks.filter((item) => item.status === 'error').length;
+  const warnings = checks.filter((item) => item.status === 'warning').length;
+
+  return {
+    ready: errors === 0,
+    checks,
+    summary:{
+      errors,
+      warnings,
+      passes:checks.length - errors - warnings,
+      total:checks.length,
+    },
+    rolePages,
+    tocPage,
+    blankContentConflicts:blankContentConflicts.map((item) => item.physical),
+  };
+}
+
+function criticalContentLabel(page = {}) {
+  const fragments = page?.fragments || [];
+  const roles = new Set(fragments.map((fragment) => fragment?.matterRole).filter(Boolean));
+
+  for (const role of ['title','copyright','dedication','about-authors','join-journey']) {
+    if (roles.has(role)) return role;
+  }
+
+  if (fragments.some((fragment) =>
+    fragment?.kind === 'generated-toc-title' ||
+    fragment?.kind === 'generated-toc-entry'
+  )) return 'Table of Contents';
+
+  return '';
+}
+
+function rasterContentInkEvidence(ctx, canvas, { page, design, production } = {}) {
+  const dpi = PRINT_PDF_DPI;
+  const bleed = Boolean(production?.bleed);
+  const isLeft = page?.side === 'left';
+
+  const trimOffsetX = bleed && isLeft ? 0.125 * dpi : 0;
+  const trimOffsetY = bleed ? 0.125 * dpi : 0;
+
+  const leftMargin = (isLeft ? design.outsideMargin : design.insideMargin) * dpi;
+  const x = Math.max(0, Math.floor(trimOffsetX + leftMargin));
+  const y = Math.max(0, Math.floor(trimOffsetY + design.topMargin * dpi));
+
+  const width = Math.max(
+    1,
+    Math.min(
+      canvas.width - x,
+      Math.floor(
+        (design.trimWidth - design.insideMargin - design.outsideMargin) * dpi
+      )
+    )
+  );
+
+  const height = Math.max(
+    1,
+    Math.min(
+      canvas.height - y,
+      Math.floor(
+        (design.trimHeight - design.topMargin - design.bottomMargin) * dpi
+      )
+    )
+  );
+
+  const image = ctx.getImageData(x, y, width, height);
+  const step = 4;
+  let darkSamples = 0;
+
+  for (let py = 0; py < image.height; py += step) {
+    for (let px = 0; px < image.width; px += step) {
+      const i = (py * image.width + px) * 4;
+      const r = image.data[i];
+      const g = image.data[i + 1];
+      const b = image.data[i + 2];
+
+      if (r < 245 || g < 245 || b < 245) {
+        darkSamples += 1;
+        if (darkSamples >= 12) {
+          return { ok:true, darkSamples };
+        }
+      }
+    }
+  }
+
+  return { ok:false, darkSamples };
 }
 
 function drawWrappedFragment(ctx, fragment, block, design, { x, y, width, fontSizePt, lineHeight, alignment = 'left', firstIndentIn = 0, bold = false, italic = false, runsOverride = null } = {}) {
@@ -524,17 +712,87 @@ export async function renderProductionPrintPdf({ project, preview, editionType =
   const ctx = canvas.getContext('2d', { alpha:false, willReadFrequently:false });
   if (!ctx) throw new Error('Canvas rendering is unavailable in this browser.');
   const blocksById = new Map((project.manuscript?.blocks || []).map((block) => [block.id, block]));
+
+  // Semantic page order is checked BEFORE expensive 300-DPI manufacture.
+  const fidelityManifest = auditPrintFrontMatterManifest(preview);
+  if (!fidelityManifest.ready) {
+    const blockers = fidelityManifest.checks
+      .filter((item) => item.status === 'error')
+      .map((item) => item.message)
+      .join(' ');
+    throw new Error(`Print Fidelity blocked PDF manufacture. ${blockers}`);
+  }
+
+  const certifiedRasterPages = [];
   const rasterPages = [];
   for (let index = 0; index < preview.pages.length; index += 1) {
     const page = preview.pages[index];
     renderPreviewPageToCanvas(ctx, canvas, { page, design, project, production, blocksById });
+
+    // Container geometry is not enough. For semantic book-matter pages, prove
+    // that the actual canvas contains visible ink BEFORE JPEG/PDF packaging.
+    const criticalLabel = criticalContentLabel(page);
+    if (criticalLabel) {
+      const evidence = rasterContentInkEvidence(ctx, canvas, {
+        page,
+        design,
+        production,
+      });
+
+      if (!evidence.ok) {
+        throw new Error(
+          `Print Fidelity blocked export: physical page ${index + 1} (${criticalLabel}) rendered without visible content.`
+        );
+      }
+
+      certifiedRasterPages.push({
+        physicalPage:index + 1,
+        label:criticalLabel,
+        darkSamples:evidence.darkSamples,
+      });
+    }
+
     const jpegBytes = await canvasToJpegBytes(canvas, 0.98);
     rasterPages.push({ jpegBytes, widthPx, heightPx });
     if (onProgress) onProgress({ page:index + 1, total:preview.pages.length, phase:'render' });
     if (index % 3 === 2) await new Promise((resolve) => setTimeout(resolve, 0));
   }
   const built = buildRasterPdf({ pages:rasterPages, pageWidthIn:size.width, pageHeightIn:size.height, dpi });
-  const audit = auditPrintPdfBytes(built.bytes, { pageCount:preview.pages.length, pageWidthIn:size.width, pageHeightIn:size.height, dpi });
+  const byteAudit = auditPrintPdfBytes(built.bytes, {
+    pageCount:preview.pages.length,
+    pageWidthIn:size.width,
+    pageHeightIn:size.height,
+    dpi,
+  });
+
+  const contentCheck = check(
+    'content-fidelity',
+    'Rendered book-content fidelity',
+    'pass',
+    `Semantic front matter passed physical-order checks and ${certifiedRasterPages.length} critical page(s) were proven to contain visible raster content.`
+  );
+
+  const checks = [contentCheck, ...byteAudit.checks];
+  const errors = checks.filter((item) => item.status === 'error').length;
+  const warnings = checks.filter((item) => item.status === 'warning').length;
+
+  const audit = {
+    ...byteAudit,
+    ready:errors === 0,
+    checks,
+    summary:{
+      errors,
+      warnings,
+      passes:checks.length - errors - warnings,
+      total:checks.length,
+    },
+    contentFidelity:{
+      ready:true,
+      manifest:fidelityManifest,
+      certifiedRasterPages,
+    },
+  };
+
   return {
     bytes:built.bytes,
     blob:new Blob([built.bytes], { type:'application/pdf' }),

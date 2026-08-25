@@ -178,6 +178,60 @@ export function runKdpPreflight({ project, preview, storyLockOk = true, editionT
   ));
 
 
+
+  const blankContentConflicts = pages.filter((page) =>
+    page?.intentionalBlank &&
+    (page?.fragments || []).some((fragment) =>
+      fragment?.kind !== 'blank' &&
+      String(fragment?.displayText ?? fragment?.text ?? '').trim()
+    )
+  );
+
+  checks.push(check(
+    'intentional-blank-content',
+    'Blank pages contain no book content',
+    blankContentConflicts.length ? 'error' : 'pass',
+    blankContentConflicts.length
+      ? `${blankContentConflicts.length} page(s) are marked intentional blank but still contain visible layout fragments.`
+      : 'Every intentionally blank page is genuinely content-free.',
+  ));
+
+  const matterPhysicalPage = (role) => {
+    const index = pages.findIndex((page) =>
+      (page?.fragments || []).some((fragment) => fragment?.matterRole === role)
+    );
+    return index >= 0 ? index + 1 : null;
+  };
+
+  const semanticFrontMatterPages = {
+    title:matterPhysicalPage('title'),
+    copyright:matterPhysicalPage('copyright'),
+    dedication:matterPhysicalPage('dedication'),
+  };
+
+  const hasCompleteSemanticFrontMatter = Object.values(
+    semanticFrontMatterPages
+  ).every(Number.isFinite);
+
+  const semanticFrontMatterExact =
+    !hasCompleteSemanticFrontMatter ||
+    (
+      semanticFrontMatterPages.title === 1 &&
+      semanticFrontMatterPages.copyright === 2 &&
+      semanticFrontMatterPages.dedication === 3
+    );
+
+  checks.push(check(
+    'front-matter-sequence',
+    'Title · Copyright · Dedication physical order',
+    semanticFrontMatterExact ? 'pass' : 'error',
+    hasCompleteSemanticFrontMatter
+      ? semanticFrontMatterExact
+        ? 'Physical 1 = Title · Physical 2 = Copyright · Physical 3 = Dedication.'
+        : `Expected physical 1/2/3; found ${semanticFrontMatterPages.title}/${semanticFrontMatterPages.copyright}/${semanticFrontMatterPages.dedication}.`
+      : 'Exact 1/2/3 enforcement activates when all three semantic front-matter pages are present.',
+  ));
+
   checks.push(check(
     'print-toc',
     'Automatic print Table of Contents',

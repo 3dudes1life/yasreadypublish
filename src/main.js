@@ -79,7 +79,7 @@ import {
   kindleReleaseReport, markAllCurrentReviewsIntentional, markKindleVisualProofComplete, setKindleExternalConfirmation,
 } from './lib/kindle-release-gate.js';
 
-const VERSION = '1.0.37';
+const VERSION = '1.0.38';
 // Legacy capability labels retained for regression discovery only (not default UI): Amazon KDP · Reflowable EPUB 3 · Kindle Preview Studio · Semantic Style Palette · Kindle Release Gate · v1.0.16
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
@@ -3467,6 +3467,7 @@ async function createPaperbackPdf() {
   }
   ensureEditions(state.project);
   const type = currentPrintEditionType();
+  state.project.editions[type].lastPreflight = result.report;
   const production = state.project.editions[type]?.production || {};
   state.busy = true;
   state.busyMessage = `Rendering ${editionLabel(type)} PDF at ${PRINT_PDF_DPI} DPI…`;
@@ -3589,15 +3590,22 @@ async function buildCurrentCoverPdf() {
   const type = currentPrintEditionType();
   const edition = state.project.editions[type];
   const pageCount = Number(edition.lastPageCount || state.preview?.pages?.length || 0);
-  const proofSignature = state.preview?.proofSignature || '';
+  // The finished interior audit is the production authority here.
+  // v1.0.37 incorrectly called currentPreflight(false), which explicitly told
+  // Preflight that Story Lock was invalid and therefore made this cover gate
+  // impossible to pass even after the interior PDF had been certified.
+  //
+  // Also allow the certification to survive a browser/page refresh: state.preview
+  // is session-only, while lastPdfAudit + its proof signature are persisted.
+  const liveProofSignature = state.preview?.proofSignature || '';
   const interiorAudit = edition.lastPdfAudit || null;
-  const preflightForCover = currentPreflight(false);
+  const certifiedProofSignature = interiorAudit?.proofSignature || '';
+  const proofSignature = liveProofSignature || certifiedProofSignature;
   const interiorCurrentForCover = Boolean(
-    preflightForCover?.ready &&
     interiorAudit?.ready &&
     interiorAudit?.sha256 &&
     Number(interiorAudit?.pageCount || interiorAudit?.metadata?.pageCount || 0) === pageCount &&
-    (!proofSignature || interiorAudit.proofSignature === proofSignature)
+    (!liveProofSignature || interiorAudit.proofSignature === liveProofSignature)
   );
   if (!interiorCurrentForCover) {
     state.simpleStep = 'export';
@@ -3610,7 +3618,7 @@ async function buildCurrentCoverPdf() {
     const geometry = coverGeometry({ type, production:edition.production || {}, pageCount, cover:edition.coverBrain || {} });
     const art = normalizeFullWrapArtwork(edition.uploadedCoverArt || null);
     const artAnalysis = analyzeFullWrapArtwork({ asset:art, geometry, production:edition.production || {}, pageCount });
-    if (!artAnalysis.ready || !art?.dataUrl) { edition.lastCoverAudit = { ...artAnalysis, pageCount, proofSignature:state.preview?.proofSignature || '' }; state.coverPdfReport = edition.lastCoverAudit; await saveProject(state.project); alert('The finished cover artwork cannot be manufactured safely yet. Open the cover checks for the exact reason—YasReady will not stretch or silently degrade the design.'); updateMain(); return; }
+    if (!artAnalysis.ready || !art?.dataUrl) { edition.lastCoverAudit = { ...artAnalysis, pageCount, proofSignature }; state.coverPdfReport = edition.lastCoverAudit; await saveProject(state.project); alert('The finished cover artwork cannot be manufactured safely yet. Open the cover checks for the exact reason—YasReady will not stretch or silently degrade the design.'); updateMain(); return; }
     const barcode = normalizeBarcodeBrain(edition.barcodeBrain || {});
     const isbn = normalizePrintIsbn(edition.kdpMetadata?.isbn || '');
     if (barcode.coverPlacement === 'yasready' && (edition.kdpMetadata?.isbnMode !== 'own' || !isbn.valid)) { alert('Barcode Brain needs a valid owned print ISBN before it can replace the back-cover barcode.'); return; }
@@ -3622,12 +3630,12 @@ async function buildCurrentCoverPdf() {
       const parsed = parsePrintCoverPdfBytes(packaged.bytes);
       if (!parsed.ok) throw new Error('The manufactured cover PDF could not be re-read for final geometry certification.');
       const finalAsset = { fileName:`${safeExportBaseName()}-${type}-kdp-cover.pdf`, mimeType:'application/pdf', fileSize:packaged.bytes.byteLength, sha256, dataUrl:bytesToPdfDataUrl(packaged.bytes), ...parsed, updatedAt:new Date().toISOString() };
-      const pdfAudit = auditUploadedPrintCoverPdf({ asset:finalAsset, geometry, pageCount, proofSignature:state.preview?.proofSignature || '' });
+      const pdfAudit = auditUploadedPrintCoverPdf({ asset:finalAsset, geometry, pageCount, proofSignature });
       const combinedCoverChecks = [...(packaged.audit?.checks || []), ...pdfAudit.checks];
       const checks = [...new Map(combinedCoverChecks.map((item)=>[item.id,item])).values()];
       const errors = checks.filter((item)=>item.status === 'error').length;
       const warnings = checks.filter((item)=>item.status === 'warning').length;
-      const audit = { ...pdfAudit, ready:errors===0, checks, summary:{errors,warnings,passes:checks.length-errors-warnings,total:checks.length}, sha256, sourceArtworkSha256:art.sha256 || '', sourceArtworkFileName:art.fileName, barcodeFingerprint:barcodeFingerprint({ isbn:isbn.digits || '', pageCount, brain:barcode }), barcode:packaged.barcode, adapter:artAnalysis.inferred, generatorVersion:packaged.generatorVersion, visualQuality:packaged.visualQuality, spineAdaptation:packaged.spineAdaptation, generatedAt:new Date().toISOString(), pageCount, proofSignature:state.preview?.proofSignature || '' };
+      const audit = { ...pdfAudit, ready:errors===0, checks, summary:{errors,warnings,passes:checks.length-errors-warnings,total:checks.length}, sha256, sourceArtworkSha256:art.sha256 || '', sourceArtworkFileName:art.fileName, barcodeFingerprint:barcodeFingerprint({ isbn:isbn.digits || '', pageCount, brain:barcode }), barcode:packaged.barcode, adapter:artAnalysis.inferred, generatorVersion:packaged.generatorVersion, visualQuality:packaged.visualQuality, spineAdaptation:packaged.spineAdaptation, generatedAt:new Date().toISOString(), pageCount, proofSignature };
       edition.lastCoverAudit = audit; state.coverPdfReport = audit;
       state.project.updatedAt = new Date().toISOString();
       await saveProject(state.project); state.projects = await listProjects();
@@ -3639,7 +3647,7 @@ async function buildCurrentCoverPdf() {
   }
   if (edition.coverMode === 'upload-pdf') {
     const geometry = coverGeometry({ type, production:edition.production || {}, pageCount, cover:edition.coverBrain || {} });
-    const sourceAudit = auditUploadedPrintCoverPdf({ asset:edition.uploadedCoverPdf, geometry, pageCount, proofSignature:state.preview?.proofSignature || '' });
+    const sourceAudit = auditUploadedPrintCoverPdf({ asset:edition.uploadedCoverPdf, geometry, pageCount, proofSignature });
     if (!sourceAudit.ready || !edition.uploadedCoverPdf?.dataUrl) { edition.lastCoverAudit = sourceAudit; state.coverPdfReport = sourceAudit; await saveProject(state.project); alert('The attached full-wrap cover does not match the final interior geometry. Update the cover PDF before downloading it for KDP.'); updateMain(); return; }
     const barcode = normalizeBarcodeBrain(edition.barcodeBrain || {});
     if (barcode.coverPlacement === 'yasready') {
@@ -3652,7 +3660,7 @@ async function buildCurrentCoverPdf() {
         const parsed = parsePrintCoverPdfBytes(stamped.bytes);
         if (!parsed.ok) throw new Error('Stamped cover PDF could not be re-read for final geometry certification.');
         const stampedAsset = { fileName:`${safeExportBaseName()}-${type}-kdp-cover.pdf`, mimeType:'application/pdf', fileSize:stamped.bytes.byteLength, sha256, dataUrl:bytesToPdfDataUrl(stamped.bytes), ...parsed, updatedAt:new Date().toISOString() };
-        const audit = auditUploadedPrintCoverPdf({ asset:stampedAsset, geometry, pageCount, proofSignature:state.preview?.proofSignature || '' });
+        const audit = auditUploadedPrintCoverPdf({ asset:stampedAsset, geometry, pageCount, proofSignature });
         audit.barcodeFingerprint = barcodeFingerprint({ isbn:isbn.digits, pageCount, brain:barcode });
         audit.barcode = { placement:'yasready', isbn:isbn.digits, vector:true, engine:stamped.engine };
         edition.lastCoverAudit = audit; state.coverPdfReport = audit;
@@ -3680,7 +3688,7 @@ async function buildCurrentCoverPdf() {
   try {
     const packaged = await renderCoverPdf({ project:state.project, editionType:type, production:edition.production || {}, pageCount, cover:edition.coverBrain || {}, dpi:COVER_DPI });
     const sha256 = await sha256Hex(packaged.bytes);
-    state.coverPdfReport = { ...packaged.audit, sha256, geometry:packaged.geometry, proofSignature:state.preview?.proofSignature || '', generatedAt:new Date().toISOString(), pageCount };
+    state.coverPdfReport = { ...packaged.audit, sha256, geometry:packaged.geometry, proofSignature, generatedAt:new Date().toISOString(), pageCount };
     edition.lastCoverAudit = state.coverPdfReport;
     state.project.updatedAt = new Date().toISOString();
     await saveProject(state.project); state.projects = await listProjects();

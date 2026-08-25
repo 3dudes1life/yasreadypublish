@@ -24,7 +24,7 @@ function readyFixture() {
   project.editions.paperback.lastPdfAudit={ ready:true,sha256:'interior-sha',proofSignature:'proof-400',pageCount:400,fileSize:1000,checks:[
     {id:'pdf-header',status:'pass',message:'PDF 1.4'}, {id:'page-count',status:'pass',message:'400 pages'}, {id:'page-size',status:'pass',message:'6 × 9'},
     {id:'page-images',status:'pass',message:'300 DPI'}, {id:'fonts',status:'pass',message:'No live font objects; rasterized at 300 DPI'}, {id:'encryption',status:'pass',message:'No encryption'}, {id:'annotations',status:'pass',message:'No annotations'},
-    {id:'interactive',status:'pass',message:'No forms/scripts/bookmarks'}, {id:'trim-marks',status:'pass',message:'No crop marks'}, {id:'file-size',status:'pass',message:'Within limit'}
+    {id:'interactive',status:'pass',message:'No forms/scripts/bookmarks'}, {id:'trim-marks',status:'pass',message:'No crop marks'}, {id:'file-size',status:'pass',message:'Within limit'}, {id:'content-fidelity',status:'pass',message:'Rendered semantic content certified'}
   ] };
   project.editions.paperback.lastCoverAudit={ ready:true,sha256:'cover-sha',proofSignature:'proof-400',pageCount:400,fileSize:500,checks:[{id:'page-size',status:'pass',message:'exact geometry'}] };
   savePrintKdpMetadata(project,'paperback',{language:'en',publisher:'3Dudes1Life Creative',isbnMode:'kdp-free'});
@@ -82,7 +82,7 @@ test('1.0.32 migration preserves Print Gate while invalidating stale Kindle rend
   const before=JSON.stringify(project.manuscript);
   const migrated=migrateProject(project);
   assert.equal(migrated.version,37);
-  assert.equal(migrated.appVersion,'1.0.37');
+  assert.equal(migrated.appVersion,'1.0.38');
   assert.ok(migrated.editions.paperback.printGate);
   assert.equal(migrated.editions.ebook.releaseGate.visualProof, null);
   assert.equal(migrated.editions.ebook.releaseGate.freeze, null);

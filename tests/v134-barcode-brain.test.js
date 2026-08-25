@@ -113,7 +113,7 @@ test('1.0.34 migration detects the paperback ISBN, primes the two-placement work
   const kindleBefore = JSON.stringify(old.editions.ebook.releaseGate);
   const migrated = migrateProject(old);
   assert.equal(migrated.version, 37);
-  assert.equal(migrated.appVersion, '1.0.37');
+  assert.equal(migrated.appVersion, '1.0.38');
   assert.equal(migrated.editions.paperback.barcodeBrain.detectedIsbn, BOOK2_PAPERBACK);
   assert.equal(migrated.editions.paperback.barcodeBrain.enabled, true);
   assert.equal(migrated.editions.paperback.barcodeBrain.includeInterior, true);

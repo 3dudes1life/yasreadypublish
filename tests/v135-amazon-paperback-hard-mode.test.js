@@ -19,7 +19,7 @@ function interiorAudit(count=100, proof='proof') {
     {id:'page-size',status:'pass',message:'6 × 9 in'}, {id:'page-images',status:'pass',message:'300 DPI'}, {id:'fonts',status:'pass',message:'No live font objects; rasterized at 300 DPI'},
     {id:'encryption',status:'pass',message:'No encryption'}, {id:'annotations',status:'pass',message:'No annotations'},
     {id:'interactive',status:'pass',message:'No forms/scripts/bookmarks'}, {id:'trim-marks',status:'pass',message:'MediaBox only'},
-    {id:'file-size',status:'pass',message:'Within KDP limit'}
+    {id:'file-size',status:'pass',message:'Within KDP limit'}, {id:'content-fidelity',status:'pass',message:'Rendered semantic content certified'}
   ]};
 }
 
@@ -129,7 +129,7 @@ test('1.0.35 migration invalidates stale print/KDP Previewer proof but preserves
   const manuscript=JSON.stringify(old.manuscript);
   const migrated=migrateProject(old);
   assert.equal(migrated.version,37);
-  assert.equal(migrated.appVersion,'1.0.37');
+  assert.equal(migrated.appVersion,'1.0.38');
   assert.equal(migrated.editions.paperback.lastPageCount,null);
   assert.equal(migrated.editions.paperback.lastPdfAudit,null);
   assert.equal(migrated.editions.paperback.lastCoverAudit,null);

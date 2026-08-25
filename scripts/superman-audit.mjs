@@ -3,7 +3,7 @@ import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const VERSION = '1.0.37';
+const VERSION = '1.0.38';
 
 function walk(dir) {
   const out = [];
@@ -153,6 +153,40 @@ for (const marker of ['EBOOK_SEMANTIC_ROLES','semanticRoleForBlock','semanticRol
 const docxParser = readFileSync(join(ROOT, 'src/lib/docx-parser.js'), 'utf8');
 for (const marker of ['footnotes.xml','endnotes.xml','loadMediaAssets','mediaRefs','canonicalizeManuscriptV2']) if (!docxParser.includes(marker)) throw new Error(`Missing semantic import marker: ${marker}`);
 if (!main.includes('const ebookIntelligence = scanKindleIntelligence(state.project);') || !main.includes('ebookReport.ready && ebookQuality.ready && ebookIntelligence.ready')) throw new Error('Final Check omits Kindle Intelligence.');
+
+
+const supermanV138PrintPdf = readFileSync(join(ROOT, 'src/lib/print-pdf.js'), 'utf8');
+for (const marker of [
+  'PRINT_PDF_VERSION = 2',
+  'auditPrintFrontMatterManifest',
+  'rasterContentInkEvidence',
+  'content-fidelity',
+]) {
+  if (!supermanV138PrintPdf.includes(marker)) {
+    throw new Error(`Missing v1.0.38 Print Fidelity Superman marker: ${marker}`);
+  }
+}
+
+const supermanV138Preflight = readFileSync(join(ROOT, 'src/lib/preflight-model.js'), 'utf8');
+for (const marker of ['intentional-blank-content','front-matter-sequence']) {
+  if (!supermanV138Preflight.includes(marker)) {
+    throw new Error(`Missing v1.0.38 front-matter Superman marker: ${marker}`);
+  }
+}
+
+const supermanV138Amazon = readFileSync(join(ROOT, 'src/lib/amazon-print-hard-mode.js'), 'utf8');
+if (!supermanV138Amazon.includes('amazon-interior-content-fidelity')) {
+  throw new Error('Missing v1.0.38 Amazon content-fidelity gate.');
+}
+
+if (main.includes('const preflightForCover = currentPreflight(false);')) {
+  throw new Error('v1.0.38 Superman found the impossible false Story-Lock cover gate.');
+}
+for (const marker of ['certifiedProofSignature','liveProofSignature','interiorCurrentForCover']) {
+  if (!main.includes(marker)) {
+    throw new Error(`Missing v1.0.38 persistent print certification marker: ${marker}`);
+  }
+}
 
 const supermanV8Wrap = readFileSync(join(ROOT, 'src/lib/full-wrap-art.js'), 'utf8');
 for (const marker of ['FULL_WRAP_ART_VERSION = 8','protectedContentMask:true','protectedPixelFraction','neutralHighDetail']) if (!supermanV8Wrap.includes(marker)) throw new Error(`Missing Cover Engine v8 Superman marker: ${marker}`);
