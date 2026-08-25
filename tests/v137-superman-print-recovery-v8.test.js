@@ -11,7 +11,7 @@ test('1.0.37 Superman recovery recognizes Barcode Brain parity spacer as expecte
 });
 
 test('1.0.37 Superman recovery advances manufactured artwork to Cover Engine v11', () => {
-  assert.equal(FULL_WRAP_ART_VERSION,11);
+  assert.equal(FULL_WRAP_ART_VERSION,13);
   const source=readFileSync(new URL('../src/lib/full-wrap-art.js',import.meta.url),'utf8');
   for (const marker of ['protectedContentMask:true','protectedPixelFraction','neutralHighDetail','gradientThreshold','selectArtworkLockedSpineCandidate']) {
     assert.ok(source.includes(marker), 'missing v8 cover marker: ' + marker);

@@ -43,7 +43,7 @@ import { buildPrintTocEntries, printTocSignature, shouldGeneratePrintToc, verify
 import { serializeProjectBackup, parseProjectBackup } from './lib/project-backup.js';
 import { buildPublishReadiness } from './lib/readiness-model.js';
 import { blankRenderMode } from './lib/spacing-policy.js';
-import { stampPreviewProof } from './lib/proof-integrity.js';
+import { buildProofSignature, stampPreviewProof } from './lib/proof-integrity.js';
 import {
   activePrintEdition, copyPaperbackDesignToHardcover, editionLabel, ensureEditions,
   getEbookEditionDesign, getPrintEditionDesign, setActivePrintEdition, setEditionEnabled,
@@ -79,7 +79,7 @@ import {
   kindleReleaseReport, markAllCurrentReviewsIntentional, markKindleVisualProofComplete, setKindleExternalConfirmation,
 } from './lib/kindle-release-gate.js';
 
-const VERSION = '1.0.42';
+const VERSION = '1.0.43';
 // Legacy capability labels retained for regression discovery only (not default UI): Amazon KDP · Reflowable EPUB 3 · Kindle Preview Studio · Semantic Style Palette · Kindle Release Gate · v1.0.16
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
@@ -3601,13 +3601,19 @@ async function buildCurrentCoverPdf() {
   // is session-only, while lastPdfAudit + its proof signature are persisted.
   const liveProofSignature = state.preview?.proofSignature || '';
   const interiorAudit = edition.lastPdfAudit || null;
-  const certifiedProofSignature = interiorAudit?.proofSignature || '';
-  const proofSignature = liveProofSignature || certifiedProofSignature;
+  const certifiedProofSignature = interiorAudit?.proofSignature || edition.lastPreflight?.proofSignature || '';
+  const currentInteriorProofSignature = buildProofSignature({
+    project:state.project,
+    design:getPrintEditionDesign(state.project,type),
+    editionType:type,
+  });
+  const proofSignature = certifiedProofSignature || currentInteriorProofSignature;
   const interiorCurrentForCover = Boolean(
     interiorAudit?.ready &&
     interiorAudit?.sha256 &&
     Number(interiorAudit?.pageCount || interiorAudit?.metadata?.pageCount || 0) === pageCount &&
-    (!liveProofSignature || interiorAudit.proofSignature === liveProofSignature)
+    certifiedProofSignature &&
+    certifiedProofSignature === currentInteriorProofSignature
   );
   if (!interiorCurrentForCover) {
     state.simpleStep = 'export';

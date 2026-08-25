@@ -7,7 +7,7 @@ const required = [
   'src/lib/navigator-model.js', 'src/lib/theme-store.js', 'src/lib/preflight-model.js', 'src/lib/print-export.js',
   'src/lib/ebook-model.js', 'src/lib/ebook-preflight.js', 'src/lib/epub-export.js', 'src/lib/structure-overrides.js',
   'src/lib/print-toc.js', 'src/lib/project-backup.js', 'src/lib/readiness-model.js', 'src/lib/spacing-policy.js',
-  'src/lib/editions.js', 'src/lib/print-release-gate.js', 'src/lib/amazon-print-hard-mode.js', 'src/lib/print-matter.js', 'src/lib/print-cover-upload.js', 'src/lib/full-wrap-art.js', 'src/lib/barcode-brain.js', 'src/lib/barcode-cover-stamp.js', 'src/lib/proof-integrity.js', 'src/lib/presentation-overrides.js', 'src/lib/semantic-styles.js', 'src/lib/print-brain.js', 'src/lib/print-pdf.js', 'src/lib/cover-brain.js', 'src/lib/cover-pdf.js',
+  'src/lib/editions.js', 'src/lib/print-release-gate.js', 'src/lib/amazon-print-hard-mode.js', 'src/lib/print-matter.js', 'src/lib/print-cover-upload.js', 'src/lib/full-wrap-art.js', 'src/lib/spine-donor-atlas.js', 'src/lib/barcode-brain.js', 'src/lib/barcode-cover-stamp.js', 'src/lib/proof-integrity.js', 'src/lib/presentation-overrides.js', 'src/lib/semantic-styles.js', 'src/lib/print-brain.js', 'src/lib/print-pdf.js', 'src/lib/cover-brain.js', 'src/lib/cover-pdf.js',
   'src/lib/kindle-preview-model.js', 'src/lib/kindle-quality.js', 'src/lib/kindle-intelligence.js',
   'src/lib/kindle-production-flow.js', 'src/lib/epub-audit.js', 'src/lib/ebook-theme-studio.js', 'src/lib/kindle-release-gate.js', 'src/lib/bug-log.js', 'src/lib/book-brain.js', 'public/vendor/jszip.min.js',
   'STORY-LOCK-SPEC.md', 'KDP-PREFLIGHT.md', 'EPUB-PREFLIGHT.md', 'KINDLE-STANDARDS.md', 'RELEASE-QA.md',
@@ -23,7 +23,7 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
 }
 const main = readFileSync('src/main.js', 'utf8');
 for (const marker of [
-  "const VERSION = '1.0.42'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
+  "const VERSION = '1.0.43'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
   'Amazon KDP · Reflowable EPUB 3', 'Kindle Preview Studio', 'Adjust Layout', 'preview-studio-grid-v110',
   'Kindle Pro consistency scan', '3-View Torture Test', '11 pt reference', 'Semantic Style Palette', 'Content style',
   'saveEbookSemanticStyles', 'Kindle Intelligence', 'Compare Chapters', 'compareKindleChaptersButton', 'Undo', 'Redo',
@@ -52,8 +52,8 @@ for (const dynamicBinding of [
 }
 
 const project = readFileSync('src/lib/project.js', 'utf8');
-if (!project.includes("appVersion: '1.0.42'") || !project.includes('version: 37') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
-  throw new Error('Project app version was not migrated to 1.0.42 Cover Engine v11 state.');
+if (!project.includes("appVersion: '1.0.43'") || !project.includes('version: 37') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
+  throw new Error('Project app version was not migrated to 1.0.43 Cover Engine v13 state.');
 }
 const editions = readFileSync('src/lib/editions.js', 'utf8');
 if (!editions.includes('reviewDecisions:')) throw new Error('Edition normalization does not preserve Kindle review decisions.');
@@ -169,7 +169,7 @@ const fullWrapArt = readFileSync('src/lib/full-wrap-art.js', 'utf8');
 for (const marker of ['analyzeFullWrapArtwork','renderFullWrapArtworkPdf','planSeamlessSpineExpansion','computeSpineColumnEnergy','buildContentAwareStretchMap','analyzeSpineRasterQuality','Seamless spine expansion','wrap-art-seam-audit','wrap-art-horizontal-banding','wrap-art-periodic-repetition','Full-wrap artwork resolution']) {
   if (!fullWrapArt.includes(marker)) throw new Error(`1.0.37 Full-Wrap Artwork Adapter is missing: ${marker}`);
 }
-for (const marker of ['FULL_WRAP_ART_VERSION = 11','protectedContentMask:true','protectedPixelFraction','neutralHighDetail']) {
+for (const marker of ['FULL_WRAP_ART_VERSION = 13','protectedContentMask:true','protectedPixelFraction','neutralHighDetail']) {
   if (!fullWrapArt.includes(marker)) throw new Error(`1.0.37 Cover Engine v8 protected-background guard is missing: ${marker}`);
 }
 const v8Preflight = readFileSync('src/lib/preflight-model.js','utf8');
@@ -191,7 +191,7 @@ for (const marker of ['matterPostDrawAdvance','reconcileBodyAdvance','visibleOve
   if (!printPdf.includes(marker)) throw new Error(`1.0.40 Print PDF visible-overflow guard is missing: ${marker}`);
 }
 if (printPdf.includes('if (pageFlow?.overflowPx > 1)')) throw new Error('Logical cursor drift is still a production blocker.');
-for (const marker of ['FULL_WRAP_ART_VERSION = 11','compositeProtectedSpineArtwork','artworkOnlyOverlay:true','fullNativeCore:false','coverBarcodeBackingPlan','artworkUntouched:true']) {
+for (const marker of ['FULL_WRAP_ART_VERSION = 13','compositeProtectedSpineArtwork','artworkOnlyOverlay:true','fullNativeCore:false','coverBarcodeBackingPlan','artworkUntouched:true']) {
   if (!fullWrapArt.includes(marker)) throw new Error(`1.0.42 Cover Engine v11 marker is missing: ${marker}`);
 }
 if (!project.includes('primeDetectedPhysicalIsbn')) {
@@ -210,7 +210,7 @@ const v142Production=fullWrapArt.slice(
   fullWrapArt.indexOf('export function coverBarcodeBackingPlan'),
 );
 for(const marker of [
-  'FULL_WRAP_ART_VERSION = 11',
+  'FULL_WRAP_ART_VERSION = 13',
   'buildArtworkLockedSpineExtension',
   'selectArtworkLockedSpineCandidate',
   'analyzeArtworkLockedSpineQuality',
@@ -223,6 +223,19 @@ for(const marker of [
 if(!v142Production.includes('selectArtworkLockedSpineCandidate'))throw new Error('v11 production does not perform candidate selection.');
 if(v142Production.includes('buildSinglePassEdgeFlowUnderlay(')||v142Production.includes('compositeProtectedSpineArtwork('))throw new Error('legacy reconstruction is still active in production');
 if(!project.includes("isAppVersionBefore(priorAppVersion, '1.0.42')"))throw new Error('1.0.42 cover-only migration missing');
+const spineDonorAtlas = readFileSync('src/lib/spine-donor-atlas.js','utf8');
+const v143Production = fullWrapArt.slice(
+  fullWrapArt.indexOf('function renderSpineContentAware'),
+  fullWrapArt.indexOf('export function coverBarcodeBackingPlan'),
+);
+for (const marker of ['SPINE_DONOR_ATLAS_VERSION = 13','buildProtectedContentMask','cleanProtectedDonorPixels','manufactureProtectedDonorAtlasSpine','rawProtectedPixelsAvailableToQuilter:0','fullSourceCoreCopied:false','protected-donor-atlas-patch-quilt']) {
+  if (!spineDonorAtlas.includes(marker) && !fullWrapArt.includes(marker)) throw new Error(`1.0.43 donor-atlas marker missing: ${marker}`);
+}
+if (!v143Production.includes('manufactureProtectedDonorAtlasSpine(')) throw new Error('1.0.43 donor-atlas engine is not the production spine path.');
+if (v143Production.includes('selectArtworkLockedSpineCandidate(') || v143Production.includes('buildArtworkLockedSpineExtension(')) throw new Error('v11 raw-source phase quilting is still active in production.');
+if (!project.includes("isAppVersionBefore(priorAppVersion, '1.0.43')")) throw new Error('1.0.43 cover-only migration missing.');
+if (!main.includes('currentInteriorProofSignature') || !main.includes('certifiedProofSignature')) throw new Error('1.0.43 certified-interior reuse gate missing.');
+
 const barcodeBrain = readFileSync('src/lib/barcode-brain.js', 'utf8');
 for (const barcodeMarker of ['encodeEan13','decodeEan13Bits','barcodeRoundTrip','appendInteriorBarcodePages','barcodePdfVectorCommands','barcodeFingerprint']) {
   if (!barcodeBrain.includes(barcodeMarker)) throw new Error(`1.0.34 Barcode Brain is missing: ${barcodeMarker}`);
@@ -234,7 +247,7 @@ for (const barcodeMarker of ['stampBarcodeOnUploadedCoverPdf','PDF_LIB_ESM_URL',
 for (const barcodeMarker of ['BARCODE BRAIN · v1.0.37','printBrainIncludeInteriorBarcode','printBrainCoverBarcode','downloadBarcodeSvg','downloadBarcodePng','Stamp barcode + download KDP cover PDF']) {
   if (!main.includes(barcodeMarker)) throw new Error(`1.0.34 Barcode Brain UI is missing: ${barcodeMarker}`);
 }
-console.log('YasReady Publish v1.0.42 static verification passed.');
+console.log('YasReady Publish v1.0.43 static verification passed.');
 
 
 const amazonPrintHardMode = readFileSync('src/lib/amazon-print-hard-mode.js', 'utf8');

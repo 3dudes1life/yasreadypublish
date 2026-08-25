@@ -3,7 +3,7 @@ import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const VERSION = '1.0.42';
+const VERSION = '1.0.43';
 
 function walk(dir) {
   const out = [];
@@ -128,7 +128,7 @@ for (const marker of ['PRINT_PDF_VERSION = 4','matterPostDrawAdvance','reconcile
   if (!printPdf.includes(marker)) throw new Error(`Missing v1.0.40 Print PDF flow marker: ${marker}`);
 }
 if (printPdf.includes('if (pageFlow?.overflowPx > 1)')) throw new Error('Logical cursor drift is still a production blocker.');
-for (const marker of ['FULL_WRAP_ART_VERSION = 11','compositeProtectedSpineArtwork','artworkOnlyOverlay:true','fullNativeCore:false','coverBarcodeBackingPlan']) {
+for (const marker of ['FULL_WRAP_ART_VERSION = 13','compositeProtectedSpineArtwork','artworkOnlyOverlay:true','fullNativeCore:false','coverBarcodeBackingPlan']) {
   if (!fullWrapArt.includes(marker)) throw new Error(`Missing v1.0.41 Cover Engine marker: ${marker}`);
 }
 if (!project.includes('primeDetectedPhysicalIsbn')) throw new Error('Missing v1.0.39 project ISBN recovery.');
@@ -136,16 +136,29 @@ if (!project.includes('primeDetectedPhysicalIsbn')) throw new Error('Missing v1.
 for (const marker of ['isAppVersionBefore', "isAppVersionBefore(priorAppVersion, '1.0.40')"]) if (!project.includes(marker)) throw new Error(`Missing v1.0.40 migration persistence marker: ${marker}`);
 if (project.includes("if (priorAppVersion !== '1.0.38')") || project.includes("if (priorAppVersion !== '1.0.39')")) throw new Error('Current print certification can still be erased by an older migration guard.');
 
-const v141SpineProduction=fullWrapArt.slice(fullWrapArt.indexOf('function renderSpineContentAware'),fullWrapArt.indexOf('export function coverBarcodeBackingPlan'));for(const m of ['FULL_WRAP_ART_VERSION = 11','buildArtworkLockedSpineExtension','analyzeArtworkLockedSpineQuality','sourceCoreExact'])if(!fullWrapArt.includes(m))throw new Error(`Missing v1.0.41 Artwork Lock marker: ${m}`);if(v141SpineProduction.includes('buildSinglePassEdgeFlowUnderlay(')||v141SpineProduction.includes('compositeProtectedSpineArtwork('))throw new Error('Cover Engine v11 is not active');if(!project.includes("isAppVersionBefore(priorAppVersion, '1.0.41')"))throw new Error('Missing v1.0.41 cover-only migration');
+const v141SpineProduction=fullWrapArt.slice(fullWrapArt.indexOf('function renderSpineContentAware'),fullWrapArt.indexOf('export function coverBarcodeBackingPlan'));for(const m of ['FULL_WRAP_ART_VERSION = 13','buildArtworkLockedSpineExtension','analyzeArtworkLockedSpineQuality','sourceCoreExact'])if(!fullWrapArt.includes(m))throw new Error(`Missing v1.0.41 Artwork Lock marker: ${m}`);if(v141SpineProduction.includes('buildSinglePassEdgeFlowUnderlay(')||v141SpineProduction.includes('compositeProtectedSpineArtwork('))throw new Error('Cover Engine v11 is not active');if(!project.includes("isAppVersionBefore(priorAppVersion, '1.0.41')"))throw new Error('Missing v1.0.41 cover-only migration');
 const v142SpineProduction=fullWrapArt.slice(
   fullWrapArt.indexOf('function renderSpineContentAware'),
   fullWrapArt.indexOf('export function coverBarcodeBackingPlan'),
 );
-for(const marker of ['FULL_WRAP_ART_VERSION = 11','selectArtworkLockedSpineCandidate','multi-candidate-2d-phase-quilt','sameRowOnly:false']){
+for(const marker of ['FULL_WRAP_ART_VERSION = 13','selectArtworkLockedSpineCandidate','multi-candidate-2d-phase-quilt','sameRowOnly:false']){
   if(!fullWrapArt.includes(marker))throw new Error(`Missing v1.0.42 Cover Engine v11 marker: ${marker}`);
 }
 if(!v142SpineProduction.includes('selectArtworkLockedSpineCandidate'))throw new Error('Cover Engine v11 candidate selection is not active.');
 if(!project.includes("isAppVersionBefore(priorAppVersion, '1.0.42')"))throw new Error('Missing v1.0.42 cover-only migration.');
+
+const spineDonorAtlasV143 = readFileSync(join(ROOT,'src/lib/spine-donor-atlas.js'),'utf8');
+const v143SpineProduction = fullWrapArt.slice(
+  fullWrapArt.indexOf('function renderSpineContentAware'),
+  fullWrapArt.indexOf('export function coverBarcodeBackingPlan'),
+);
+for (const marker of ['SPINE_DONOR_ATLAS_VERSION = 13','manufactureProtectedDonorAtlasSpine','rawProtectedPixelsAvailableToQuilter:0','fullSourceCoreCopied:false']) {
+  if (!spineDonorAtlasV143.includes(marker)) throw new Error(`Missing v1.0.43 donor-atlas marker: ${marker}`);
+}
+if (!v143SpineProduction.includes('manufactureProtectedDonorAtlasSpine(')) throw new Error('Cover Engine v13 donor atlas is not active.');
+if (v143SpineProduction.includes('selectArtworkLockedSpineCandidate(')) throw new Error('v11 phase quilting is still an active production call.');
+if (!project.includes("isAppVersionBefore(priorAppVersion, '1.0.43')")) throw new Error('Missing v1.0.43 cover-only migration.');
+if (!main.includes('currentInteriorProofSignature')) throw new Error('Cover engine upgrade cannot reuse certified interior.');
 
 const epub = readFileSync(join(ROOT, 'src/lib/epub-export.js'), 'utf8');
 for (const marker of ['epub:type="landmarks"','properties="cover-image"','itemref idref="visible-toc"','text/contents.xhtml','<guide>']) {
@@ -217,7 +230,7 @@ for (const marker of ['certifiedProofSignature','liveProofSignature','interiorCu
 }
 
 const supermanV8Wrap = readFileSync(join(ROOT, 'src/lib/full-wrap-art.js'), 'utf8');
-for (const marker of ['FULL_WRAP_ART_VERSION = 11','protectedContentMask:true','protectedPixelFraction','neutralHighDetail']) if (!supermanV8Wrap.includes(marker)) throw new Error(`Missing Cover Engine v9 Superman marker: ${marker}`);
+for (const marker of ['FULL_WRAP_ART_VERSION = 13','protectedContentMask:true','protectedPixelFraction','neutralHighDetail']) if (!supermanV8Wrap.includes(marker)) throw new Error(`Missing Cover Engine v9 Superman marker: ${marker}`);
 const supermanV8Preflight = readFileSync(join(ROOT, 'src/lib/preflight-model.js'), 'utf8');
 for (const marker of ['isExpectedStructuralEmptyPage','barcodeSpacer','final-page parity']) if (!supermanV8Preflight.includes(marker)) throw new Error(`Missing print parity-spacer Superman marker: ${marker}`);
 for (const marker of ['interiorCurrentForCover','export-simple','Build the current interior PDF first']) if (!main.includes(marker)) throw new Error(`Missing deterministic print-flow Superman marker: ${marker}`);

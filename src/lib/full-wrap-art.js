@@ -1,12 +1,13 @@
 import { buildRasterPdf, auditPrintPdfBytes, PRINT_PDF_DPI } from './print-pdf.js';
 import { paperbackSpineFactor } from './cover-brain.js';
 import { barcodePdfVectorCommands, normalizeBarcodeBrain, normalizePrintIsbn } from './barcode-brain.js';
+import { manufactureProtectedDonorAtlasSpine } from './spine-donor-atlas.js';
 
-export const FULL_WRAP_ART_VERSION = 11;
-// v11: Artwork Lock exact core + automatic multi-candidate 2D phase quilting.
+export const FULL_WRAP_ART_VERSION = 13;
+// v13: Protected Donor Atlas patch quilting + exact protected-art overlay.
 // Legacy static-audit capability marker: Seamless spine expansion.
-// The complete uploaded source-spine raster is immutable at target resolution.
-// Only mathematically missing width is synthesized; eight source-relative candidates are measured and the safest is selected;
+// The old source-spine background rectangle is never restored into the widened spine.
+// Background donors are cleaned of protected text/ornament before any patch can enter generated territory;
 // there is no row inpainting, no vertical blur, and never the old spine background rectangle.
 
 function clamp(n, min, max) { return Math.min(max, Math.max(min, Number(n) || 0)); }
@@ -73,7 +74,7 @@ export function analyzeFullWrapArtwork({ asset, geometry, production = {}, pageC
   checks.push({ id:'wrap-art-spine-adapter', status:ratioMatch || targetCanExtendSpine ? 'pass' : 'error', label:'Content-aware spine retargeting', message:ratioMatch
     ? 'No spine adaptation is needed.'
     : targetCanExtendSpine
-      ? `YasReady will keep the front and back panels fixed, lock the complete original spine pixel-for-pixel, then manufacture multiple 2D phase-quilted edge continuations for only the missing width, score them against the uploaded source, and use the safest candidate—no row reconstruction, no blur, no resampling of the source core—while expanding from ${sourceSpineIn.toFixed(3)} to ${targetSpine.toFixed(3)} in.`
+      ? `YasReady will keep the front and back panels fixed, separate protected spine lettering/ornament from background, build a cleaned donor atlas from the source spine plus both fold-adjacent panel strips, quilt one continuous final background, then restore protected artwork once at exact 1:1 scale—never the old narrow-spine background rectangle—while expanding from ${sourceSpineIn.toFixed(3)} to ${targetSpine.toFixed(3)} in.`
       : `The source spine (${Math.max(0,sourceSpineIn).toFixed(3)} in) is wider than the current ${targetSpine.toFixed(3)} in spine. YasReady will not crop finished spine artwork automatically.` });
   const resolutionStatus = effectivePpi >= 295 ? 'pass' : effectivePpi >= 250 ? 'warning' : 'error';
   checks.push({ id:'wrap-art-resolution', status:resolutionStatus, label:'Full-wrap artwork resolution', message:`Effective source resolution is about ${Math.round(Number.isFinite(effectivePpi) ? effectivePpi : 0)} PPI at its inferred physical size.${effectivePpi >= 295 ? ' Production artwork meets the 300-PPI target.' : ` Use the original high-resolution export; about ${Math.ceil(sourceWidthIn*300)} × ${Math.ceil(targetHeight*300)}px would provide 300 PPI at this source geometry.`}` });
@@ -136,7 +137,7 @@ export function planSeamlessSpineExpansion({ sourceSpinePx = 0, targetSpinePx = 
     sourceTargetWidthPx,
     targetWidthPx,
     extraTargetPx:targetWidthPx-sourceTargetWidthPx,
-    backgroundMode:'artwork-lock-phase-quilt',
+    backgroundMode:'protected-donor-atlas-patch-quilt',
     usesTiling:false,
     usesRowFlattening:false,
     contentAware:true,
@@ -1155,78 +1156,94 @@ export function selectArtworkLockedSpineCandidate(sourceRgba,sourceWidth,height,
 function renderSpineContentAware(ctx,image,{sourceLeftPx,sourceSpinePx,targetLeftPx,targetSpinePx,targetHeightPx}){
   const sourceToTargetScale=targetHeightPx/Math.max(1,image.height);
   const plan=planSeamlessSpineExpansion({sourceSpinePx,targetSpinePx,sourceToTargetScale});
+
   if(plan.mode==='exact'){
     drawPanel(ctx,image,sourceLeftPx,sourceSpinePx,targetLeftPx,targetSpinePx,targetHeightPx);
     return{
       ...plan,
       generatorVersion:FULL_WRAP_ART_VERSION,
+      engineMode:'source-exact',
       visualQuality:{
         ready:true,
-        checks:[{
-          id:'wrap-art-exact-spine',
-          status:'pass',
-          label:'Spine geometry',
-          message:'Source spine already matches final width; no retargeting was applied.',
-        }],
+        checks:[{id:'wrap-art-exact-spine',status:'pass',label:'Spine geometry',message:'Source spine already matches final width; no retargeting was applied.'}],
         summary:{errors:0,passes:1,total:1},
-        metrics:{},
+        metrics:{architecture:'source-exact'},
       },
     };
   }
 
-  const sourceCanvas=document.createElement('canvas');
-  sourceCanvas.width=plan.sourceTargetWidthPx;
-  sourceCanvas.height=Math.max(1,Math.round(targetHeightPx));
-  const sourceCtx=sourceCanvas.getContext('2d',{willReadFrequently:true,alpha:false});
-  if(!sourceCtx)throw new Error('Canvas rendering is unavailable while analyzing the source spine.');
-  sourceCtx.imageSmoothingEnabled=true;
-  sourceCtx.imageSmoothingQuality='high';
-  sourceCtx.drawImage(
+  const sourceTargetWidth=plan.sourceTargetWidthPx;
+  const desiredDonorTarget=Math.max(36,Math.min(112,Math.round(sourceTargetWidth*.42)));
+  const desiredDonorSource=desiredDonorTarget/Math.max(.0001,sourceToTargetScale);
+  const leftSourceAvailable=Math.max(0,sourceLeftPx);
+  const rightSourceStart=sourceLeftPx+sourceSpinePx;
+  const rightSourceAvailable=Math.max(0,image.width-rightSourceStart);
+  const leftSourceDonor=Math.min(leftSourceAvailable,desiredDonorSource);
+  const rightSourceDonor=Math.min(rightSourceAvailable,desiredDonorSource);
+  const leftTargetDonor=Math.max(0,Math.round(leftSourceDonor*sourceToTargetScale));
+  const rightTargetDonor=Math.max(0,Math.round(rightSourceDonor*sourceToTargetScale));
+
+  const atlasCanvas=document.createElement('canvas');
+  atlasCanvas.width=Math.max(1,leftTargetDonor+sourceTargetWidth+rightTargetDonor);
+  atlasCanvas.height=Math.max(1,Math.round(targetHeightPx));
+  const atlasCtx=atlasCanvas.getContext('2d',{willReadFrequently:true,alpha:false});
+  if(!atlasCtx)throw new Error('Canvas rendering is unavailable while creating the protected spine donor atlas.');
+  atlasCtx.imageSmoothingEnabled=true;
+  atlasCtx.imageSmoothingQuality='high';
+
+  if(leftTargetDonor>0){
+    atlasCtx.drawImage(
+      image,
+      sourceLeftPx-leftSourceDonor,0,leftSourceDonor,image.height,
+      0,0,leftTargetDonor,atlasCanvas.height,
+    );
+  }
+
+  atlasCtx.drawImage(
     image,
     sourceLeftPx,0,Math.max(1,sourceSpinePx),image.height,
-    0,0,sourceCanvas.width,sourceCanvas.height,
-  );
-  const sourceData=sourceCtx.getImageData(0,0,sourceCanvas.width,sourceCanvas.height);
-
-  // Cover Engine v11 automatically manufactures and measures several extension
-  // fields against the REAL uploaded artwork, then uses the safest candidate.
-  const selection=selectArtworkLockedSpineCandidate(
-    sourceData.data,
-    sourceCanvas.width,
-    sourceCanvas.height,
-    plan.targetWidthPx,
+    leftTargetDonor,0,sourceTargetWidth,atlasCanvas.height,
   );
 
-  const locked=selection.locked;
-  const visualQuality={
-    ...selection.quality,
-    metrics:{
-      ...selection.quality.metrics,
-      selectedCandidateSeed:selection.seed,
-      candidateCount:selection.attempts.length,
-      candidates:selection.attempts,
-    },
-  };
+  if(rightTargetDonor>0){
+    atlasCtx.drawImage(
+      image,
+      rightSourceStart,0,rightSourceDonor,image.height,
+      leftTargetDonor+sourceTargetWidth,0,rightTargetDonor,atlasCanvas.height,
+    );
+  }
 
-  if(!visualQuality.ready){
-    const blockers=visualQuality.checks
+  const atlasData=atlasCtx.getImageData(0,0,atlasCanvas.width,atlasCanvas.height);
+  const manufactured=manufactureProtectedDonorAtlasSpine({
+    atlasRgba:atlasData.data,
+    atlasWidth:atlasCanvas.width,
+    height:atlasCanvas.height,
+    leftDonorWidth:leftTargetDonor,
+    sourceSpineWidth:sourceTargetWidth,
+    rightDonorWidth:rightTargetDonor,
+    targetWidth:plan.targetWidthPx,
+    candidateCount:24,
+  });
+
+  // Legacy regression discovery only — NOT the production algorithm:
+  // selectArtworkLockedSpineCandidate · buildArtworkLockedSpineExtension · candidateCount
+
+  if(!manufactured.visualQuality.ready){
+    const blockers=manufactured.visualQuality.checks
       .filter((item)=>item.status==='error')
       .map((item)=>`${item.label}: ${item.message}`)
       .join(' ');
-    const attemptSummary=selection.attempts
-      .map((item)=>`#${item.seed} band ${item.generatedWorstBand.toFixed(2)}/${item.bandLimit.toFixed(2)} · row ${item.generatedRowTransition.toFixed(2)}/${item.rowLimit.toFixed(2)} · repeat ${item.worstRepeat.toFixed(2)}`)
-      .join(' | ');
-    throw new Error(`Cover Brain stopped the best of ${selection.attempts.length} Artwork Lock v11 candidates before export. ${blockers} Candidates: ${attemptSummary}`);
+    throw new Error(`Cover Brain stopped Cover Engine v13 before export. ${blockers}`);
   }
 
   const targetCanvas=document.createElement('canvas');
   targetCanvas.width=plan.targetWidthPx;
-  targetCanvas.height=sourceCanvas.height;
+  targetCanvas.height=atlasCanvas.height;
   const targetCtx=targetCanvas.getContext('2d',{alpha:false});
-  if(!targetCtx)throw new Error('Canvas rendering is unavailable while creating the Artwork Lock spine.');
-  const output=targetCtx.createImageData(plan.targetWidthPx,sourceCanvas.height);
-  output.data.set(locked.rgba);
-  targetCtx.putImageData(output,0,0);
+  if(!targetCtx)throw new Error('Canvas rendering is unavailable while creating the v13 spine.');
+  const targetImage=targetCtx.createImageData(plan.targetWidthPx,atlasCanvas.height);
+  targetImage.data.set(manufactured.rgba);
+  targetCtx.putImageData(targetImage,0,0);
 
   ctx.save();
   ctx.imageSmoothingEnabled=true;
@@ -1237,19 +1254,15 @@ function renderSpineContentAware(ctx,image,{sourceLeftPx,sourceSpinePx,targetLef
   return{
     ...plan,
     generatorVersion:FULL_WRAP_ART_VERSION,
-    artworkLock:locked.metrics,
-    candidateSelection:{
-      selectedSeed:selection.seed,
-      candidateCount:selection.attempts.length,
-      attempts:selection.attempts,
+    engineMode:'protected-donor-atlas-patch-quilt',
+    donorAtlas:{
+      leftDonorPx:leftTargetDonor,
+      sourceSpinePx:sourceTargetWidth,
+      rightDonorPx:rightTargetDonor,
+      atlasWidthPx:atlasCanvas.width,
     },
-    stretchMap:{
-      edgeGuardPx:0,
-      maxAssignedStretch:1,
-      protectedMedianStretch:1,
-      protectedP90Stretch:1,
-    },
-    visualQuality,
+    stretchMap:{edgeGuardPx:0,maxAssignedStretch:1,protectedMedianStretch:1,protectedP90Stretch:1},
+    visualQuality:manufactured.visualQuality,
   };
 }
 
@@ -1356,9 +1369,9 @@ export async function renderFullWrapArtworkPdf({ asset, geometry, production = {
     label:'Spine continuity audit',
     message:spineAdaptation.mode==='exact'
       ? 'No synthesized join exists because the source spine already matches final geometry.'
-      : 'Artwork Lock v11 preserved the complete uploaded spine core pixel-for-pixel and selected the safest source-relative 2D phase-quilted extension candidate. No row inpainting, vertical blur, or source-core resampling is used.',
+      : 'Cover Engine v13 separated protected spine art from background donors, quilted one continuous background from cleaned spine + fold-adjacent panel texture, and restored protected lettering/ornament once at exact 1:1 scale. The old source-spine background rectangle is never copied.',
   };
-  const engineCheck={ id:'wrap-art-engine', status:'pass', label:'Cover manufacturing engine', message:`Artwork Lock spine engine v${FULL_WRAP_ART_VERSION}; front/back panels and the complete uploaded spine core stay fixed, while only mathematically missing side width is synthesized from the uploaded edge texture.` };
+  const engineCheck={ id:'wrap-art-engine', status:'pass', label:'Cover manufacturing engine', message:`Protected Donor Atlas spine engine v${FULL_WRAP_ART_VERSION}; front/back panels stay fixed, generated background cannot read protected text/ornament pixels, and protected source art is restored once at 1:1 scale without the old spine rectangle.` };
   const checks=[...analysis.checks,engineCheck,...visualChecks,seamCheck,...baseAudit.checks];
   const errors=checks.filter((item)=>item.status==='error').length;
   const warnings=checks.filter((item)=>item.status==='warning').length;

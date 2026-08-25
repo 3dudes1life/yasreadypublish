@@ -33,7 +33,7 @@ function fixture(appVersion){
 
 test('1.0.40 upgrades 1.0.39 once while preserving 730-page ISBN/barcode/Kindle state',()=>{
   const old=fixture('1.0.39'); const kindle=JSON.stringify(old.editions.ebook.releaseGate); const migrated=migrateProject(old);
-  assert.equal(migrated.appVersion,'1.0.42');
+  assert.equal(migrated.appVersion,'1.0.43');
   assert.equal(migrated.editions.paperback.lastPageCount,730);
   assert.equal(migrated.editions.paperback.kdpMetadata.isbn,'9798998826948');
   assert.equal(migrated.editions.paperback.barcodeBrain.includeInterior,true);
@@ -58,6 +58,6 @@ test('1.0.40 diagnostics no longer claim v8/native-core behavior',()=>{
   const wrap=readFileSync(new URL('../src/lib/full-wrap-art.js',import.meta.url),'utf8');
   assert.ok(main.includes('AMAZON PRINT GATE · v1.0.40'));
   assert.ok(!main.includes('AMAZON PRINT GATE · v1.0.37'));
-  assert.ok(wrap.includes('v11: Artwork Lock exact core + automatic multi-candidate 2D phase quilting.'));
+  assert.ok(wrap.includes('manufactureProtectedDonorAtlasSpine'));
   assert.ok(wrap.includes('never the old spine background rectangle'));
 });

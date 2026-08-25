@@ -40,7 +40,7 @@ test('1.0.39 back-matter renderer advances by actual canvas wrapping', () => {
 });
 
 test('1.0.39 Cover Engine v11 overlays protected artwork without restoring the old spine rectangle', () => {
-  assert.equal(FULL_WRAP_ART_VERSION,11);
+  assert.equal(FULL_WRAP_ART_VERSION,13);
   const sourceW=20,targetW=36,height=10;
   const bg=new Uint8ClampedArray(targetW*height*4);
   const original=new Uint8ClampedArray(sourceW*height*4);
@@ -107,7 +107,7 @@ test('1.0.39 migration repairs Book 2 ISBN/barcode state and preserves Kindle pr
   };
   const kindle=JSON.stringify(old.editions.ebook.releaseGate);
   const migrated=migrateProject(old);
-  assert.equal(migrated.appVersion,'1.0.42');
+  assert.equal(migrated.appVersion,'1.0.43');
   assert.equal(migrated.editions.paperback.kdpMetadata.isbnMode,'own');
   assert.equal(migrated.editions.paperback.kdpMetadata.isbn,ISBN);
   assert.equal(migrated.editions.paperback.barcodeBrain.enabled,true);

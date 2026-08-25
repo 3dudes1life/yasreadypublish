@@ -69,7 +69,7 @@ test('1.0.24 invalidates stale ebook proof after front matter renderer changes',
   const raw=fixture();
   const before=JSON.stringify(raw.manuscript.blocks);
   const p=migrateProject(raw);
-  assert.equal(p.appVersion, '1.0.42');
+  assert.equal(p.appVersion, '1.0.43');
   assert.equal(p.editions.ebook.lastPreflight,null);
   assert.equal(p.editions.ebook.releaseGate.visualProof,null);
   assert.equal(p.editions.ebook.releaseGate.freeze,null);

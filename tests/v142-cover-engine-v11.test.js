@@ -39,7 +39,7 @@ function bandProneArt(width=64,height=180){
 }
 
 test('1.0.42 Cover Engine v11 keeps the complete source core byte-exact',()=>{
-  assert.equal(FULL_WRAP_ART_VERSION,11);
+  assert.equal(FULL_WRAP_ART_VERSION,13);
   const sw=64,tw=118,h=180;
   const source=bandProneArt(sw,h);
   const result=buildArtworkLockedSpineExtension(source,sw,h,tw,{seed:4});
@@ -160,7 +160,7 @@ test('1.0.42 cover-only migration preserves the certified 730-page interior',()=
   const kindle=JSON.stringify(old.editions.ebook.releaseGate);
   const migrated=migrateProject(old);
 
-  assert.equal(migrated.appVersion,'1.0.42');
+  assert.equal(migrated.appVersion,'1.0.43');
   assert.equal(migrated.editions.paperback.lastPageCount,730);
   assert.equal(migrated.editions.paperback.lastBuiltAt,builtAt);
   assert.equal(JSON.stringify(migrated.editions.paperback.lastPreflight),preflight);
