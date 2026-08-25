@@ -59,7 +59,7 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
   const project = {
     id: crypto.randomUUID(),
     version: 37,
-    appVersion: '1.0.40',
+    appVersion: '1.0.41',
     title: baseName,
     author: '',
     createdAt: now,
@@ -117,7 +117,7 @@ export function migrateProject(project) {
   if (!project) return project;
   const oldVersion = Number(project.version) || 1;
   const priorAppVersion = String(project.appVersion || '');
-  const alreadyCurrent = oldVersion >= 37 && priorAppVersion === '1.0.40';
+  const alreadyCurrent = oldVersion >= 37 && priorAppVersion === '1.0.41';
   // 1.0.34 is a print-only renderer/pagination upgrade. Preserve the exact
   // Kindle release proof when upgrading a real 1.0.33 project so a paperback
   // barcode change cannot erase already-confirmed Kindle Previewer work.
@@ -724,11 +724,21 @@ export function migrateProject(project) {
     }
   }
 
+  // 1.0.41 Artwork Lock Cover Engine v10 — COVER ONLY.
+  if (isAppVersionBefore(priorAppVersion, '1.0.41')) {
+    ensureEditions(project);
+    for (const type of ['paperback','hardcover']) {
+      const edition=project.editions?.[type]; if(!edition) continue;
+      edition.lastCoverAudit=null;
+      if(edition.printGate&&typeof edition.printGate==='object'){edition.printGate.visualProof=null;edition.printGate.freeze=null;edition.printGate.external={kdpPrintPreviewApproved:false};}
+    }
+  }
+
   if (priorEbookReleaseGateFor134 && project.editions?.ebook) {
     project.editions.ebook.releaseGate = priorEbookReleaseGateFor134;
   }
   project.version = Math.max(oldVersion, 37);
-  project.appVersion = '1.0.40';
+  project.appVersion = '1.0.41';
   return project;
 }
 

@@ -129,7 +129,7 @@ test('1.0.35 migration invalidates stale print/KDP Previewer proof but preserves
   const manuscript=JSON.stringify(old.manuscript);
   const migrated=migrateProject(old);
   assert.equal(migrated.version,37);
-  assert.equal(migrated.appVersion,'1.0.40');
+  assert.equal(migrated.appVersion,'1.0.41');
   assert.equal(migrated.editions.paperback.lastPageCount,null);
   assert.equal(migrated.editions.paperback.lastPdfAudit,null);
   assert.equal(migrated.editions.paperback.lastCoverAudit,null);

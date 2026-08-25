@@ -191,7 +191,7 @@ test('1.0.38 migration invalidates bad v1.0.37 print production proof but preser
   const migrated = migrateProject(old);
 
   assert.equal(migrated.version, 37);
-  assert.equal(migrated.appVersion, '1.0.40');
+  assert.equal(migrated.appVersion, '1.0.41');
 
   // v1.0.38 preserved page-count knowledge, but the current migration chain
   // continues through v1.0.39 Barcode Recovery. Because barcode restoration

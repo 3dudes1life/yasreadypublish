@@ -2,11 +2,12 @@ import { buildRasterPdf, auditPrintPdfBytes, PRINT_PDF_DPI } from './print-pdf.j
 import { paperbackSpineFactor } from './cover-brain.js';
 import { barcodePdfVectorCommands, normalizeBarcodeBrain, normalizePrintIsbn } from './barcode-brain.js';
 
-export const FULL_WRAP_ART_VERSION = 9;
-// v9: unified protected-content 2D background + artwork-only preservation.
+export const FULL_WRAP_ART_VERSION = 10;
+// v10: Artwork Lock exact core + 2D edge continuation.
 // Legacy static-audit capability marker: Seamless spine expansion.
-// Typography/ornament is removed from the stretchable underlay before expansion;
-// only protected artwork is restored at exact 1:1 scale — never the old spine rectangle.
+// The complete uploaded source-spine raster is immutable at target resolution.
+// Only mathematically missing width is synthesized from low-detail source-edge texture;
+// there is no row inpainting, no vertical blur, and never the old spine background rectangle.
 
 function clamp(n, min, max) { return Math.min(max, Math.max(min, Number(n) || 0)); }
 function quantile(values, q) {
@@ -72,7 +73,7 @@ export function analyzeFullWrapArtwork({ asset, geometry, production = {}, pageC
   checks.push({ id:'wrap-art-spine-adapter', status:ratioMatch || targetCanExtendSpine ? 'pass' : 'error', label:'Content-aware spine retargeting', message:ratioMatch
     ? 'No spine adaptation is needed.'
     : targetCanExtendSpine
-      ? `YasReady will keep the front and back panels fixed, remove typography/high-detail pixels from the stretchable background field, expand that cleaned 2D texture once, then restore only the original typography/ornament at exact 1:1 raster scale—never the old spine background rectangle—while expanding from ${sourceSpineIn.toFixed(3)} to ${targetSpine.toFixed(3)} in.`
+      ? `YasReady will keep the front and back panels fixed, lock the complete original spine pixel-for-pixel, then synthesize only the missing width from its low-detail edge texture with 2D phase-varied continuation—no row reconstruction, no blur, no resampling of the source core—while expanding from ${sourceSpineIn.toFixed(3)} to ${targetSpine.toFixed(3)} in.`
       : `The source spine (${Math.max(0,sourceSpineIn).toFixed(3)} in) is wider than the current ${targetSpine.toFixed(3)} in spine. YasReady will not crop finished spine artwork automatically.` });
   const resolutionStatus = effectivePpi >= 295 ? 'pass' : effectivePpi >= 250 ? 'warning' : 'error';
   checks.push({ id:'wrap-art-resolution', status:resolutionStatus, label:'Full-wrap artwork resolution', message:`Effective source resolution is about ${Math.round(Number.isFinite(effectivePpi) ? effectivePpi : 0)} PPI at its inferred physical size.${effectivePpi >= 295 ? ' Production artwork meets the 300-PPI target.' : ` Use the original high-resolution export; about ${Math.ceil(sourceWidthIn*300)} × ${Math.ceil(targetHeight*300)}px would provide 300 PPI at this source geometry.`}` });
@@ -135,7 +136,7 @@ export function planSeamlessSpineExpansion({ sourceSpinePx = 0, targetSpinePx = 
     sourceTargetWidthPx,
     targetWidthPx,
     extraTargetPx:targetWidthPx-sourceTargetWidthPx,
-    backgroundMode:'artwork-overlay+protected-2d-background',
+    backgroundMode:'artwork-lock-edge-continuation',
     usesTiling:false,
     usesRowFlattening:false,
     contentAware:true,
@@ -775,93 +776,24 @@ export function analyzeSpineRasterQuality(rgba, width, height, { protectedMedian
   return { ready:errors===0, checks, summary:{errors,passes:checks.length-errors,total:checks.length}, metrics:{leftBand,rightBand,leftRepeat,rightRepeat,worstBand,worstRepeat,maxAssignedStretch,protectedMedianStretch,protectedP90Stretch,nativeCore:native} };
 }
 
+
+function reflectCoordinate(value,span){const s=Math.max(1e-6,Number(span)||0),p=s*2;let v=((Number(value)||0)%p+p)%p;return v<=s?v:p-v;}
+function sampleSameRowLinear(rgba,w,h,y,x,out,o){const yy=Math.max(0,Math.min(h-1,Math.round(y))),xx=Math.max(0,Math.min(w-1,Number(x)||0)),x0=Math.floor(xx),x1=Math.min(w-1,x0+1),a=xx-x0,i0=(yy*w+x0)*4,i1=(yy*w+x1)*4;out[o]=Math.round(rgba[i0]*(1-a)+rgba[i1]*a);out[o+1]=Math.round(rgba[i0+1]*(1-a)+rgba[i1+1]*a);out[o+2]=Math.round(rgba[i0+2]*(1-a)+rgba[i1+2]*a);out[o+3]=255;}
+function chooseArtworkLockEdgeBand(e,side,w){const minW=Math.max(12,Math.min(w-1,Math.round(w*.18))),maxW=Math.max(minW,Math.min(w-1,Math.round(w*.34))),limit=Math.max(1,quantile(e,.68));for(let band=maxW;band>=minW;band--){let hot=0;for(let n=0;n<band;n++){const x=side==='left'?n:w-1-n;if(Number(e[x]||0)>limit*1.35+5)hot++;}if(hot/Math.max(1,band)<=.12)return band;}return minW;}
+export function buildArtworkLockedSpineExtension(sourceRgba,sourceWidth,height,targetWidth,{warpFraction=.045}={}){const sourceW=Math.max(1,Math.round(sourceWidth)),targetW=Math.max(1,Math.round(targetWidth)),h=Math.max(1,Math.round(height));if(!sourceRgba||sourceRgba.length<sourceW*h*4)throw new Error('Artwork Lock source raster is smaller than declared geometry.');if(targetW<sourceW)throw new Error('Artwork Lock will not crop a wider source spine.');const extra=targetW-sourceW,leftExtra=Math.floor(extra/2),rightExtra=extra-leftExtra,coreX=leftExtra,out=new Uint8ClampedArray(targetW*h*4),energy=computeSpineColumnEnergy(sourceRgba,sourceW,h,{sampleStepY:3,topK:18}),leftBand=chooseArtworkLockEdgeBand(energy,'left',sourceW),rightBand=chooseArtworkLockEdgeBand(energy,'right',sourceW);
+ for(let y=0;y<h;y++){for(let tx=0;tx<leftExtra;tx++){const d=leftExtra-1-tx,r=Math.min(1,d/Math.max(8,leftExtra*.12)),amp=Math.max(1,leftBand*warpFraction),warp=r*(Math.sin(y*.0107+d*.071)*amp+Math.sin(y*.0039-d*.029)*amp*.55),sx=reflectCoordinate(d*.78+warp,Math.max(1,leftBand-1));sampleSameRowLinear(sourceRgba,sourceW,h,y,sx,out,(y*targetW+tx)*4);}for(let n=0;n<rightExtra;n++){const tx=coreX+sourceW+n,d=n,r=Math.min(1,d/Math.max(8,rightExtra*.12)),amp=Math.max(1,rightBand*warpFraction),warp=r*(Math.sin(y*.0119+d*.067+1.4)*amp+Math.sin(y*.0044-d*.033+.6)*amp*.55),sx=(sourceW-1)-reflectCoordinate(d*.78+warp,Math.max(1,rightBand-1));sampleSameRowLinear(sourceRgba,sourceW,h,y,sx,out,(y*targetW+tx)*4);}}
+ for(let y=0;y<h;y++){const a=y*sourceW*4,b=(y*targetW+coreX)*4;out.set(sourceRgba.subarray(a,a+sourceW*4),b);}let sum=0,max=0,count=0;for(let y=0;y<h;y++)for(let x=0;x<sourceW;x++){const si=(y*sourceW+x)*4,ti=(y*targetW+coreX+x)*4;for(let c=0;c<3;c++){const d=Math.abs(out[ti+c]-sourceRgba[si+c]);sum+=d;max=Math.max(max,d);count++;}}
+ return{rgba:out,metrics:{sourceCoreExact:max===0,sourceCoreX:coreX,sourceCoreWidth:sourceW,sourceCoreMeanAbsError:count?sum/count:0,sourceCoreMaxAbsError:max,leftExtraPx:leftExtra,rightExtraPx:rightExtra,leftSourceBandPx:leftBand,rightSourceBandPx:rightBand,syntheticFraction:targetW?extra/targetW:0,rowInpainting:false,verticalBlur:false,sourceCoreResampling:false,extensionMethod:'same-row-2d-phase-reflection'}};}
+function seamMeanAbsDelta(t,tw,s,sw,h,coreX,side){if(side==='left'&&coreX<=0)return 0;if(side==='right'&&coreX+sw>=tw)return 0;let sum=0,count=0;for(let y=0;y<h;y++){const tx=side==='left'?coreX-1:coreX+sw,sx=side==='left'?0:sw-1,ti=(y*tw+tx)*4,si=(y*sw+sx)*4;for(let c=0;c<3;c++){sum+=Math.abs(t[ti+c]-s[si+c]);count++;}}return count?sum/count:0;}
+function rowTransitionSignature(rgba,w,h,x0,x1){const a=Math.max(0,Math.floor(x0)),b=Math.min(w,Math.ceil(x1));if(b-a<2||h<3)return 0;const means=new Float64Array(h),step=Math.max(1,Math.floor((b-a)/48));for(let y=0;y<h;y++){let sum=0,count=0;for(let x=a;x<b;x+=step){sum+=lumaAt(rgba,(y*w+x)*4);count++;}means[y]=count?sum/count:0;}const d=[];for(let y=1;y<h;y++)d.push(Math.abs(means[y]-means[y-1]));return quantile(d,.95);}
+export function analyzeArtworkLockedSpineQuality(sourceRgba,sourceWidth,targetRgba,targetWidth,height,m={}){const sw=Math.round(sourceWidth),tw=Math.round(targetWidth),h=Math.round(height),coreX=Math.round(m.sourceCoreX||0),le=Math.round(m.leftExtraPx||0),re=Math.round(m.rightExtraPx||0),lb=Math.max(1,Math.round(m.leftSourceBandPx||24)),rb=Math.max(1,Math.round(m.rightSourceBandPx||24));const sl=regionBandingScore(sourceRgba,sw,h,0,lb),sr=regionBandingScore(sourceRgba,sw,h,sw-rb,sw),gl=le>=3?regionBandingScore(targetRgba,tw,h,0,le):sl,gr=re>=3?regionBandingScore(targetRgba,tw,h,tw-re,tw):sr,sourceBand=Math.max(sl,sr),genBand=Math.max(gl,gr),bandLimit=Math.min(3.25,Math.max(1.8,sourceBand*1.6+.35));const sourceRow=Math.max(rowTransitionSignature(sourceRgba,sw,h,0,lb),rowTransitionSignature(sourceRgba,sw,h,sw-rb,sw)),genRow=Math.max(le>=3?rowTransitionSignature(targetRgba,tw,h,0,le):sourceRow,re>=3?rowTransitionSignature(targetRgba,tw,h,tw-re,tw):sourceRow),rowLimit=Math.max(1.5,sourceRow*1.45+.75),lr=le>=12?periodicityDip(targetRgba,tw,h,0,le):{score:1,lag:0},rr=re>=12?periodicityDip(targetRgba,tw,h,tw-re,tw):{score:1,lag:0},repeat=Math.max(lr.score,rr.score),ls=seamMeanAbsDelta(targetRgba,tw,sourceRgba,sw,h,coreX,'left'),rs=seamMeanAbsDelta(targetRgba,tw,sourceRgba,sw,h,coreX,'right'),seam=Math.max(ls,rs),core=Boolean(m.sourceCoreExact&&m.sourceCoreMaxAbsError===0&&m.sourceCoreMeanAbsError===0),method=m.rowInpainting===false&&m.verticalBlur===false&&m.sourceCoreResampling===false,band=genBand<=bandLimit&&genRow<=rowLimit,rep=repeat<=1.8,seamOk=seam<=.5;const checks=[{id:'wrap-art-source-core-fidelity',status:core?'pass':'error',label:'Artwork Lock source-core fidelity',message:core?`Complete uploaded spine core preserved pixel-for-pixel; mean/max error ${m.sourceCoreMeanAbsError.toFixed(3)} / ${m.sourceCoreMaxAbsError.toFixed(0)}.`:'Uploaded spine core was altered.'},{id:'wrap-art-extension-method',status:method?'pass':'error',label:'Missing-width synthesis only',message:method?`Only ${(Number(m.syntheticFraction||0)*100).toFixed(1)}% of final width is synthesized; no row inpainting, vertical blur, or core resampling.`:'Forbidden reconstruction path used.'},{id:'wrap-art-seam-audit',status:seamOk?'pass':'error',label:'Fold-edge continuity',message:`Worst seam pixel delta ${seam.toFixed(2)} (limit 0.50).`},{id:'wrap-art-horizontal-banding',status:band?'pass':'error',label:'No new horizontal structure',message:`Generated banding ${genBand.toFixed(2)} vs source ${sourceBand.toFixed(2)} (limit ${bandLimit.toFixed(2)}); row transition ${genRow.toFixed(2)} vs source ${sourceRow.toFixed(2)} (limit ${rowLimit.toFixed(2)}).`},{id:'wrap-art-periodic-repetition',status:rep?'pass':'error',label:'No obvious repeated texture',message:`Worst repetition score ${repeat.toFixed(2)} (limit 1.80).`}];const errors=checks.filter(x=>x.status==='error').length;return{ready:errors===0,checks,summary:{errors,passes:checks.length-errors,total:checks.length},metrics:{sourceWorstBand:sourceBand,generatedWorstBand:genBand,bandLimit,sourceRowTransition:sourceRow,generatedRowTransition:genRow,rowLimit,worstRepeat:repeat,leftSeam:ls,rightSeam:rs,worstSeam:seam,artworkLock:m}};}
 function renderSpineContentAware(ctx, image, { sourceLeftPx, sourceSpinePx, targetLeftPx, targetSpinePx, targetHeightPx }) {
   const sourceToTargetScale=targetHeightPx/Math.max(1,image.height);
   const plan=planSeamlessSpineExpansion({sourceSpinePx,targetSpinePx,sourceToTargetScale});
-  if (plan.mode==='exact') {
-    drawPanel(ctx,image,sourceLeftPx,sourceSpinePx,targetLeftPx,targetSpinePx,targetHeightPx);
-    return { ...plan, generatorVersion:FULL_WRAP_ART_VERSION, visualQuality:{ ready:true, checks:[{id:'wrap-art-exact-spine',status:'pass',label:'Spine geometry',message:'Source spine already matches final width; no retargeting was applied.'}], summary:{errors:0,passes:1,total:1}, metrics:{} } };
-  }
-  const sourceCanvas=document.createElement('canvas');
-  sourceCanvas.width=plan.sourceTargetWidthPx;
-  sourceCanvas.height=Math.max(1,Math.round(targetHeightPx));
-  const sourceCtx=sourceCanvas.getContext('2d',{willReadFrequently:true,alpha:false});
-  if (!sourceCtx) throw new Error('Canvas rendering is unavailable while analyzing the source spine.');
-  sourceCtx.imageSmoothingEnabled=true;
-  sourceCtx.imageSmoothingQuality='high';
-  sourceCtx.drawImage(image,sourceLeftPx,0,Math.max(1,sourceSpinePx),image.height,0,0,sourceCanvas.width,sourceCanvas.height);
-  const sourceData=sourceCtx.getImageData(0,0,sourceCanvas.width,sourceCanvas.height);
-
-  // v8 production path: strip typography/high-detail pixels from the stretchable
-  // background field, reconstruct only those protected runs, expand the cleaned 2D
-  // field once, then restore the exact native spine center.
-  const edgeFlow=buildSinglePassEdgeFlowUnderlay(
-    sourceData.data,
-    sourceCanvas.width,
-    sourceCanvas.height,
-    plan.targetWidthPx,
-  );
-  const artworkOverlay=compositeProtectedSpineArtwork(
-    edgeFlow.rgba,
-    plan.targetWidthPx,
-    sourceData.data,
-    sourceCanvas.width,
-    sourceCanvas.height,
-    edgeFlow.cleanedSourceRgba,
-    edgeFlow.artworkSeedMask,
-  );
-  const targetRgba=artworkOverlay.rgba;
-  const visualQuality=analyzeSpineRasterQuality(targetRgba,plan.targetWidthPx,sourceCanvas.height,{
-    protectedMedianStretch:1,
-    protectedP90Stretch:1,
-    maxAssignedStretch:edgeFlow.metrics.maxExtensionStretch,
-  });
-  visualQuality.checks.unshift({
-    id:'wrap-art-artwork-only-overlay',
-    status:artworkOverlay.metrics.artworkOnlyOverlay && !artworkOverlay.metrics.fullNativeCore && artworkOverlay.metrics.artworkMeanAbsError<=0.5 ? 'pass' : 'error',
-    label:'Spine typography / ornament preservation',
-    message:`Original spine lettering and ornament are restored at exact 1:1 raster scale without restoring the old spine background rectangle. Opaque artwork pixel error ${artworkOverlay.metrics.artworkMeanAbsError.toFixed(2)}.`,
-  });
-  visualQuality.checks.unshift({
-    id:'wrap-art-protected-background-extension',
-    status:edgeFlow.metrics.usesTiling || edgeFlow.metrics.usesElasticColumnRedistribution || !edgeFlow.metrics.protectedContentMask ? 'error' : 'pass',
-    label:'Protected-content 2D background extension',
-    message:`YasReady removed ${(edgeFlow.metrics.protectedPixelFraction*100).toFixed(1)}% of the source spine from the stretchable background mask, reconstructed only those protected regions, and expanded the cleaned 2D field once at ${edgeFlow.metrics.maxExtensionStretch.toFixed(2)}×. Original spine art is restored separately at 1:1 scale.`,
-  });
-  visualQuality.ready=visualQuality.checks.every((item)=>item.status!=='error');
-  visualQuality.summary={
-    errors:visualQuality.checks.filter((item)=>item.status==='error').length,
-    passes:visualQuality.checks.filter((item)=>item.status==='pass').length,
-    total:visualQuality.checks.length,
-  };
-  visualQuality.metrics.edgeFlow=edgeFlow.metrics;
-  if (!visualQuality.ready) {
-    const blockers=visualQuality.checks.filter((item)=>item.status==='error').map((item)=>`${item.label}: ${item.message}`).join(' ');
-    throw new Error(`Cover Brain stopped a visually unsafe spine before export. ${blockers}`);
-  }
-  const targetCanvas=document.createElement('canvas');
-  targetCanvas.width=plan.targetWidthPx;
-  targetCanvas.height=sourceCanvas.height;
-  const targetCtx=targetCanvas.getContext('2d',{alpha:false});
-  if (!targetCtx) throw new Error('Canvas rendering is unavailable while creating the retargeted spine.');
-  const output=targetCtx.createImageData(plan.targetWidthPx,sourceCanvas.height);
-  output.data.set(targetRgba);
-  targetCtx.putImageData(output,0,0);
-  ctx.save();
-  ctx.imageSmoothingEnabled=true;
-  ctx.imageSmoothingQuality='high';
-  ctx.drawImage(targetCanvas,targetLeftPx,0,targetSpinePx,targetHeightPx);
-  ctx.restore();
-  return {
-    ...plan,
-    generatorVersion:FULL_WRAP_ART_VERSION,
-    stretchMap:{ edgeGuardPx:0, maxAssignedStretch:edgeFlow.metrics.maxExtensionStretch, protectedMedianStretch:1, protectedP90Stretch:1 },
-    edgeFlow:edgeFlow.metrics,
-    artworkOverlay:artworkOverlay.metrics,
-    visualQuality,
-  };
-}
-
+  if(plan.mode==='exact'){drawPanel(ctx,image,sourceLeftPx,sourceSpinePx,targetLeftPx,targetSpinePx,targetHeightPx);return{...plan,generatorVersion:FULL_WRAP_ART_VERSION,visualQuality:{ready:true,checks:[{id:'wrap-art-exact-spine',status:'pass',label:'Spine geometry',message:'Source spine already matches final width; no retargeting was applied.'}],summary:{errors:0,passes:1,total:1},metrics:{}}};}
+  const sc=document.createElement('canvas');sc.width=plan.sourceTargetWidthPx;sc.height=Math.max(1,Math.round(targetHeightPx));const sx=sc.getContext('2d',{willReadFrequently:true,alpha:false});if(!sx)throw new Error('Canvas rendering is unavailable while analyzing the source spine.');sx.imageSmoothingEnabled=true;sx.imageSmoothingQuality='high';sx.drawImage(image,sourceLeftPx,0,Math.max(1,sourceSpinePx),image.height,0,0,sc.width,sc.height);const sd=sx.getImageData(0,0,sc.width,sc.height);
+  const locked=buildArtworkLockedSpineExtension(sd.data,sc.width,sc.height,plan.targetWidthPx);const targetRgba=locked.rgba;const visualQuality=analyzeArtworkLockedSpineQuality(sd.data,sc.width,targetRgba,plan.targetWidthPx,sc.height,locked.metrics);if(!visualQuality.ready){const blockers=visualQuality.checks.filter(x=>x.status==='error').map(x=>`${x.label}: ${x.message}`).join(' ');throw new Error(`Cover Brain stopped a visually unsafe Artwork Lock spine before export. ${blockers}`);}
+  const tc=document.createElement('canvas');tc.width=plan.targetWidthPx;tc.height=sc.height;const tx=tc.getContext('2d',{alpha:false});if(!tx)throw new Error('Canvas rendering is unavailable while creating the Artwork Lock spine.');const out=tx.createImageData(plan.targetWidthPx,sc.height);out.data.set(targetRgba);tx.putImageData(out,0,0);ctx.save();ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.drawImage(tc,targetLeftPx,0,targetSpinePx,targetHeightPx);ctx.restore();return{...plan,generatorVersion:FULL_WRAP_ART_VERSION,artworkLock:locked.metrics,stretchMap:{edgeGuardPx:0,maxAssignedStretch:1,protectedMedianStretch:1,protectedP90Stretch:1},visualQuality};}
 
 export function coverBarcodeBackingPlan({ placement='amazon', legacyPlaceholder=false }={}) {
   if (placement==='amazon') return { paintWhite:false, backing:'none', artworkUntouched:true };

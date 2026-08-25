@@ -33,7 +33,7 @@ function fixture(appVersion){
 
 test('1.0.40 upgrades 1.0.39 once while preserving 730-page ISBN/barcode/Kindle state',()=>{
   const old=fixture('1.0.39'); const kindle=JSON.stringify(old.editions.ebook.releaseGate); const migrated=migrateProject(old);
-  assert.equal(migrated.appVersion,'1.0.40');
+  assert.equal(migrated.appVersion,'1.0.41');
   assert.equal(migrated.editions.paperback.lastPageCount,730);
   assert.equal(migrated.editions.paperback.kdpMetadata.isbn,'9798998826948');
   assert.equal(migrated.editions.paperback.barcodeBrain.includeInterior,true);
@@ -43,13 +43,13 @@ test('1.0.40 upgrades 1.0.39 once while preserving 730-page ISBN/barcode/Kindle 
   assert.equal(JSON.stringify(migrated.editions.ebook.releaseGate),kindle);
 });
 
-test('1.0.40 reloading a current project does not erase certified interior/cover audits',()=>{
+test('1.0.40 project upgraded through 1.0.41 preserves certified interior while invalidating the old v9 cover',()=>{
   const current=fixture('1.0.40');
-  const pdf=JSON.stringify(current.editions.paperback.lastPdfAudit),cover=JSON.stringify(current.editions.paperback.lastCoverAudit),kindle=JSON.stringify(current.editions.ebook.releaseGate);
+  const pdf=JSON.stringify(current.editions.paperback.lastPdfAudit),kindle=JSON.stringify(current.editions.ebook.releaseGate);
   const migrated=migrateProject(current);
   assert.equal(migrated.editions.paperback.lastPageCount,730);
   assert.equal(JSON.stringify(migrated.editions.paperback.lastPdfAudit),pdf);
-  assert.equal(JSON.stringify(migrated.editions.paperback.lastCoverAudit),cover);
+  assert.equal(migrated.editions.paperback.lastCoverAudit,null);
   assert.equal(JSON.stringify(migrated.editions.ebook.releaseGate),kindle);
 });
 
@@ -58,6 +58,6 @@ test('1.0.40 diagnostics no longer claim v8/native-core behavior',()=>{
   const wrap=readFileSync(new URL('../src/lib/full-wrap-art.js',import.meta.url),'utf8');
   assert.ok(main.includes('AMAZON PRINT GATE · v1.0.40'));
   assert.ok(!main.includes('AMAZON PRINT GATE · v1.0.37'));
-  assert.ok(wrap.includes('v9: unified protected-content 2D background + artwork-only preservation'));
+  assert.ok(wrap.includes('v10: Artwork Lock exact core + 2D edge continuation.'));
   assert.ok(wrap.includes('never the old spine background rectangle'));
 });
