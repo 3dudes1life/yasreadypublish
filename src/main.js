@@ -79,7 +79,7 @@ import {
   kindleReleaseReport, markAllCurrentReviewsIntentional, markKindleVisualProofComplete, setKindleExternalConfirmation,
 } from './lib/kindle-release-gate.js';
 
-const VERSION = '1.0.38';
+const VERSION = '1.0.39';
 // Legacy capability labels retained for regression discovery only (not default UI): Amazon KDP · Reflowable EPUB 3 · Kindle Preview Studio · Semantic Style Palette · Kindle Release Gate · v1.0.16
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
@@ -786,7 +786,7 @@ function renderPrintBrainSetup() {
         <label class="design-field"><span>Print ISBN source</span><select id="printBrainIsbnMode"><option value="own" ${isbnMode === 'own' ? 'selected' : ''}>Use my own ISBN</option><option value="kdp-free" ${isbnMode !== 'own' ? 'selected' : ''}>Use free KDP ISBN / Amazon barcode</option></select></label>
         <label class="design-field"><span>Print ISBN</span><input id="printBrainIsbn" value="${escapeHtml(isbnValue)}" placeholder="979…" inputmode="numeric"><small>${detectedIsbn ? `Detected in the manuscript copyright page: ${escapeHtml(detectedIsbn)} · confirm it belongs to this ${escapeHtml(editionLabel(type).toLowerCase())}.` : 'ISBN-13 is validated mathematically before any barcode is generated.'}</small></label>
         <label class="toggle-row"><input id="printBrainIncludeInteriorBarcode" type="checkbox" ${barcode.includeInterior ? 'checked' : ''}><span><strong>Put ISBN barcode on the final interior page</strong><small>Matches Book 1: barcode finishes on the last left/even physical page and the folio continues underneath.</small></span></label>
-        <label class="design-field"><span>Back-cover barcode</span><select id="printBrainCoverBarcode"><option value="yasready" ${barcode.coverPlacement === 'yasready' ? 'selected' : ''}>YasReady places my ISBN barcode</option><option value="amazon" ${barcode.coverPlacement === 'amazon' ? 'selected' : ''}>Leave a white zone for Amazon</option><option value="none" ${barcode.coverPlacement === 'none' ? 'selected' : ''}>No cover ISBN barcode</option></select><small>YasReady uses a 2.05 × 1.65 in white replacement knockout around a centered 2 × 1.2 in 100% black vector barcode, so an old placeholder cannot ghost around the new ISBN.</small></label>
+        <label class="design-field"><span>Back-cover barcode</span><select id="printBrainCoverBarcode"><option value="yasready" ${barcode.coverPlacement === 'yasready' ? 'selected' : ''}>YasReady places my ISBN barcode</option><option value="amazon" ${barcode.coverPlacement === 'amazon' ? 'selected' : ''}>Leave a white zone for Amazon</option><option value="none" ${barcode.coverPlacement === 'none' ? 'selected' : ''}>No cover ISBN barcode</option></select><small>YasReady normally adds only the exact 2 × 1.2 in white barcode backing. A larger replacement knockout is used only when Cover Brain detects an existing legacy placeholder.</small></label>
       </div>
       ${state.barcodeBrainMessage ? `<div class="notice info">${escapeHtml(state.barcodeBrainMessage)}</div>` : ''}
       <div class="barcode-brain-mini-checks">${barcodeReport.checks.slice(0,2).map((item)=>`<span class="mini-status ${item.status === 'pass' ? 'good' : 'needs'}">${item.status === 'pass' ? '✓' : '×'} ${escapeHtml(item.label)}</span>`).join('')}</div>
@@ -3407,8 +3407,10 @@ function bytesToPdfDataUrl(bytes) {
 function currentValidPrintIsbn() {
   if (!state.project) return { valid:false, digits:'', reason:'Open a project first.' };
   ensureEditions(state.project);
-  const edition = state.project.editions[currentPrintEditionType()];
-  return normalizePrintIsbn(edition?.kdpMetadata?.isbn || '');
+  const type=currentPrintEditionType();
+  const edition=state.project.editions[type];
+  const detected=detectLabeledPrintIsbn(state.project,type);
+  return normalizePrintIsbn(edition?.kdpMetadata?.isbn || edition?.barcodeBrain?.detectedIsbn || detected?.isbn || '');
 }
 
 function downloadCurrentBarcodeSvg() {
@@ -4986,7 +4988,11 @@ function finalizeBarcodePreview(preview, project) {
   const brain = normalizeBarcodeBrain(edition.barcodeBrain || {});
   if (brain.enabled && brain.includeInterior) {
     const meta = edition.kdpMetadata || {};
-    appendInteriorBarcodePages(preview, { isbn:meta.isbn || '', enabled:true });
+    const detected=detectLabeledPrintIsbn(project,type);
+    const effectiveIsbn=meta.isbn || brain.detectedIsbn || detected?.isbn || '';
+    const normalized=normalizePrintIsbn(effectiveIsbn);
+    if (!normalized.valid) throw new Error('Barcode Brain is enabled but no valid labeled physical-edition ISBN is available.');
+    appendInteriorBarcodePages(preview, { isbn:normalized.digits, enabled:true });
   } else {
     preview.barcodePlan = barcodePagePlan(preview.pages.length, false);
     preview.barcodeSpacerPages = 0;

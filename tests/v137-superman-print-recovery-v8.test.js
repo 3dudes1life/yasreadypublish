@@ -10,10 +10,10 @@ test('1.0.37 Superman recovery recognizes Barcode Brain parity spacer as expecte
   assert.equal(isExpectedStructuralEmptyPage({intentionalBlank:false,blankReason:'',fragments:[]}),false);
 });
 
-test('1.0.37 Superman recovery advances manufactured artwork to Cover Engine v8', () => {
-  assert.equal(FULL_WRAP_ART_VERSION,8);
+test('1.0.37 Superman recovery advances manufactured artwork to Cover Engine v9', () => {
+  assert.equal(FULL_WRAP_ART_VERSION,9);
   const source=readFileSync(new URL('../src/lib/full-wrap-art.js',import.meta.url),'utf8');
-  for (const marker of ['protectedContentMask:true','protectedPixelFraction','neutralHighDetail','gradientThreshold','Native-core spine engine v']) {
+  for (const marker of ['protectedContentMask:true','protectedPixelFraction','neutralHighDetail','gradientThreshold','Artwork-overlay spine engine v']) {
     assert.ok(source.includes(marker), 'missing v8 cover marker: ' + marker);
   }
 });

@@ -8,6 +8,32 @@ import { canonicalizeManuscriptV2 } from './manuscript-rules.js';
 import { applyBookBrain, reanalyzeBookBrain } from './book-brain.js';
 import { detectLabeledPrintIsbn, normalizeBarcodeBrain } from './barcode-brain.js';
 
+function primeDetectedPhysicalIsbn(project, type='paperback') {
+  // Callers normalize editions before entering this helper. Do not call
+  // ensureEditions() again here: it can replace the edition object while the
+  // migration still holds a reference to the previous object, causing stale
+  // lastPageCount/PDF/cover proof state to survive.
+  const edition=project?.editions?.[type];
+  if (!edition) return null;
+  const detected=detectLabeledPrintIsbn(project,type);
+  if (!detected) return null;
+
+  const meta=edition.kdpMetadata || {};
+  if (meta.isbnMode !== 'own' || !String(meta.isbn || '').trim()) {
+    edition.kdpMetadata={ ...meta, isbnMode:'own', isbn:detected.isbn };
+  }
+
+  edition.barcodeBrain=normalizeBarcodeBrain({
+    ...(edition.barcodeBrain || {}),
+    enabled:true,
+    includeInterior:true,
+    coverPlacement:'yasready',
+    detectedIsbn:detected.isbn,
+    detectedIsbnBlockId:detected.blockId || null,
+  });
+  return detected;
+}
+
 export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
   const [sourceFileHash, manuscriptHash] = await Promise.all([
     sha256Hex(arrayBuffer),
@@ -20,7 +46,7 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
   const project = {
     id: crypto.randomUUID(),
     version: 37,
-    appVersion: '1.0.38',
+    appVersion: '1.0.39',
     title: baseName,
     author: '',
     createdAt: now,
@@ -69,6 +95,8 @@ export async function createProjectFromImport({ file, arrayBuffer, parsed }) {
   // 1.0.25 Book Brain interprets high-confidence structure/presentation after
   // import. It never changes manuscript wording or canonical Story Lock data.
   applyBookBrain(project);
+  primeDetectedPhysicalIsbn(project,'paperback');
+  primeDetectedPhysicalIsbn(project,'hardcover');
   return project;
 }
 
@@ -76,7 +104,7 @@ export function migrateProject(project) {
   if (!project) return project;
   const oldVersion = Number(project.version) || 1;
   const priorAppVersion = String(project.appVersion || '');
-  const alreadyCurrent = oldVersion >= 37 && priorAppVersion === '1.0.38';
+  const alreadyCurrent = oldVersion >= 37 && priorAppVersion === '1.0.39';
   // 1.0.34 is a print-only renderer/pagination upgrade. Preserve the exact
   // Kindle release proof when upgrading a real 1.0.33 project so a paperback
   // barcode change cannot erase already-confirmed Kindle Previewer work.
@@ -640,11 +668,35 @@ export function migrateProject(project) {
     }
   }
 
+
+  // 1.0.39 Print Polish + Barcode Recovery.
+  if (priorAppVersion !== '1.0.39') {
+    ensureEditions(project);
+    for (const type of ['paperback','hardcover']) {
+      const edition=project.editions?.[type];
+      if (!edition) continue;
+
+      primeDetectedPhysicalIsbn(project,type);
+
+      edition.lastPageCount=null;
+      edition.lastBuiltAt=null;
+      edition.lastPreflight=null;
+      edition.lastPdfAudit=null;
+      edition.lastCoverAudit=null;
+
+      if (edition.printGate && typeof edition.printGate === 'object') {
+        edition.printGate.visualProof=null;
+        edition.printGate.freeze=null;
+        edition.printGate.external={ kdpPrintPreviewApproved:false };
+      }
+    }
+  }
+
   if (priorEbookReleaseGateFor134 && project.editions?.ebook) {
     project.editions.ebook.releaseGate = priorEbookReleaseGateFor134;
   }
   project.version = Math.max(oldVersion, 37);
-  project.appVersion = '1.0.38';
+  project.appVersion = '1.0.39';
   return project;
 }
 

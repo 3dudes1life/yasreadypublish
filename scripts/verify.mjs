@@ -23,7 +23,7 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
 }
 const main = readFileSync('src/main.js', 'utf8');
 for (const marker of [
-  "const VERSION = '1.0.38'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
+  "const VERSION = '1.0.39'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
   'Amazon KDP · Reflowable EPUB 3', 'Kindle Preview Studio', 'Adjust Layout', 'preview-studio-grid-v110',
   'Kindle Pro consistency scan', '3-View Torture Test', '11 pt reference', 'Semantic Style Palette', 'Content style',
   'saveEbookSemanticStyles', 'Kindle Intelligence', 'Compare Chapters', 'compareKindleChaptersButton', 'Undo', 'Redo',
@@ -52,8 +52,8 @@ for (const dynamicBinding of [
 }
 
 const project = readFileSync('src/lib/project.js', 'utf8');
-if (!project.includes("appVersion: '1.0.38'") || !project.includes('version: 37') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
-  throw new Error('Project app version was not migrated to 1.0.38 Print Fidelity Recovery state.');
+if (!project.includes("appVersion: '1.0.39'") || !project.includes('version: 37') || !project.includes('ensureEditions(project)') || !project.includes('ensurePresentationOverrides(project)')) {
+  throw new Error('Project app version was not migrated to 1.0.39 Print Polish state.');
 }
 const editions = readFileSync('src/lib/editions.js', 'utf8');
 if (!editions.includes('reviewDecisions:')) throw new Error('Edition normalization does not preserve Kindle review decisions.');
@@ -135,7 +135,7 @@ if (!readFileSync('src/lib/kindle-quality.js','utf8').includes('effectiveStats(p
 
 const printPdf = readFileSync('src/lib/print-pdf.js','utf8');
 for (const marker of ['renderProductionPrintPdf','buildRasterPdf','auditPrintPdfBytes','PRINT_PDF_DPI = 300','/MediaBox','/DCTDecode']) if (!printPdf.includes(marker)) throw new Error(`1.0.29 Print PDF Hard Mode is missing: ${marker}`);
-for (const marker of ['PRINT_PDF_VERSION = 2','auditPrintFrontMatterManifest','content-fidelity','runsForLocalRange','rasterContentInkEvidence']) {
+for (const marker of ['PRINT_PDF_VERSION = 3','auditPrintFrontMatterManifest','content-fidelity','runsForLocalRange','rasterContentInkEvidence']) {
   if (!printPdf.includes(marker)) throw new Error(`1.0.38 Print Fidelity Recovery is missing: ${marker}`);
 }
 const preflightV138 = readFileSync('src/lib/preflight-model.js', 'utf8');
@@ -165,7 +165,7 @@ const fullWrapArt = readFileSync('src/lib/full-wrap-art.js', 'utf8');
 for (const marker of ['analyzeFullWrapArtwork','renderFullWrapArtworkPdf','planSeamlessSpineExpansion','computeSpineColumnEnergy','buildContentAwareStretchMap','analyzeSpineRasterQuality','Seamless spine expansion','wrap-art-seam-audit','wrap-art-horizontal-banding','wrap-art-periodic-repetition','Full-wrap artwork resolution']) {
   if (!fullWrapArt.includes(marker)) throw new Error(`1.0.37 Full-Wrap Artwork Adapter is missing: ${marker}`);
 }
-for (const marker of ['FULL_WRAP_ART_VERSION = 8','protectedContentMask:true','protectedPixelFraction','neutralHighDetail']) {
+for (const marker of ['FULL_WRAP_ART_VERSION = 9','protectedContentMask:true','protectedPixelFraction','neutralHighDetail']) {
   if (!fullWrapArt.includes(marker)) throw new Error(`1.0.37 Cover Engine v8 protected-background guard is missing: ${marker}`);
 }
 const v8Preflight = readFileSync('src/lib/preflight-model.js','utf8');
@@ -182,6 +182,24 @@ const printMatterV136 = readFileSync('src/lib/print-matter.js', 'utf8');
 for (const marker of ['matter-back-heading','matter-back-body',"alignment:'center'", "alignment:'left'"]) {
   if (!printMatterV136.includes(marker)) throw new Error(`1.0.37 back-matter alignment is missing: ${marker}`);
 }
+
+for (const marker of ['matterPostDrawAdvance','pageFlow?.overflowPx > 1','const drawnBodyHeight=drawWrappedFragment','PRINT_PDF_VERSION = 3']) {
+  if (!printPdf.includes(marker)) throw new Error(`1.0.39 Print PDF overlap guard is missing: ${marker}`);
+}
+for (const marker of ['FULL_WRAP_ART_VERSION = 9','compositeProtectedSpineArtwork','artworkOnlyOverlay:true','fullNativeCore:false','coverBarcodeBackingPlan','artworkUntouched:true']) {
+  if (!fullWrapArt.includes(marker)) throw new Error(`1.0.39 Cover Engine v9 marker is missing: ${marker}`);
+}
+if (!project.includes('primeDetectedPhysicalIsbn') || !project.includes("project.appVersion = '1.0.39'")) {
+  throw new Error('1.0.39 ISBN/barcode migration recovery is missing.');
+}
+if (project.includes("function primeDetectedPhysicalIsbn(project, type='paperback') {\n  ensureEditions(project);")) {
+  throw new Error('1.0.39 ISBN helper still re-normalizes editions and can leave stale print state behind.');
+}
+const barcodeBrainV139 = readFileSync('src/lib/barcode-brain.js','utf8');
+for (const marker of ['BARCODE_BRAIN_VERSION = 2','index-2','index+3','conflictPenalty','detectLabeledPrintIsbn']) {
+  if (!barcodeBrainV139.includes(marker)) throw new Error(`1.0.39 Barcode Brain v2 marker is missing: ${marker}`);
+}
+
 const barcodeBrain = readFileSync('src/lib/barcode-brain.js', 'utf8');
 for (const barcodeMarker of ['encodeEan13','decodeEan13Bits','barcodeRoundTrip','appendInteriorBarcodePages','barcodePdfVectorCommands','barcodeFingerprint']) {
   if (!barcodeBrain.includes(barcodeMarker)) throw new Error(`1.0.34 Barcode Brain is missing: ${barcodeMarker}`);
@@ -193,7 +211,7 @@ for (const barcodeMarker of ['stampBarcodeOnUploadedCoverPdf','PDF_LIB_ESM_URL',
 for (const barcodeMarker of ['BARCODE BRAIN · v1.0.37','printBrainIncludeInteriorBarcode','printBrainCoverBarcode','downloadBarcodeSvg','downloadBarcodePng','Stamp barcode + download KDP cover PDF']) {
   if (!main.includes(barcodeMarker)) throw new Error(`1.0.34 Barcode Brain UI is missing: ${barcodeMarker}`);
 }
-console.log('YasReady Publish v1.0.38 static verification passed.');
+console.log('YasReady Publish v1.0.39 static verification passed.');
 
 
 const amazonPrintHardMode = readFileSync('src/lib/amazon-print-hard-mode.js', 'utf8');

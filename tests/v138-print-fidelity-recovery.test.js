@@ -191,10 +191,13 @@ test('1.0.38 migration invalidates bad v1.0.37 print production proof but preser
   const migrated = migrateProject(old);
 
   assert.equal(migrated.version, 37);
-  assert.equal(migrated.appVersion, '1.0.38');
+  assert.equal(migrated.appVersion, '1.0.39');
 
-  // Page-count knowledge/settings survive. The unsafe produced files do not.
-  assert.equal(migrated.editions.paperback.lastPageCount, 730);
+  // v1.0.38 preserved page-count knowledge, but the current migration chain
+  // continues through v1.0.39 Barcode Recovery. Because barcode restoration
+  // can change final pagination/spine geometry, stale page-count knowledge must
+  // now be cleared before a fresh production preview is certified.
+  assert.equal(migrated.editions.paperback.lastPageCount, null);
   assert.equal(migrated.editions.paperback.lastPreflight, null);
   assert.equal(migrated.editions.paperback.lastPdfAudit, null);
   assert.equal(migrated.editions.paperback.lastCoverAudit, null);

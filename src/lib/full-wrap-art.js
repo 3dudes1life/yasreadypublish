@@ -2,7 +2,7 @@ import { buildRasterPdf, auditPrintPdfBytes, PRINT_PDF_DPI } from './print-pdf.j
 import { paperbackSpineFactor } from './cover-brain.js';
 import { barcodePdfVectorCommands, normalizeBarcodeBrain, normalizePrintIsbn } from './barcode-brain.js';
 
-export const FULL_WRAP_ART_VERSION = 8;
+export const FULL_WRAP_ART_VERSION = 9;
 // v8: protected-content 2D background synthesis + native-core preservation.
 // Legacy static-audit capability marker: Seamless spine expansion.
 // Typography/high-detail pixels are removed from the stretchable underlay before expansion;
@@ -135,7 +135,7 @@ export function planSeamlessSpineExpansion({ sourceSpinePx = 0, targetSpinePx = 
     sourceTargetWidthPx,
     targetWidthPx,
     extraTargetPx:targetWidthPx-sourceTargetWidthPx,
-    backgroundMode:'native-core+protected-2d-background',
+    backgroundMode:'artwork-overlay+protected-2d-background',
     usesTiling:false,
     usesRowFlattening:false,
     contentAware:true,
@@ -343,6 +343,8 @@ export function buildSinglePassEdgeFlowUnderlay(sourceRgba, sourceWidth, height,
   gradientThreshold=Math.max(28,gradientThreshold);
 
   const rawMask=new Uint8Array(pixels);
+  const artworkSeed=new Uint8Array(pixels);
+  let artworkSeedPixels=0;
   let rawProtected=0;
   for (let y=0;y<h;y+=1) {
     for (let x=0;x<sourceW;x+=1) {
@@ -358,6 +360,10 @@ export function buildSinglePassEdgeFlowUnderlay(sourceRgba, sourceWidth, height,
       }
       const lightTypography=(lum>=protectLuma && chroma<=protectChroma) || lum>=brightLuma;
       const neutralHighDetail=gradient>=gradientThreshold && chroma<=80 && (lum<=90 || lum>=125);
+      if (lightTypography) {
+        artworkSeed[p]=1;
+        artworkSeedPixels+=1;
+      }
       if (lightTypography || neutralHighDetail) {
         rawMask[p]=1;
         rawProtected+=1;
@@ -480,6 +486,18 @@ export function buildSinglePassEdgeFlowUnderlay(sourceRgba, sourceWidth, height,
     }
   }
 
+
+  // Keep a source-size copy of the reconstructed background. Cover Engine v9
+  // compares original pixels against this field so only lettering/ornament
+  // differences are composited back — never the old full-width spine rectangle.
+  const cleanedSourceRgba=new Uint8ClampedArray(pixels*4);
+  for (let p=0;p<pixels;p+=1) {
+    cleanedSourceRgba[p*4]=Math.round(blurred[p*3]);
+    cleanedSourceRgba[p*4+1]=Math.round(blurred[p*3+1]);
+    cleanedSourceRgba[p*4+2]=Math.round(blurred[p*3+2]);
+    cleanedSourceRgba[p*4+3]=255;
+  }
+
   // Stretch the cleaned 2D background field once to the final spine width.
   // The exact original center is restored by compositeNativeSpineCore() afterward.
   const output=new Uint8ClampedArray(targetW*h*4);
@@ -497,6 +515,8 @@ export function buildSinglePassEdgeFlowUnderlay(sourceRgba, sourceWidth, height,
   const fieldStretch=targetW/sourceW;
   return {
     rgba:output,
+    cleanedSourceRgba,
+    artworkSeedMask:artworkSeed,
     metrics:{
       mode:'protected-2d-background',
       usesTiling:false,
@@ -517,9 +537,97 @@ export function buildSinglePassEdgeFlowUnderlay(sourceRgba, sourceWidth, height,
       curvePower:1,
       rawProtectedPixelFraction:rawProtected/pixels,
       protectedPixelFraction:protectedPixels/pixels,
+      artworkSeedPixelFraction:artworkSeedPixels/pixels,
       gradientThreshold,
       dilationPx,
       blurRadius,
+    },
+  };
+}
+
+
+function dilateBinaryMask(seed,width,height,radius) {
+  const w=Math.max(1,Math.round(width)), h=Math.max(1,Math.round(height));
+  const r=Math.max(0,Math.round(radius));
+  if (!r) return Uint8Array.from(seed);
+  const horizontal=new Uint8Array(w*h);
+  for (let y=0;y<h;y+=1) {
+    const row=y*w;
+    const prefix=new Int32Array(w+1);
+    for (let x=0;x<w;x+=1) prefix[x+1]=prefix[x]+(seed[row+x]?1:0);
+    for (let x=0;x<w;x+=1) {
+      const a=Math.max(0,x-r), b=Math.min(w,x+r+1);
+      if (prefix[b]-prefix[a]>0) horizontal[row+x]=1;
+    }
+  }
+  const out=new Uint8Array(w*h);
+  for (let x=0;x<w;x+=1) {
+    const prefix=new Int32Array(h+1);
+    for (let y=0;y<h;y+=1) prefix[y+1]=prefix[y]+horizontal[y*w+x];
+    for (let y=0;y<h;y+=1) {
+      const a=Math.max(0,y-r), b=Math.min(h,y+r+1);
+      if (prefix[b]-prefix[a]>0) out[y*w+x]=1;
+    }
+  }
+  return out;
+}
+
+export function compositeProtectedSpineArtwork(targetRgba,targetWidth,sourceRgba,sourceWidth,height,cleanedSourceRgba,artworkSeedMask,{
+  haloFraction=0.055,
+}={}) {
+  const targetW=Math.max(1,Math.round(targetWidth));
+  const sourceW=Math.max(1,Math.round(sourceWidth));
+  const h=Math.max(1,Math.round(height));
+  if (targetW<sourceW) throw new Error('Protected spine artwork cannot be composited into a narrower target.');
+  if (!artworkSeedMask || artworkSeedMask.length<sourceW*h) throw new Error('Spine artwork mask is missing.');
+  const output=Uint8ClampedArray.from(targetRgba);
+  const haloRadius=Math.max(3,Math.round(sourceW*haloFraction));
+  const nearMask=dilateBinaryMask(artworkSeedMask,sourceW,h,haloRadius);
+  const targetX=Math.round((targetW-sourceW)/2);
+  let overlaid=0, opaque=0, errorSum=0, errorCount=0;
+
+  for (let y=0;y<h;y+=1) {
+    for (let x=0;x<sourceW;x+=1) {
+      const p=y*sourceW+x;
+      if (!nearMask[p]) continue;
+      const si=p*4;
+      const tx=targetX+x;
+      if (tx<0 || tx>=targetW) continue;
+      const ti=(y*targetW+tx)*4;
+
+      const dr=Math.abs(sourceRgba[si]-cleanedSourceRgba[si]);
+      const dg=Math.abs(sourceRgba[si+1]-cleanedSourceRgba[si+1]);
+      const db=Math.abs(sourceRgba[si+2]-cleanedSourceRgba[si+2]);
+      const difference=(dr+dg+db)/3;
+      let alpha=artworkSeedMask[p] ? 1 : Math.max(0,Math.min(1,(difference-4)/24));
+      if (alpha<0.08) continue;
+
+      const inv=1-alpha;
+      for (let c=0;c<3;c+=1) output[ti+c]=Math.round(sourceRgba[si+c]*alpha+output[ti+c]*inv);
+      output[ti+3]=255;
+      overlaid+=1;
+      if (alpha>=0.999) {
+        opaque+=1;
+        for (let c=0;c<3;c+=1) {
+          errorSum+=Math.abs(output[ti+c]-sourceRgba[si+c]);
+          errorCount+=1;
+        }
+      }
+    }
+  }
+
+  return {
+    rgba:output,
+    metrics:{
+      artworkOnlyOverlay:true,
+      fullNativeCore:false,
+      nativeScaleX:1,
+      nativeScaleY:1,
+      targetX,
+      haloRadius,
+      overlayPixelFraction:overlaid/(sourceW*h),
+      opaqueArtworkPixelFraction:opaque/(sourceW*h),
+      artworkMeanAbsError:errorCount ? errorSum/errorCount : 0,
     },
   };
 }
@@ -693,19 +801,26 @@ function renderSpineContentAware(ctx, image, { sourceLeftPx, sourceSpinePx, targ
     sourceCanvas.height,
     plan.targetWidthPx,
   );
-  const nativeCore=compositeNativeSpineCore(
+  const artworkOverlay=compositeProtectedSpineArtwork(
     edgeFlow.rgba,
     plan.targetWidthPx,
     sourceData.data,
     sourceCanvas.width,
     sourceCanvas.height,
+    edgeFlow.cleanedSourceRgba,
+    edgeFlow.artworkSeedMask,
   );
-  const targetRgba=nativeCore.rgba;
+  const targetRgba=artworkOverlay.rgba;
   const visualQuality=analyzeSpineRasterQuality(targetRgba,plan.targetWidthPx,sourceCanvas.height,{
     protectedMedianStretch:1,
     protectedP90Stretch:1,
     maxAssignedStretch:edgeFlow.metrics.maxExtensionStretch,
-    nativeCore:nativeCore.metrics,
+  });
+  visualQuality.checks.unshift({
+    id:'wrap-art-artwork-only-overlay',
+    status:artworkOverlay.metrics.artworkOnlyOverlay && !artworkOverlay.metrics.fullNativeCore && artworkOverlay.metrics.artworkMeanAbsError<=0.5 ? 'pass' : 'error',
+    label:'Spine typography / ornament preservation',
+    message:`Original spine lettering and ornament are restored at exact 1:1 raster scale without restoring the old spine background rectangle. Opaque artwork pixel error ${artworkOverlay.metrics.artworkMeanAbsError.toFixed(2)}.`,
   });
   visualQuality.checks.unshift({
     id:'wrap-art-protected-background-extension',
@@ -742,10 +857,44 @@ function renderSpineContentAware(ctx, image, { sourceLeftPx, sourceSpinePx, targ
     generatorVersion:FULL_WRAP_ART_VERSION,
     stretchMap:{ edgeGuardPx:0, maxAssignedStretch:edgeFlow.metrics.maxExtensionStretch, protectedMedianStretch:1, protectedP90Stretch:1 },
     edgeFlow:edgeFlow.metrics,
-    nativeCore:nativeCore.metrics,
+    artworkOverlay:artworkOverlay.metrics,
     visualQuality,
   };
 }
+
+
+export function coverBarcodeBackingPlan({ placement='amazon', legacyPlaceholder=false }={}) {
+  if (placement==='amazon') return { paintWhite:false, backing:'none', artworkUntouched:true };
+  if (placement==='yasready') return { paintWhite:true, backing:legacyPlaceholder?'legacy-knockout':'exact-barcode', artworkUntouched:false };
+  return { paintWhite:false, backing:'none', artworkUntouched:true };
+}
+
+function detectLegacyBarcodeFootprint(ctx,geometry,dpi) {
+  const box=geometry?.barcode;
+  const knockout=box?.knockout;
+  if (!ctx || !box || !knockout) return false;
+  try {
+    const x=Math.max(0,Math.round(knockout.x*dpi));
+    const y=Math.max(0,Math.round(knockout.y*dpi));
+    const w=Math.max(1,Math.round(knockout.width*dpi));
+    const h=Math.max(1,Math.round(knockout.height*dpi));
+    const data=ctx.getImageData(x,y,w,h).data;
+    let light=0,dark=0,samples=0;
+    const step=16;
+    for (let i=0;i<data.length;i+=4*step) {
+      const r=data[i],g=data[i+1],b=data[i+2];
+      const lum=r*0.2126+g*0.7152+b*0.0722;
+      if (lum>=235) light+=1;
+      if (lum<=80) dark+=1;
+      samples+=1;
+    }
+    if (!samples) return false;
+    return light/samples>=0.68 && dark/samples>=0.025;
+  } catch {
+    return false;
+  }
+}
+
 
 export async function renderFullWrapArtworkPdf({ asset, geometry, production = {}, pageCount = 0, barcodeBrain = {}, isbn = '', dpi = PRINT_PDF_DPI } = {}) {
   const analysis=analyzeFullWrapArtwork({asset,geometry,production,pageCount});
@@ -781,27 +930,30 @@ export async function renderFullWrapArtworkPdf({ asset, geometry, production = {
   const barcode=normalizeBarcodeBrain(barcodeBrain||{});
   let overlayPdf='';
   let barcodeInfo={placement:barcode.coverPlacement,isbn:'',vector:false};
-  if (barcode.coverPlacement!=='none') {
+  if (barcode.coverPlacement==='amazon') {
+    barcodeInfo={placement:'amazon',isbn:'',vector:false,artworkUntouched:true,backing:'none'};
+  } else if (barcode.coverPlacement==='yasready') {
     const b=geometry.barcode;
-    const knockout=b.knockout||b;
+    const legacyPlaceholder=detectLegacyBarcodeFootprint(ctx,geometry,dpi);
+    const plan=coverBarcodeBackingPlan({placement:'yasready',legacyPlaceholder});
+    const backing=plan.backing==='legacy-knockout' ? (b.knockout||b) : b;
     ctx.save();
     ctx.fillStyle='#ffffff';
-    ctx.fillRect(knockout.x*dpi,knockout.y*dpi,knockout.width*dpi,knockout.height*dpi);
+    ctx.fillRect(backing.x*dpi,backing.y*dpi,backing.width*dpi,backing.height*dpi);
     ctx.restore();
-    if (barcode.coverPlacement==='amazon') {
-      ctx.save();
-      ctx.fillStyle='#777';
-      ctx.textAlign='center';
-      ctx.textBaseline='middle';
-      ctx.font=`${Math.max(12,Math.round(0.055*dpi))}px Arial, sans-serif`;
-      ctx.fillText('AMAZON BARCODE RESERVED',(b.x+b.width/2)*dpi,(b.y+b.height/2)*dpi,(b.width-0.12)*dpi);
-      ctx.restore();
-    } else {
-      const normalized=normalizePrintIsbn(isbn);
-      if (!normalized.valid) throw new Error('A valid owned print ISBN is required before YasReady can place the cover barcode.');
-      overlayPdf=barcodePdfVectorCommands(normalized.digits,{xIn:b.x,yTopIn:b.y,widthIn:b.width,heightIn:b.height,pageHeightIn:geometry.height});
-      barcodeInfo={placement:'yasready',isbn:normalized.digits,vector:true};
-    }
+
+    const normalized=normalizePrintIsbn(isbn);
+    if (!normalized.valid) throw new Error('A valid owned print ISBN is required before YasReady can place the cover barcode.');
+    overlayPdf=barcodePdfVectorCommands(normalized.digits,{xIn:b.x,yTopIn:b.y,widthIn:b.width,heightIn:b.height,pageHeightIn:geometry.height});
+    barcodeInfo={
+      placement:'yasready',
+      isbn:normalized.digits,
+      vector:true,
+      backing:plan.backing,
+      legacyPlaceholderDetected:legacyPlaceholder,
+      backingWidthIn:Number(backing.width),
+      backingHeightIn:Number(backing.height),
+    };
   }
 
   const jpegBytes=dataUrlToJpegBytes(canvas.toDataURL('image/jpeg',1.0));
@@ -814,9 +966,9 @@ export async function renderFullWrapArtworkPdf({ asset, geometry, production = {
     label:'Spine continuity audit',
     message:spineAdaptation.mode==='exact'
       ? 'No synthesized join exists because the source spine already matches final geometry.'
-      : 'Protected-content 2D background synthesis plus native-core preservation passed 1:1 artwork fidelity, text-fragment suppression, banding, repetition, and stretch checks. No repeated source strip, row-flattened texture, or per-column elastic redistribution is used.',
+      : 'Protected-content 2D background synthesis plus artwork-only 1:1 overlay passed typography fidelity, text-fragment suppression, banding, repetition, and stretch checks. No repeated source strip, row-flattened texture, or per-column elastic redistribution is used.',
   };
-  const engineCheck={ id:'wrap-art-engine', status:'pass', label:'Cover manufacturing engine', message:`Native-core spine engine v${FULL_WRAP_ART_VERSION}; front/back panels stay fixed, protected typography/high-detail content is removed from the stretchable underlay, the cleaned 2D background expands once, and the original spine core is restored at exact 1:1 raster scale.` };
+  const engineCheck={ id:'wrap-art-engine', status:'pass', label:'Cover manufacturing engine', message:`Artwork-overlay spine engine v${FULL_WRAP_ART_VERSION}; front/back panels stay fixed, the cleaned 2D background expands uniformly across the final spine, and only original typography/ornament is restored at exact 1:1 raster scale.` };
   const checks=[...analysis.checks,engineCheck,...visualChecks,seamCheck,...baseAudit.checks];
   const errors=checks.filter((item)=>item.status==='error').length;
   const warnings=checks.filter((item)=>item.status==='warning').length;

@@ -25,7 +25,7 @@ function makeRgba(width, height, paint) {
 test('1.0.37 cover-engine rebuild uses content-aware elastic retargeting for Book 2 geometry', () => {
   const plan = planSeamlessSpineExpansion({ sourceSpinePx:285, targetSpinePx:547.5, sourceToTargetScale:1 });
   assert.equal(plan.mode, 'content-aware-elastic');
-  assert.equal(plan.backgroundMode, 'native-core+protected-2d-background');
+  assert.equal(plan.backgroundMode, 'artwork-overlay+protected-2d-background');
   assert.equal(plan.usesTiling, false);
   assert.equal(plan.usesRowFlattening, false);
   assert.equal(plan.contentAware, true);
@@ -205,7 +205,7 @@ test('1.0.37 migration invalidates print cover proof but preserves Kindle releas
   const kindle = JSON.stringify(old.editions.ebook.releaseGate);
   const migrated = migrateProject(old);
   assert.equal(migrated.version,37);
-  assert.equal(migrated.appVersion,'1.0.38');
+  assert.equal(migrated.appVersion,'1.0.39');
   assert.equal(migrated.editions.paperback.lastPageCount,null);
   assert.equal(migrated.editions.paperback.lastPdfAudit,null);
   assert.equal(migrated.editions.paperback.lastCoverAudit,null);

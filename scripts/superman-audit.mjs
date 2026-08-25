@@ -3,7 +3,7 @@ import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const VERSION = '1.0.38';
+const VERSION = '1.0.39';
 
 function walk(dir) {
   const out = [];
@@ -119,6 +119,19 @@ for (const marker of ['AMAZON PRINT GATE · v1.0.37','Amazon Paperback Hard Mode
   if (!main.includes(marker)) throw new Error(`Missing Amazon Print Gate UI marker: ${marker}`);
 }
 
+
+const supermanV139Barcode = readFileSync(join(ROOT, 'src/lib/barcode-brain.js'), 'utf8');
+for (const marker of ['BARCODE_BRAIN_VERSION = 2','index-2','index+3','conflictPenalty']) {
+  if (!supermanV139Barcode.includes(marker)) throw new Error(`Missing v1.0.39 ISBN recovery marker: ${marker}`);
+}
+for (const marker of ['PRINT_PDF_VERSION = 3','matterPostDrawAdvance','pageFlow?.overflowPx > 1','const drawnBodyHeight=drawWrappedFragment']) {
+  if (!printPdf.includes(marker)) throw new Error(`Missing v1.0.39 Print PDF flow marker: ${marker}`);
+}
+for (const marker of ['FULL_WRAP_ART_VERSION = 9','compositeProtectedSpineArtwork','artworkOnlyOverlay:true','fullNativeCore:false','coverBarcodeBackingPlan']) {
+  if (!fullWrapArt.includes(marker)) throw new Error(`Missing v1.0.39 Cover Engine marker: ${marker}`);
+}
+if (!project.includes('primeDetectedPhysicalIsbn')) throw new Error('Missing v1.0.39 project ISBN recovery.');
+
 const epub = readFileSync(join(ROOT, 'src/lib/epub-export.js'), 'utf8');
 for (const marker of ['epub:type="landmarks"','properties="cover-image"','itemref idref="visible-toc"','text/contents.xhtml','<guide>']) {
   if (!epub.includes(marker)) throw new Error(`Missing Kindle EPUB marker: ${marker}`);
@@ -157,7 +170,7 @@ if (!main.includes('const ebookIntelligence = scanKindleIntelligence(state.proje
 
 const supermanV138PrintPdf = readFileSync(join(ROOT, 'src/lib/print-pdf.js'), 'utf8');
 for (const marker of [
-  'PRINT_PDF_VERSION = 2',
+  'PRINT_PDF_VERSION = 3',
   'auditPrintFrontMatterManifest',
   'rasterContentInkEvidence',
   'content-fidelity',
@@ -189,7 +202,7 @@ for (const marker of ['certifiedProofSignature','liveProofSignature','interiorCu
 }
 
 const supermanV8Wrap = readFileSync(join(ROOT, 'src/lib/full-wrap-art.js'), 'utf8');
-for (const marker of ['FULL_WRAP_ART_VERSION = 8','protectedContentMask:true','protectedPixelFraction','neutralHighDetail']) if (!supermanV8Wrap.includes(marker)) throw new Error(`Missing Cover Engine v8 Superman marker: ${marker}`);
+for (const marker of ['FULL_WRAP_ART_VERSION = 9','protectedContentMask:true','protectedPixelFraction','neutralHighDetail']) if (!supermanV8Wrap.includes(marker)) throw new Error(`Missing Cover Engine v8 Superman marker: ${marker}`);
 const supermanV8Preflight = readFileSync(join(ROOT, 'src/lib/preflight-model.js'), 'utf8');
 for (const marker of ['isExpectedStructuralEmptyPage','barcodeSpacer','final-page parity']) if (!supermanV8Preflight.includes(marker)) throw new Error(`Missing print parity-spacer Superman marker: ${marker}`);
 for (const marker of ['interiorCurrentForCover','export-simple','Build the current interior PDF first']) if (!main.includes(marker)) throw new Error(`Missing deterministic print-flow Superman marker: ${marker}`);

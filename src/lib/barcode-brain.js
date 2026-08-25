@@ -1,4 +1,4 @@
-export const BARCODE_BRAIN_VERSION = 1;
+export const BARCODE_BRAIN_VERSION = 2;
 export const EAN13_MODULE_COUNT = 95;
 export const KDP_BARCODE_WIDTH_IN = 2;
 export const KDP_BARCODE_HEIGHT_IN = 1.2;
@@ -217,17 +217,71 @@ export function appendInteriorBarcodePages(preview, { isbn = '', enabled = true 
   return preview;
 }
 
-export function detectLabeledPrintIsbn(project, type = 'paperback') {
-  const blocks = project?.manuscript?.blocks || [];
-  const label = type === 'hardcover' ? /hard\s*cover|case\s*laminate/i : /paper\s*back|paperback\s*print|print\s*paperback/i;
-  for (const block of blocks) {
-    const text = String(block?.text || '');
-    const match = text.match(/(?:97[89][\s-]*)?(?:\d[\s-]*){9,12}[\dXx]/);
-    if (!match || !label.test(text)) continue;
-    const normalized = normalizePrintIsbn(match[0]);
-    if (normalized.valid) return { isbn:normalized.digits, blockId:block.id || null, text };
+export function detectLabeledPrintIsbn(project, type='paperback') {
+  const blocks=project?.manuscript?.blocks || [];
+  const label=type==='hardcover'
+    ? /\b(?:hardcover|hardback|case\s*laminate)\b/i
+    : /\b(?:paperback(?:\s+print)?|paper\s*back|print\s*paperback)\b/i;
+  const conflictingLabel=type==='hardcover'
+    ? /\b(?:paperback|paper\s*back|e-?book)\b/i
+    : /\be-?book\b/i;
+  const generic=/97[89][\d\-\s]{9,24}\d/g;
+
+  // The ISBN number itself owns the source block ID. Nearby blocks may provide
+  // only the edition label ("Paperback Print"), which is common in DOCX imports.
+  // Score candidates by how directly that physical-edition label is associated
+  // with the ISBN block, while heavily penalizing an ISBN explicitly labeled
+  // for another edition such as E-book.
+  const candidates=[];
+
+  for (let index=0; index<blocks.length; index+=1) {
+    const text=String(blocks[index]?.text || '');
+    const matches=[...text.matchAll(generic)];
+    if (!matches.length) continue;
+
+    const start=Math.max(0,index-2);
+    const end=Math.min(blocks.length,index+3);
+    const nearby=blocks.slice(start,end);
+
+    const labelBlocks=[];
+    for (let offset=0; offset<nearby.length; offset+=1) {
+      if (label.test(String(nearby[offset]?.text || ''))) {
+        labelBlocks.push(start+offset);
+      }
+    }
+
+    for (const match of matches) {
+      const normalized=normalizePrintIsbn(match[0]);
+      if (!normalized.valid) continue;
+
+      const sameBlockLabel=label.test(text);
+      if (!sameBlockLabel && !labelBlocks.length) continue;
+
+      const blockDistance=sameBlockLabel
+        ? 0
+        : Math.min(...labelBlocks.map((labelIndex)=>Math.abs(index-labelIndex)));
+
+      const conflictPenalty=conflictingLabel.test(text) ? 10000 : 0;
+      const score=blockDistance*100+conflictPenalty;
+
+      candidates.push({
+        isbn:normalized.digits,
+        blockId:blocks[index]?.id || null,
+        distance:blockDistance,
+        score,
+        label:type,
+      });
+    }
   }
-  return null;
+
+  if (!candidates.length) return null;
+  candidates.sort((a,b)=>a.score-b.score || a.distance-b.distance);
+  const winner=candidates[0];
+  return {
+    isbn:winner.isbn,
+    blockId:winner.blockId,
+    label:type,
+  };
 }
 
 export function barcodeBrainChecks({ isbn = '', isbnMode = 'own', pageCount = 0, basePageCount = 0, brain:brainInput = {}, coverMode = 'build' } = {}) {

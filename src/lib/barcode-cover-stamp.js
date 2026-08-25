@@ -44,7 +44,7 @@ function drawDigit(page, digit, x, y, cell, black) {
   }
 }
 
-export async function stampBarcodeOnUploadedCoverPdf({ asset, geometry, isbn } = {}) {
+export async function stampBarcodeOnUploadedCoverPdf({ asset, geometry, isbn, legacyKnockout = false } = {}) {
   const normalized = normalizePrintIsbn(isbn);
   if (!normalized.valid) throw new Error(normalized.reason);
   if (!asset?.dataUrl) throw new Error('Attach the full-wrap cover PDF before stamping the barcode.');
@@ -62,7 +62,7 @@ export async function stampBarcodeOnUploadedCoverPdf({ asset, geometry, isbn } =
   if (Math.abs(widthPt-expectedW) > 1.5 || Math.abs(heightPt-expectedH) > 1.5) throw new Error(`Attached cover canvas is ${(widthPt/72).toFixed(4)} × ${(heightPt/72).toFixed(4)} in; final interior needs ${Number(geometry?.width||0).toFixed(4)} × ${Number(geometry?.height||0).toFixed(4)} in.`);
 
   const box = geometry.barcode;
-  const knockout = box?.knockout || box;
+  const knockout = legacyKnockout ? (box?.knockout || box) : box;
   const kx = Number(knockout.x)*72;
   const ky = heightPt - (Number(knockout.y)+Number(knockout.height))*72;
   const kw = Number(knockout.width)*72;

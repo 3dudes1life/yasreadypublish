@@ -38,7 +38,7 @@ export function pageParityReport(pages = []) {
 }
 
 function barcodeGeometryCheck(geometry, placement = 'amazon') {
-  if (placement !== 'yasready') return { ok:true, message:placement === 'amazon' ? 'Amazon barcode mode reserves the back-cover barcode region.' : 'YasReady is not placing a cover barcode.' };
+  if (placement !== 'yasready') return { ok:true, message:placement === 'amazon' ? 'Amazon barcode mode keeps the uploaded artwork untouched; KDP owns final barcode placement.' : 'YasReady is not placing a cover barcode.' };
   const box = geometry?.barcode;
   const back = geometry?.panels?.back;
   const spine = geometry?.panels?.spine;
@@ -161,7 +161,7 @@ export function runAmazonPrintHardMode({ project, type = 'paperback', preview = 
     const vector = Boolean(coverAudit?.barcode?.vector || coverAudit?.checks?.some((item)=>item.id === 'barcode' && item.status === 'pass'));
     checks.push(check('amazon-barcode-rendering','Black-on-white vector barcode',vector ? 'pass' : 'error',vector ? 'YasReady barcode is a separate vector overlay on a solid white knockout, not flattened into the cover artwork.' : 'Build/stamp the final cover so the YasReady barcode can be certified as vector black-on-white output.'));
   } else if (barcode.coverPlacement === 'amazon') {
-    checks.push(check('amazon-barcode-rendering','Amazon barcode reserve', 'pass','YasReady reserves the back-cover barcode area for Amazon.'));
+    checks.push(check('amazon-barcode-rendering','Amazon barcode reserve', 'pass','Amazon will place its barcode during KDP setup; YasReady leaves the uploaded cover artwork untouched.'));
   } else {
     checks.push(check('amazon-barcode-rendering','Cover barcode presence','warning','No back-cover barcode is configured. Confirm this is intentional before KDP upload.'));
   }

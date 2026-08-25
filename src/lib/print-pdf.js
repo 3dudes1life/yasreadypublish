@@ -4,7 +4,7 @@ import { runningHeaderText } from './structure-model.js';
 import { printMatterStyleSpec } from './print-matter.js';
 import { drawBarcodeToCanvas } from './barcode-brain.js';
 
-export const PRINT_PDF_VERSION = 2;
+export const PRINT_PDF_VERSION = 3;
 export const PRINT_PDF_DPI = 300;
 export const KDP_PRINT_FILE_LIMIT_BYTES = 650 * 1024 * 1024;
 
@@ -502,6 +502,12 @@ function rasterContentInkEvidence(ctx, canvas, { page, design, production } = {}
   return { ok:false, darkSamples };
 }
 
+
+export function matterPostDrawAdvance({ measuredHeightPx=0, topPx=0, bottomPx=0, drawnHeightPx=0 } = {}) {
+  const allocatedInner=Math.max(0,Number(measuredHeightPx||0)-Number(topPx||0)-Number(bottomPx||0));
+  return Math.max(allocatedInner,Number(drawnHeightPx||0))+Math.max(0,Number(bottomPx||0));
+}
+
 function drawWrappedFragment(ctx, fragment, block, design, { x, y, width, fontSizePt, lineHeight, alignment = 'left', firstIndentIn = 0, bold = false, italic = false, runsOverride = null } = {}) {
   const fontSize = Number(fontSizePt) || design.bodyFontSize;
   ctx.font = plainCanvasFont(design, fontSize, { bold, italic });
@@ -578,6 +584,7 @@ function renderPreviewPageToCanvas(ctx, canvas, { page, design, project, product
   const contentX = trimOffsetX + leftMargin;
   const contentY = trimOffsetY + design.topMargin * dpi;
   const contentWidth = Math.max(1, (design.trimWidth - design.insideMargin - design.outsideMargin) * dpi);
+  const contentBottom = trimOffsetY + (design.trimHeight - design.bottomMargin) * dpi;
   let y = contentY;
 
   if (!page.intentionalBlank && page.barcodePage && page.isbn) {
@@ -618,8 +625,11 @@ function renderPreviewPageToCanvas(ctx, canvas, { page, design, project, product
         const visible = String(fragment.displayText ?? fragment.text ?? '');
         const preserveMatterRuns = ['matter-back-heading','matter-back-body'].includes(fragment.kind);
         const fake = preserveMatterRuns ? { ...fragment, text:visible } : { ...fragment, text:visible, startOffset:0, endOffset:visible.length };
-        drawWrappedFragment(ctx, fake, preserveMatterRuns ? block : null, design, { x:contentX, y, width:contentWidth, fontSizePt:matterSpec.fontSizePt, lineHeight:matterSpec.lineHeight, alignment:matterSpec.alignment, bold:matterSpec.bold, italic:matterSpec.italic });
-        y += Math.max(0, heightPx - top - bottom) + bottom;
+        const drawnHeight=drawWrappedFragment(ctx, fake, preserveMatterRuns ? block : null, design, { x:contentX, y, width:contentWidth, fontSizePt:matterSpec.fontSizePt, lineHeight:matterSpec.lineHeight, alignment:matterSpec.alignment, bold:matterSpec.bold, italic:matterSpec.italic });
+        // DOM pagination and 300-DPI canvas wrapping can differ by a line when
+        // back matter contains bold/italic inline runs. Advance by whichever
+        // height is larger so the next paragraph can never paint on top of it.
+        y += matterPostDrawAdvance({ measuredHeightPx:heightPx, topPx:top, bottomPx:bottom, drawnHeightPx:drawnHeight });
         continue;
       }
       if (fragment.kind === 'chapter-title') {
@@ -654,8 +664,8 @@ function renderPreviewPageToCanvas(ctx, canvas, { page, design, project, product
       }
       const indent = fragment.kind === 'body' && !fragment.continuation && !fragment.suppressIndent ? design.firstLineIndent : 0;
       const alignment = fragment.kind === 'body' ? design.bodyAlignment : fragment.kind === 'text-message' ? 'left' : 'left';
-      drawWrappedFragment(ctx, fragment, block, design, { x:contentX, y, width:contentWidth, fontSizePt:design.bodyFontSize, lineHeight:design.lineHeight, alignment, firstIndentIn:indent });
-      y += heightPx;
+      const drawnBodyHeight=drawWrappedFragment(ctx, fragment, block, design, { x:contentX, y, width:contentWidth, fontSizePt:design.bodyFontSize, lineHeight:design.lineHeight, alignment, firstIndentIn:indent });
+      y += Math.max(heightPx,drawnBodyHeight);
     }
   }
 
@@ -685,6 +695,7 @@ function renderPreviewPageToCanvas(ctx, canvas, { page, design, project, product
     ctx.fillText(text, fx, baseline);
   }
   ctx.restore();
+  return { finalY:y, contentBottom, overflowPx:Math.max(0,y-contentBottom) };
 }
 
 function canvasToJpegBytes(canvas, quality = 0.98) {
@@ -727,7 +738,10 @@ export async function renderProductionPrintPdf({ project, preview, editionType =
   const rasterPages = [];
   for (let index = 0; index < preview.pages.length; index += 1) {
     const page = preview.pages[index];
-    renderPreviewPageToCanvas(ctx, canvas, { page, design, project, production, blocksById });
+    const pageFlow=renderPreviewPageToCanvas(ctx, canvas, { page, design, project, production, blocksById });
+    if (pageFlow?.overflowPx > 1) {
+      throw new Error(`Print Fidelity blocked export: physical page ${index + 1} exceeded the content box by ${(pageFlow.overflowPx/PRINT_PDF_DPI).toFixed(3)} in after real 300-DPI line wrapping.`);
+    }
 
     // Container geometry is not enough. For semantic book-matter pages, prove
     // that the actual canvas contains visible ink BEFORE JPEG/PDF packaging.
