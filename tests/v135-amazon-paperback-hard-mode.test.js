@@ -46,14 +46,16 @@ function projectFixture(count=100) {
   return project;
 }
 
-test('1.0.35 Book 2 placeholder replacement uses a larger knockout around the 2 × 1.2 in certified barcode',()=>{
+test('1.0.44 Amazon barcode reserve is exact 2 × 1.2 in with no visible oversize knockout',()=>{
   const g=coverGeometry({type:'paperback',production:{trimId:'6x9',ink:'black',paper:'cream'},pageCount:726});
   assert.equal(Number(g.barcode.width.toFixed(2)),KDP_BARCODE_WIDTH_IN);
   assert.equal(Number(g.barcode.height.toFixed(2)),KDP_BARCODE_HEIGHT_IN);
   assert.equal(Number(g.barcode.knockout.width.toFixed(2)),KDP_BARCODE_KNOCKOUT_WIDTH_IN);
   assert.equal(Number(g.barcode.knockout.height.toFixed(2)),KDP_BARCODE_KNOCKOUT_HEIGHT_IN);
-  assert.ok(g.barcode.knockout.width>g.barcode.width);
-  assert.ok(g.barcode.knockout.height>g.barcode.height);
+  assert.equal(g.barcode.knockout.width,g.barcode.width);
+  assert.equal(g.barcode.knockout.height,g.barcode.height);
+  assert.equal(g.barcode.knockout.x,g.barcode.x);
+  assert.equal(g.barcode.knockout.y,g.barcode.y);
   assert.ok(g.panels.spine.x-(g.barcode.x+g.barcode.width)>=0.25-1e-9);
   assert.ok((g.barcode.x-g.panels.back.x)>=0.25-1e-9);
 });
