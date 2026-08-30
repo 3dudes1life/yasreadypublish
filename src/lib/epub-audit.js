@@ -79,6 +79,16 @@ function imageFacts(asset = {}) {
   return { mime, width, height, transparent, cmyk, readable:Boolean(bytes) };
 }
 
+export function hasHiddenProductionMarkup(content = '') {
+  // v1.0.49 AUDIT FIDELITY: inspect markup tags only. The old whole-document
+  // regex treated ordinary prose such as "from hidden machines" as a hidden
+  // HTML attribute and falsely blocked an otherwise clean EPUB.
+  return [...String(content || '').matchAll(/<[^>]+>/g)].some(([tag]) =>
+    /\shidden(?:=(?:"[^"]*"|'[^']*'|[^\s>]+))?(?=\s|\/?>)/i.test(tag)
+    || /\sstyle=(?:"[^"]*(?:display\s*:\s*none|visibility\s*:\s*hidden)[^"]*"|'[^']*(?:display\s*:\s*none|visibility\s*:\s*hidden)[^']*')/i.test(tag)
+  );
+}
+
 export function auditEpubPackage({ project } = {}) {
   const data = buildEpubPackageData({ project });
   const files = data.files;
@@ -126,7 +136,7 @@ export function auditEpubPackage({ project } = {}) {
   const manuscriptMediaOk = manuscriptImageManifest.length === manuscriptMedia.length
     && manuscriptImageManifest.every((match) => filePaths.has(match[1]));
   const xhtmlEntries = [...files.entries()].filter(([path, content]) => /\.xhtml$/i.test(path) && typeof content === 'string');
-  const hiddenMarkupPaths = xhtmlEntries.filter(([, content]) => /(?:\shidden(?:=|\s|>)|style="[^"]*(?:display\s*:\s*none|visibility\s*:\s*hidden))/i.test(content)).map(([path]) => path);
+  const hiddenMarkupPaths = xhtmlEntries.filter(([, content]) => hasHiddenProductionMarkup(content)).map(([path]) => path);
   const productionHiddenMarkup = hiddenMarkupPaths.length > 0;
   const htmlFileCount = xhtmlEntries.length;
   const htmlFileCountOk = htmlFileCount < 300;
