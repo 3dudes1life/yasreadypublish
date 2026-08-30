@@ -23,7 +23,7 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
 }
 const main = readFileSync('src/main.js', 'utf8');
 for (const marker of [
-  "const VERSION = '1.0.45'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
+  "const VERSION = '1.0.46'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
   'Amazon KDP · Reflowable EPUB 3', 'Kindle Preview Studio', 'Adjust Layout', 'preview-studio-grid-v110',
   'Kindle Pro consistency scan', '3-View Torture Test', '11 pt reference', 'Semantic Style Palette', 'Content style',
   'saveEbookSemanticStyles', 'Kindle Intelligence', 'Compare Chapters', 'compareKindleChaptersButton', 'Undo', 'Redo',
@@ -268,7 +268,12 @@ for (const marker of ['SOURCE_SPACING_VERSION = 1','shouldPreserveStructuredSour
 if (!main.includes('sourceStructuredExtraGapIn') || !epub.includes('sourceStructuredGapEm')) {
   throw new Error('1.0.45 Source Fidelity is not wired into both print pagination and Kindle rendering.');
 }
-console.log('YasReady Publish v1.0.45 static verification passed.');
+const spacingPolicyV146 = readFileSync('src/lib/spacing-policy.js','utf8');
+for (const marker of ['v1.0.46 SOURCE FIDELITY','structuredMessageBoundary']) {
+  if (!spacingPolicyV146.includes(marker)) throw new Error(`1.0.46 structured blank fidelity marker missing: ${marker}`);
+}
+
+console.log('YasReady Publish v1.0.46 static verification passed.');
 
 
 const amazonPrintHardMode = readFileSync('src/lib/amazon-print-hard-mode.js', 'utf8');

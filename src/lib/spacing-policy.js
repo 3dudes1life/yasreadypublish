@@ -18,15 +18,27 @@ export function blankRenderMode({ blocks = [], index = -1, sectionType, policy =
   if (!block || block.kind !== 'blank') return 'not-blank';
   if (sectionType !== 'body' && sectionType !== 'chapter') return 'preserve';
   const mode = normalizeBlankPolicy(policy);
-  if (mode === 'preserve' || mode === 'collapse') return mode;
+  if (mode === 'preserve') return 'preserve';
 
   // Only the first blank in a consecutive run may render a spacer.
+  // Extra source blanks still collapse so a message transcript cannot balloon.
   if (blocks[index - 1]?.kind === 'blank') return 'collapse';
 
   let nextIndex = index + 1;
   while (blocks[nextIndex]?.kind === 'blank') nextIndex += 1;
   const previous = blocks[index - 1];
   const next = blocks[nextIndex];
+
+  // v1.0.46 SOURCE FIDELITY:
+  // A real blank paragraph touching a text-message block is structural evidence,
+  // not generic manuscript whitespace. Preserve one visual spacer even when the
+  // house fiction theme normally collapses body blanks.
+  const structuredMessageBoundary = previous?.kind === 'text-message' || next?.kind === 'text-message';
+  if (structuredMessageBoundary && BODY_CONTENT_KINDS.has(previous?.kind) && BODY_CONTENT_KINDS.has(next?.kind)) {
+    return 'normalize';
+  }
+
+  if (mode === 'collapse') return 'collapse';
 
   // Normalize only between real body-content paragraphs. Chapter-title/scene-break
   // spacing already has dedicated design controls and should not be doubled.
