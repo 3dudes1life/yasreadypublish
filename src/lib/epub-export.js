@@ -866,8 +866,8 @@ function sanitizeKindleProductionCss(css = '') {
     .replace(/(?:^|;)\s*visibility\s*:\s*hidden\s*;?/gim, ';');
 }
 
-function sanitizeKindleProductionXhtml(xhtml = '') {
-  return String(xhtml || '')
+function sanitizeKindleTag(tag = '') {
+  return String(tag || '')
     .replace(/\s+hidden(?:=(?:"[^"]*"|'[^']*'|[^\s>]+))?/gi, '')
     .replace(/\s+style=("([^"]*)"|'([^']*)')/gi, (match, quoted, dbl, single) => {
       const raw = dbl ?? single ?? '';
@@ -875,6 +875,14 @@ function sanitizeKindleProductionXhtml(xhtml = '') {
         .filter((part) => !/^display\s*:\s*none$/i.test(part) && !/^visibility\s*:\s*hidden$/i.test(part)).join(';');
       return cleanStyle ? ` style="${escapeXml(cleanStyle)}"` : '';
     });
+}
+
+export function sanitizeKindleProductionXhtml(xhtml = '') {
+  // v1.0.48 SOURCE FIDELITY:
+  // sanitize only markup tags. The old global regex matched the literal prose
+  // sequence " hidden" in text nodes and silently deleted the author's word.
+  // Story-Locked prose must never be modified by hidden-content hardening.
+  return String(xhtml || '').replace(/<[^>]+>/g, (tag) => sanitizeKindleTag(tag));
 }
 
 export function buildEpubPackageData({ project } = {}) {

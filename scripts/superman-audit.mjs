@@ -3,7 +3,7 @@ import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const VERSION = '1.0.47';
+const VERSION = '1.0.48';
 const PROJECT_APP_VERSION = '1.0.44';
 
 function walk(dir) {
@@ -207,6 +207,8 @@ const spacingPolicyV146 = readFileSync(join(ROOT, 'src/lib/spacing-policy.js'), 
 for (const marker of ['v1.0.46 SOURCE FIDELITY','structuredMessageBoundary']) if (!spacingPolicyV146.includes(marker)) throw new Error(`Missing v1.0.46 structured blank fidelity marker: ${marker}`);
 const sourceSpacingV147 = readFileSync(join(ROOT, 'src/lib/source-spacing.js'), 'utf8');
 for (const marker of ['SOURCE_SPACING_VERSION = 2','sourceStructuredLineHeight','lineTwips']) if (!sourceSpacingV147.includes(marker)) throw new Error(`Missing v1.0.47 hard-line fidelity marker: ${marker}`);
+const epubV148 = readFileSync(join(ROOT, 'src/lib/epub-export.js'), 'utf8');
+for (const marker of ['v1.0.48 SOURCE FIDELITY','sanitizeKindleTag','sanitizeKindleProductionXhtml']) if (!epubV148.includes(marker)) throw new Error(`Missing v1.0.48 hidden-prose fidelity marker: ${marker}`);
 const docxParser = readFileSync(join(ROOT, 'src/lib/docx-parser.js'), 'utf8');
 for (const marker of ['footnotes.xml','endnotes.xml','loadMediaAssets','mediaRefs','canonicalizeManuscriptV2']) if (!docxParser.includes(marker)) throw new Error(`Missing semantic import marker: ${marker}`);
 if (!main.includes('const ebookIntelligence = scanKindleIntelligence(state.project);') || !main.includes('ebookReport.ready && ebookQuality.ready && ebookIntelligence.ready')) throw new Error('Final Check omits Kindle Intelligence.');

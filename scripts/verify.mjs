@@ -23,7 +23,7 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
 }
 const main = readFileSync('src/main.js', 'utf8');
 for (const marker of [
-  "const VERSION = '1.0.47'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
+  "const VERSION = '1.0.48'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
   'Amazon KDP · Reflowable EPUB 3', 'Kindle Preview Studio', 'Adjust Layout', 'preview-studio-grid-v110',
   'Kindle Pro consistency scan', '3-View Torture Test', '11 pt reference', 'Semantic Style Palette', 'Content style',
   'saveEbookSemanticStyles', 'Kindle Intelligence', 'Compare Chapters', 'compareKindleChaptersButton', 'Undo', 'Redo',
@@ -277,7 +277,11 @@ const hardLineV147 = readFileSync('src/lib/source-spacing.js','utf8');
 for (const marker of ['SOURCE_SPACING_VERSION = 2','sourceStructuredLineHeight','lineTwips']) if (!hardLineV147.includes(marker)) throw new Error(`1.0.47 hard-line fidelity marker missing: ${marker}`);
 if (!main.includes('sourceLineHeight') || !epub.includes('sourceStructuredLineHeight')) throw new Error('1.0.47 hard-line fidelity is not wired through print + Kindle.');
 
-console.log('YasReady Publish v1.0.47 static verification passed.');
+const epubV148 = readFileSync('src/lib/epub-export.js','utf8');
+for (const marker of ['v1.0.48 SOURCE FIDELITY','sanitizeKindleTag','sanitizeKindleProductionXhtml']) if (!epubV148.includes(marker)) throw new Error(`1.0.48 hidden-prose fidelity marker missing: ${marker}`);
+if (!epubV148.includes("replace(/<[^>]+>/g")) throw new Error('1.0.48 Kindle sanitizer is not tag-scoped.');
+
+console.log('YasReady Publish v1.0.48 static verification passed.');
 
 
 const amazonPrintHardMode = readFileSync('src/lib/amazon-print-hard-mode.js', 'utf8');
