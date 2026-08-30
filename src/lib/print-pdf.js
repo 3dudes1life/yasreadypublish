@@ -704,7 +704,7 @@ function renderPreviewPageToCanvas(ctx, canvas, { page, design, project, product
       }
       const indent = fragment.kind === 'body' && !fragment.continuation && !fragment.suppressIndent ? design.firstLineIndent : 0;
       const alignment = fragment.kind === 'body' ? design.bodyAlignment : fragment.kind === 'text-message' ? 'left' : 'left';
-      const drawnBodyHeight=drawWrappedFragment(ctx, fragment, block, design, { x:contentX, y, width:contentWidth, fontSizePt:design.bodyFontSize, lineHeight:design.lineHeight, alignment, firstIndentIn:indent });
+      const drawnBodyHeight=drawWrappedFragment(ctx, fragment, block, design, { x:contentX, y, width:contentWidth, fontSizePt:design.bodyFontSize, lineHeight:fragment.kind === 'text-message' ? (fragment.sourceLineHeight || design.lineHeight) : design.lineHeight, alignment, firstIndentIn:indent });
       y += reconcileBodyAdvance({ measuredHeightPx:heightPx, drawnHeightPx:drawnBodyHeight });
     }
   }

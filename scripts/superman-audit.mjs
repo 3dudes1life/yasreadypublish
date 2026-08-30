@@ -3,7 +3,7 @@ import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const VERSION = '1.0.46';
+const VERSION = '1.0.47';
 const PROJECT_APP_VERSION = '1.0.44';
 
 function walk(dir) {
@@ -202,9 +202,11 @@ for (const marker of ['buildKindleReleaseGate','auditKindleAccessibility','apply
 const semanticStyles = readFileSync(join(ROOT, 'src/lib/semantic-styles.js'), 'utf8');
 for (const marker of ['EBOOK_SEMANTIC_ROLES','semanticRoleForBlock','semanticRoleCounts']) if (!semanticStyles.includes(marker)) throw new Error(`Missing semantic style marker: ${marker}`);
 const sourceSpacing = readFileSync(join(ROOT, 'src/lib/source-spacing.js'), 'utf8');
-for (const marker of ['SOURCE_SPACING_VERSION = 1','sourceStructuredExtraGapIn','sourceStructuredGapEm']) if (!sourceSpacing.includes(marker)) throw new Error(`Missing v1.0.45 Source Fidelity marker: ${marker}`);
+for (const marker of ['sourceStructuredExtraGapIn','sourceStructuredGapEm']) if (!sourceSpacing.includes(marker)) throw new Error(`Missing v1.0.45 Source Fidelity marker: ${marker}`);
 const spacingPolicyV146 = readFileSync(join(ROOT, 'src/lib/spacing-policy.js'), 'utf8');
 for (const marker of ['v1.0.46 SOURCE FIDELITY','structuredMessageBoundary']) if (!spacingPolicyV146.includes(marker)) throw new Error(`Missing v1.0.46 structured blank fidelity marker: ${marker}`);
+const sourceSpacingV147 = readFileSync(join(ROOT, 'src/lib/source-spacing.js'), 'utf8');
+for (const marker of ['SOURCE_SPACING_VERSION = 2','sourceStructuredLineHeight','lineTwips']) if (!sourceSpacingV147.includes(marker)) throw new Error(`Missing v1.0.47 hard-line fidelity marker: ${marker}`);
 const docxParser = readFileSync(join(ROOT, 'src/lib/docx-parser.js'), 'utf8');
 for (const marker of ['footnotes.xml','endnotes.xml','loadMediaAssets','mediaRefs','canonicalizeManuscriptV2']) if (!docxParser.includes(marker)) throw new Error(`Missing semantic import marker: ${marker}`);
 if (!main.includes('const ebookIntelligence = scanKindleIntelligence(state.project);') || !main.includes('ebookReport.ready && ebookQuality.ready && ebookIntelligence.ready')) throw new Error('Final Check omits Kindle Intelligence.');

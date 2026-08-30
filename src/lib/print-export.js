@@ -77,6 +77,7 @@ function renderPage(page, design, project, blocksById) {
       content = renderChapterTitle(fragment.text, design);
     }
     if (fragment.kind === 'body') style += `text-align:${design.bodyAlignment};`;
+    if (fragment.kind === 'text-message' && Number(fragment.sourceLineHeight) > Number(design.lineHeight)) style += `line-height:${fragment.sourceLineHeight};`;
     if (fragment.kind === 'body' && !fragment.continuation && !fragment.suppressIndent) style += `text-indent:${design.firstLineIndent}in;`;
     if (fragment.isFinalPiece && ['body','chapter-opening','text-message'].includes(fragment.kind)) {
       const gap = Math.max(0, Number(design.paragraphGap || 0) + Number(fragment.sourceExtraAfterIn || 0));

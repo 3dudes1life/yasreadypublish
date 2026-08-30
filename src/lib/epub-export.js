@@ -1,6 +1,6 @@
 import { buildEbookSections, ebookTocEntries, matterSectionHeading, normalizeEbookDesign, verifyEbookSourceCoverage } from './ebook-model.js';
 import { blankRenderMode } from './spacing-policy.js';
-import { sourceStructuredGapEm } from './source-spacing.js';
+import { sourceStructuredGapEm, sourceStructuredLineHeight } from './source-spacing.js';
 import { getBlockPresentationOverride } from './presentation-overrides.js';
 import { semanticRoleForBlock } from './semantic-styles.js';
 import { chapterHeadingOverride, normalizeEbookThemeStudio, splitChapterHeading, themeArtworkAssets } from './ebook-theme-studio.js';
@@ -255,9 +255,11 @@ function renderBlock(block, { blankMode = 'preserve', sectionType = 'chapter', d
   }
 
   const role = semanticRoleForBlock(project, block, sectionType);
-  const sourceSpacingStyle = role === 'text-message' && !overrideStyle.includes('margin-bottom')
-    ? `margin-bottom:${sourceStructuredGapEm(block, design.paragraphGapEm, role)}em`
-    : '';
+  const sourceStyles = [];
+  if (role === 'text-message' && !overrideStyle.includes('margin-bottom')) sourceStyles.push(`margin-bottom:${sourceStructuredGapEm(block, design.paragraphGapEm, role)}em`);
+  const sourceLineHeight = sourceStructuredLineHeight(block, design.lineHeight, role);
+  if (role === 'text-message' && sourceLineHeight > Number(design.lineHeight || 1.2) && !overrideStyle.includes('line-height')) sourceStyles.push(`line-height:${sourceLineHeight}`);
+  const sourceSpacingStyle = sourceStyles.join(';');
   const semanticAttr = ` data-yrp-semantic-role="${escapeXml(role)}"`;
   if (role === 'subhead') return `<h2 id="${id}" class="subhead${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</h2>`;
   if (role === 'block-quote') return `<blockquote id="${id}" class="block-quote${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}><p>${content}</p></blockquote>`;

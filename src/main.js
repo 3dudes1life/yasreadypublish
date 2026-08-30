@@ -43,7 +43,7 @@ import { buildPrintTocEntries, printTocSignature, shouldGeneratePrintToc, verify
 import { serializeProjectBackup, parseProjectBackup } from './lib/project-backup.js';
 import { buildPublishReadiness } from './lib/readiness-model.js';
 import { blankRenderMode } from './lib/spacing-policy.js';
-import { sourceStructuredExtraGapIn } from './lib/source-spacing.js';
+import { sourceStructuredExtraGapIn, sourceStructuredLineHeight } from './lib/source-spacing.js';
 import { buildProofSignature, stampPreviewProof } from './lib/proof-integrity.js';
 import {
   activePrintEdition, copyPaperbackDesignToHardcover, editionLabel, ensureEditions,
@@ -80,7 +80,7 @@ import {
   kindleReleaseReport, markAllCurrentReviewsIntentional, markKindleVisualProofComplete, setKindleExternalConfirmation,
 } from './lib/kindle-release-gate.js';
 
-const VERSION = '1.0.46';
+const VERSION = '1.0.47';
 // Legacy capability labels retained for regression discovery only (not default UI): Amazon KDP · Reflowable EPUB 3 · Kindle Preview Studio · Semantic Style Palette · Kindle Release Gate · v1.0.16
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
@@ -1075,6 +1075,7 @@ function renderBookPage(page, design) {
       }
       const shouldIndent = fragment.kind === 'body' && !fragment.continuation && !fragment.suppressIndent;
       if (fragment.kind === 'body') extra += `text-align:${design.bodyAlignment};`;
+      if (fragment.kind === 'text-message' && Number(fragment.sourceLineHeight) > Number(design.lineHeight)) extra += `line-height:${fragment.sourceLineHeight};`;
       if (shouldIndent) extra += `text-indent:${indent}px;`;
       const gapKinds = new Set(['body','chapter-opening','text-message']);
       const gap = fragment.isFinalPiece && gapKinds.has(fragment.kind)
@@ -4603,7 +4604,7 @@ function measureTocEntry(rig, design, title, pageNumber) {
   return wrapper.getBoundingClientRect().height;
 }
 
-function measureFragment(rig, design, kind, text, continuation = false, isFinalPiece = true, suppressIndent = false) {
+function measureFragment(rig, design, kind, text, continuation = false, isFinalPiece = true, suppressIndent = false, lineHeightOverride = null) {
   const wrapper = document.createElement('div');
   wrapper.style.boxSizing = 'border-box';
   const paragraph = document.createElement('div');
@@ -4651,6 +4652,10 @@ function measureFragment(rig, design, kind, text, continuation = false, isFinalP
     paragraph.style.textIndent = `${design.firstLineIndent}in`;
   }
 
+  if (lineHeightOverride != null && !matterSpec && !['generated-toc-title','chapter-title'].includes(kind)) {
+    paragraph.style.lineHeight = String(lineHeightOverride);
+  }
+
   if (isFinalPiece && design.paragraphGap && ['body','chapter-opening','text-message'].includes(kind)) {
     wrapper.style.paddingBottom = `${design.paragraphGap}in`;
   }
@@ -4659,14 +4664,14 @@ function measureFragment(rig, design, kind, text, continuation = false, isFinalP
   return wrapper.getBoundingClientRect().height;
 }
 
-function findFittingCut(rig, design, kind, text, continuation, maxHeight, suppressIndent = false) {
+function findFittingCut(rig, design, kind, text, continuation, maxHeight, suppressIndent = false, lineHeightOverride = null) {
   if (!text || maxHeight <= 0) return 0;
   let low = 1;
   let high = text.length;
   let best = 0;
   while (low <= high) {
     const mid = Math.floor((low + high) / 2);
-    const height = measureFragment(rig, design, kind, text.slice(0, mid), continuation, false, suppressIndent);
+    const height = measureFragment(rig, design, kind, text.slice(0, mid), continuation, false, suppressIndent, lineHeightOverride);
     if (height <= maxHeight) {
       best = mid;
       low = mid + 1;
@@ -4774,6 +4779,7 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
       collapsedBlank: Boolean(meta.collapsedBlank),
       normalizedBlank: Boolean(meta.normalizedBlank),
       sourceExtraAfterIn: Math.max(0, Number(meta.sourceExtraAfterIn) || 0),
+      sourceLineHeight: Math.max(1, Number(meta.sourceLineHeight) || Number(design.lineHeight) || 1.2),
     });
     current.usedPx += height;
   };
@@ -4857,12 +4863,13 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
 
     const sourceExtraAfterIn = sourceStructuredExtraGapIn(block, design.paragraphGap, kind);
     const sourceExtraAfterPx = sourceExtraAfterIn * CSS_PX_PER_INCH;
+    const sourceLineHeight = sourceStructuredLineHeight(block, design.lineHeight, kind);
     let offset = 0;
     let rest = text;
     let continuation = false;
     while (rest.length) {
       ensurePage();
-      const measuredFullHeight = measureFragment(rig, design, kind, rest, continuation, true, suppressIndent);
+      const measuredFullHeight = measureFragment(rig, design, kind, rest, continuation, true, suppressIndent, sourceLineHeight);
       const fullHeight = measuredFullHeight + sourceExtraAfterPx;
       if (fullHeight <= remaining()) {
         addFragment(block, rest, kind, continuation, fullHeight, {
@@ -4871,6 +4878,7 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
           isFinalPiece: true,
           suppressIndent,
           sourceExtraAfterIn,
+          sourceLineHeight,
         });
         offset += rest.length;
         rest = '';
@@ -4887,7 +4895,7 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
         continue;
       }
 
-      const cut = findFittingCut(rig, design, kind, rest, continuation, remaining(), suppressIndent);
+      const cut = findFittingCut(rig, design, kind, rest, continuation, remaining(), suppressIndent, sourceLineHeight);
       if (!cut) {
         if (current.fragments.length) { newPage(); continue; }
         addFragment(block, rest, kind, continuation, Math.min(fullHeight, rig.pageHeightPx), {
@@ -4896,18 +4904,20 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
           isFinalPiece: true,
           suppressIndent,
           sourceExtraAfterIn,
+          sourceLineHeight,
         });
         offset += rest.length;
         rest = '';
         break;
       }
       const piece = rest.slice(0, cut);
-      const height = measureFragment(rig, design, kind, piece, continuation, false, suppressIndent);
+      const height = measureFragment(rig, design, kind, piece, continuation, false, suppressIndent, sourceLineHeight);
       addFragment(block, piece, kind, continuation, height, {
         startOffset: offset,
         endOffset: offset + piece.length,
         isFinalPiece: false,
         suppressIndent,
+        sourceLineHeight,
       });
       offset += piece.length;
       rest = rest.slice(cut);
