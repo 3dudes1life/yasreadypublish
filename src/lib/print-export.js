@@ -30,9 +30,14 @@ function sliceRuns(block, startOffset = 0, endOffset = null) {
 
 function renderInline(fragment, blocksById) {
   const block = blocksById.get(fragment.sourceBlockId);
-  if (!block) return escapeHtml(fragment.text);
-  const runs = sliceRuns(block, fragment.startOffset || 0, fragment.endOffset ?? block.text.length);
-  if (!runs.length || runs.map((run) => run.text).join('') !== fragment.text) return escapeHtml(fragment.text);
+  const visibleText = fragment.renderText == null ? fragment.text : fragment.renderText;
+  if (!block) return escapeHtml(visibleText);
+  const start = fragment.startOffset || 0;
+  const visibleEnd = fragment.renderText == null
+    ? (fragment.endOffset ?? block.text.length)
+    : start + String(visibleText || '').length;
+  const runs = sliceRuns(block, start, visibleEnd);
+  if (!runs.length || runs.map((run) => run.text).join('') !== visibleText) return escapeHtml(visibleText);
   return runs.map((run) => {
     const styles = [];
     if (run.bold) styles.push('font-weight:700');

@@ -1,6 +1,7 @@
 import { buildEbookSections, ebookTocEntries, matterSectionHeading, normalizeEbookDesign, verifyEbookSourceCoverage } from './ebook-model.js';
 import { blankRenderMode } from './spacing-policy.js';
 import { sourceStructuredGapEm, sourceStructuredLineHeight } from './source-spacing.js';
+import { isStructuredMessageTranscript, structuredMessageSegments } from './message-pagination.js';
 import { getBlockPresentationOverride } from './presentation-overrides.js';
 import { semanticRoleForBlock } from './semantic-styles.js';
 import { chapterHeadingOverride, normalizeEbookThemeStudio, splitChapterHeading, themeArtworkAssets } from './ebook-theme-studio.js';
@@ -67,6 +68,38 @@ function inlineRuns(block, project = null, noteContext = null) {
     const href = String(run.href || '').trim();
     if (href && /^(?:https?:|mailto:|tel:|#)/i.test(href)) value = `<a href="${escapeXml(href)}">${value}</a>`;
     return value;
+  }).join('');
+}
+
+function inlineRunsRange(block, project, start = 0, end = 0) {
+  const fullText = String(block?.text || '');
+  const targetText = fullText.slice(start, end);
+  const runs = block?.runs || [];
+  const textMatches = runs.map((run) => run.text || '').join('') === fullText;
+  if (!runs.length || !textMatches) return escapeXml(targetText);
+
+  let cursor = 0;
+  const sliced = [];
+  for (const run of runs) {
+    const raw = String(run.text || '');
+    const runStart = cursor;
+    const runEnd = cursor + raw.length;
+    cursor = runEnd;
+    if (runEnd <= start || runStart >= end) continue;
+    const localStart = Math.max(0, start - runStart);
+    const localEnd = Math.min(raw.length, end - runStart);
+    sliced.push({ ...run, text:raw.slice(localStart, localEnd) });
+  }
+  return inlineRuns({ ...block, text:targetText, runs:sliced }, project);
+}
+
+function renderStructuredTextMessageLines(block, project, design, sourceLineHeight) {
+  const segments = structuredMessageSegments(block?.text || '');
+  return segments.map((segment) => {
+    const end = segment.renderText.length < segment.text.length ? segment.end - 1 : segment.end;
+    const content = inlineRunsRange(block, project, segment.start, end);
+    const lineHeight = segment.isLast ? Number(design.lineHeight || 1.2) : sourceLineHeight;
+    return `<p class="text-message-line" data-yrp-message-line="true" style="line-height:${lineHeight}">${content}</p>`;
   }).join('');
 }
 
@@ -258,7 +291,8 @@ function renderBlock(block, { blankMode = 'preserve', sectionType = 'chapter', d
   const sourceStyles = [];
   if (role === 'text-message' && !overrideStyle.includes('margin-bottom')) sourceStyles.push(`margin-bottom:${sourceStructuredGapEm(block, design.paragraphGapEm, role)}em`);
   const sourceLineHeight = sourceStructuredLineHeight(block, design.lineHeight, role);
-  if (role === 'text-message' && sourceLineHeight > Number(design.lineHeight || 1.2) && !overrideStyle.includes('line-height')) sourceStyles.push(`line-height:${sourceLineHeight}`);
+  const structuredTranscript = isStructuredMessageTranscript({ kind:block.kind, role, text:block.text });
+  if (role === 'text-message' && !structuredTranscript && sourceLineHeight > Number(design.lineHeight || 1.2) && !overrideStyle.includes('line-height')) sourceStyles.push(`line-height:${sourceLineHeight}`);
   const sourceSpacingStyle = sourceStyles.join(';');
   const semanticAttr = ` data-yrp-semantic-role="${escapeXml(role)}"`;
   if (role === 'subhead') return `<h2 id="${id}" class="subhead${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</h2>`;
@@ -268,7 +302,10 @@ function renderBlock(block, { blankMode = 'preserve', sectionType = 'chapter', d
   if (role === 'scene-break') return `<p id="${id}" class="scene-break${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${sceneOrnamentHtml(content, design, previewMode)}</p>`;
   if (role === 'text-message') {
     const style = mergeInlineStyles(sourceSpacingStyle, overrideStyle);
-    return `<div id="${id}" class="text-message${inspectClass}"${attrs}${semanticAttr}${style ? ` style="${style}"` : ''}><p>${content}</p></div>`;
+    const messageContent = structuredTranscript
+      ? renderStructuredTextMessageLines(block, project, design, sourceLineHeight)
+      : `<p>${content}</p>`;
+    return `<div id="${id}" class="text-message${structuredTranscript ? ' text-message-transcript' : ''}${inspectClass}"${attrs}${semanticAttr}${style ? ` style="${style}"` : ''}>${messageContent}</div>`;
   }
   const openingClass = block.kind === 'chapter-opening' ? ' chapter-opening' : '';
   const afterBreakClass = afterBreak ? ' paragraph-after-break' : '';
@@ -680,6 +717,8 @@ ${previewMode ? '.scene-source-hidden { display:none; }' : ''}
 .verse { margin-top:.8em; margin-bottom:.8em; margin-left:${verseIndent}; margin-right:0; text-indent:0; white-space:normal; }
 .text-message { margin-top:0; margin-bottom:${design.paragraphGapEm}em; margin-left:${textIndent}; margin-right:${textIndent}; text-indent:0; }
 .text-message p { margin:0; text-indent:0; }
+.text-message-transcript { break-inside:auto; page-break-inside:auto; }
+.text-message-transcript .text-message-line { break-inside:avoid; page-break-inside:avoid; orphans:1; widows:1; margin:0; padding:0; }
 ${textMessageExtra}
 .semantic-list { margin-top:.7em; margin-bottom:.9em; padding-left:7%; padding-right:0; }\n.semantic-list-item { margin:.25em 0; padding:0; }\n.media-block { margin:1em 0; text-align:center; }
 figure.inline-image { margin:0 auto .55em; max-width:100%; }

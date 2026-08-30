@@ -44,6 +44,7 @@ import { serializeProjectBackup, parseProjectBackup } from './lib/project-backup
 import { buildPublishReadiness } from './lib/readiness-model.js';
 import { blankRenderMode } from './lib/spacing-policy.js';
 import { sourceStructuredExtraGapIn, sourceStructuredLineHeight } from './lib/source-spacing.js';
+import { isStructuredMessageTranscript, structuredMessageSegments } from './lib/message-pagination.js';
 import { buildProofSignature, stampPreviewProof } from './lib/proof-integrity.js';
 import {
   activePrintEdition, copyPaperbackDesignToHardcover, editionLabel, ensureEditions,
@@ -80,7 +81,7 @@ import {
   kindleReleaseReport, markAllCurrentReviewsIntentional, markKindleVisualProofComplete, setKindleExternalConfirmation,
 } from './lib/kindle-release-gate.js';
 
-const VERSION = '1.0.49';
+const VERSION = '1.0.50';
 // Legacy capability labels retained for regression discovery only (not default UI): Amazon KDP · Reflowable EPUB 3 · Kindle Preview Studio · Semantic Style Palette · Kindle Release Gate · v1.0.16
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
@@ -4780,6 +4781,8 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
       normalizedBlank: Boolean(meta.normalizedBlank),
       sourceExtraAfterIn: Math.max(0, Number(meta.sourceExtraAfterIn) || 0),
       sourceLineHeight: Math.max(1, Number(meta.sourceLineHeight) || Number(design.lineHeight) || 1.2),
+      structuredMessageLine: Boolean(meta.structuredMessageLine),
+      renderText: meta.renderText == null ? null : String(meta.renderText),
     });
     current.usedPx += height;
   };
@@ -4864,6 +4867,89 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
     const sourceExtraAfterIn = sourceStructuredExtraGapIn(block, design.paragraphGap, kind);
     const sourceExtraAfterPx = sourceExtraAfterIn * CSS_PX_PER_INCH;
     const sourceLineHeight = sourceStructuredLineHeight(block, design.lineHeight, kind);
+
+    // v1.0.50 LINE-BY-LINE CHAT PAGINATION
+    // Story Lock keeps the original one-paragraph source intact. Presentation
+    // treats each hard-break chat message as an independently pageable line.
+    if (isStructuredMessageTranscript({ kind, text })) {
+      const segments = structuredMessageSegments(text);
+      for (const segment of segments) {
+        ensurePage();
+        const lineHeight = segment.isLast ? design.lineHeight : sourceLineHeight;
+        const finalGapPx = segment.isLast ? sourceExtraAfterPx : 0;
+        const measured = measureFragment(
+          rig, design, kind, segment.renderText, false, segment.isLast, true, lineHeight
+        );
+        const height = measured + finalGapPx;
+
+        if (height > remaining() && current.fragments.length) newPage();
+
+        // A single chat message may wrap, but the MESSAGE itself stays together
+        // whenever it fits on a page. The transcript as a whole never does.
+        if (height <= rig.pageHeightPx) {
+          addFragment(block, segment.text, kind, false, height, {
+            startOffset: segment.start,
+            endOffset: segment.end,
+            isFinalPiece: segment.isLast,
+            suppressIndent: true,
+            sourceExtraAfterIn: segment.isLast ? sourceExtraAfterIn : 0,
+            sourceLineHeight: lineHeight,
+            structuredMessageLine: true,
+            renderText: segment.renderText,
+          });
+          continue;
+        }
+
+        // Defensive fallback for an abnormally long single message: allow the
+        // existing word-level paginator to split that one message only.
+        let localOffset = 0;
+        let restLine = segment.renderText;
+        let continuationLine = false;
+        while (restLine.length) {
+          ensurePage();
+          const fullLineHeight = measureFragment(
+            rig, design, kind, restLine, continuationLine, segment.isLast, true, lineHeight
+          ) + (segment.isLast ? finalGapPx : 0);
+          if (fullLineHeight <= remaining()) {
+            const preservedSuffix = localOffset + restLine.length === segment.renderText.length && !segment.isLast ? '\n' : '';
+            addFragment(block, restLine + preservedSuffix, kind, continuationLine, fullLineHeight, {
+              startOffset: segment.start + localOffset,
+              endOffset: segment.start + localOffset + restLine.length + preservedSuffix.length,
+              isFinalPiece: segment.isLast,
+              suppressIndent: true,
+              sourceExtraAfterIn: segment.isLast ? sourceExtraAfterIn : 0,
+              sourceLineHeight: lineHeight,
+              structuredMessageLine: true,
+              renderText: restLine,
+            });
+            restLine = '';
+            break;
+          }
+          const cut = findFittingCut(rig, design, kind, restLine, continuationLine, remaining(), true, lineHeight);
+          if (!cut) {
+            if (current.fragments.length) { newPage(); continue; }
+            throw new Error('A single structured chat message could not fit inside the print page box.');
+          }
+          const piece = restLine.slice(0, cut);
+          const pieceHeight = measureFragment(rig, design, kind, piece, continuationLine, false, true, lineHeight);
+          addFragment(block, piece, kind, continuationLine, pieceHeight, {
+            startOffset: segment.start + localOffset,
+            endOffset: segment.start + localOffset + piece.length,
+            isFinalPiece: false,
+            suppressIndent: true,
+            sourceLineHeight: lineHeight,
+            structuredMessageLine: true,
+            renderText: piece,
+          });
+          localOffset += piece.length;
+          restLine = restLine.slice(cut);
+          continuationLine = true;
+          if (restLine.length) newPage();
+        }
+      }
+      return;
+    }
+
     let offset = 0;
     let rest = text;
     let continuation = false;

@@ -23,7 +23,7 @@ if (!index.includes('jszip.min.js') || !index.includes('src/main.js') || !index.
 }
 const main = readFileSync('src/main.js', 'utf8');
 for (const marker of [
-  "const VERSION = '1.0.49'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
+  "const VERSION = '1.0.50'", 'Run Final Check', 'Download Project Backup', 'Kindle / eBook', 'Download KDP EPUB',
   'Amazon KDP · Reflowable EPUB 3', 'Kindle Preview Studio', 'Adjust Layout', 'preview-studio-grid-v110',
   'Kindle Pro consistency scan', '3-View Torture Test', '11 pt reference', 'Semantic Style Palette', 'Content style',
   'saveEbookSemanticStyles', 'Kindle Intelligence', 'Compare Chapters', 'compareKindleChaptersButton', 'Undo', 'Redo',
@@ -284,7 +284,11 @@ if (!epubV148.includes("replace(/<[^>]+>/g")) throw new Error('1.0.48 Kindle san
 const epubAuditV149 = readFileSync('src/lib/epub-audit.js','utf8');
 for (const marker of ['v1.0.49 AUDIT FIDELITY','hasHiddenProductionMarkup','matchAll(/<[^>]+>/g)']) if (!epubAuditV149.includes(marker)) throw new Error(`1.0.49 hidden-audit fidelity marker missing: ${marker}`);
 
-console.log('YasReady Publish v1.0.49 static verification passed.');
+const messagePaginationV150 = readFileSync('src/lib/message-pagination.js','utf8');
+for (const marker of ['MESSAGE_PAGINATION_VERSION = 1','structuredMessageSegments','isStructuredMessageTranscript']) if (!messagePaginationV150.includes(marker)) throw new Error(`1.0.50 message pagination marker missing: ${marker}`);
+if (!main.includes('v1.0.50 LINE-BY-LINE CHAT PAGINATION') || !epub.includes('text-message-transcript') || !epub.includes('renderStructuredTextMessageLines')) throw new Error('1.0.50 line-by-line chat pagination is not wired through print + Kindle.');
+
+console.log('YasReady Publish v1.0.50 static verification passed.');
 
 
 const amazonPrintHardMode = readFileSync('src/lib/amazon-print-hard-mode.js', 'utf8');
