@@ -43,6 +43,7 @@ import { buildPrintTocEntries, printTocSignature, shouldGeneratePrintToc, verify
 import { serializeProjectBackup, parseProjectBackup } from './lib/project-backup.js';
 import { buildPublishReadiness } from './lib/readiness-model.js';
 import { blankRenderMode } from './lib/spacing-policy.js';
+import { sourceStructuredExtraGapIn } from './lib/source-spacing.js';
 import { buildProofSignature, stampPreviewProof } from './lib/proof-integrity.js';
 import {
   activePrintEdition, copyPaperbackDesignToHardcover, editionLabel, ensureEditions,
@@ -79,7 +80,7 @@ import {
   kindleReleaseReport, markAllCurrentReviewsIntentional, markKindleVisualProofComplete, setKindleExternalConfirmation,
 } from './lib/kindle-release-gate.js';
 
-const VERSION = '1.0.44';
+const VERSION = '1.0.45';
 // Legacy capability labels retained for regression discovery only (not default UI): Amazon KDP · Reflowable EPUB 3 · Kindle Preview Studio · Semantic Style Palette · Kindle Release Gate · v1.0.16
 const CSS_PX_PER_INCH = 96;
 const PREVIEW_PX_PER_INCH = 58;
@@ -1076,8 +1077,8 @@ function renderBookPage(page, design) {
       if (fragment.kind === 'body') extra += `text-align:${design.bodyAlignment};`;
       if (shouldIndent) extra += `text-indent:${indent}px;`;
       const gapKinds = new Set(['body','chapter-opening','text-message']);
-      const gap = fragment.isFinalPiece && design.paragraphGap && gapKinds.has(fragment.kind)
-        ? design.paragraphGap * px : 0;
+      const gap = fragment.isFinalPiece && gapKinds.has(fragment.kind)
+        ? (Number(design.paragraphGap || 0) + Number(fragment.sourceExtraAfterIn || 0)) * px : 0;
       if (gap) extra += `padding-bottom:${gap}px;`;
       return `<div class="${classes}" style="${extra}">${content}</div>`;
     }).join('');
@@ -4772,6 +4773,7 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
       matterSectionId: meta.matterSectionId || null,
       collapsedBlank: Boolean(meta.collapsedBlank),
       normalizedBlank: Boolean(meta.normalizedBlank),
+      sourceExtraAfterIn: Math.max(0, Number(meta.sourceExtraAfterIn) || 0),
     });
     current.usedPx += height;
   };
@@ -4853,18 +4855,22 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
       return;
     }
 
+    const sourceExtraAfterIn = sourceStructuredExtraGapIn(block, design.paragraphGap, kind);
+    const sourceExtraAfterPx = sourceExtraAfterIn * CSS_PX_PER_INCH;
     let offset = 0;
     let rest = text;
     let continuation = false;
     while (rest.length) {
       ensurePage();
-      const fullHeight = measureFragment(rig, design, kind, rest, continuation, true, suppressIndent);
+      const measuredFullHeight = measureFragment(rig, design, kind, rest, continuation, true, suppressIndent);
+      const fullHeight = measuredFullHeight + sourceExtraAfterPx;
       if (fullHeight <= remaining()) {
         addFragment(block, rest, kind, continuation, fullHeight, {
           startOffset: offset,
           endOffset: offset + rest.length,
           isFinalPiece: true,
           suppressIndent,
+          sourceExtraAfterIn,
         });
         offset += rest.length;
         rest = '';
@@ -4889,6 +4895,7 @@ async function paginateProjectPass(project, { tocEntries = [] } = {}) {
           endOffset: offset + rest.length,
           isFinalPiece: true,
           suppressIndent,
+          sourceExtraAfterIn,
         });
         offset += rest.length;
         rest = '';

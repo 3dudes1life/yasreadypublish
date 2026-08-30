@@ -3,7 +3,8 @@ import { dirname, join, normalize } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 const ROOT = process.cwd();
-const VERSION = '1.0.44';
+const VERSION = '1.0.45';
+const PROJECT_APP_VERSION = '1.0.44';
 
 function walk(dir) {
   const out = [];
@@ -33,7 +34,7 @@ const project = readFileSync(join(ROOT, 'src/lib/project.js'), 'utf8');
 const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
 if (pkg.version !== VERSION) throw new Error(`package.json version is ${pkg.version}, expected ${VERSION}`);
 if (!main.includes(`const VERSION = '${VERSION}'`)) throw new Error('main.js version mismatch');
-if (!project.includes(`appVersion: '${VERSION}'`) || !project.includes(`project.appVersion = '${VERSION}'`) || !project.includes('version: 37')) throw new Error('project schema appVersion/schema mismatch');
+if (!project.includes(`appVersion: '${PROJECT_APP_VERSION}'`) || !project.includes(`project.appVersion = '${PROJECT_APP_VERSION}'`) || !project.includes('version: 37')) throw new Error('project schema appVersion/schema mismatch');
 
 const buttonIds = [...main.matchAll(/<button\b[^>]*\s+id="([^"]+)"/g)].map((m) => m[1]);
 const boundIds = new Set([...main.matchAll(/querySelector\(['"]#([^'"]+)['"]\)/g)].map((m) => m[1]));
@@ -200,6 +201,8 @@ const releaseGate = readFileSync(join(ROOT, 'src/lib/kindle-release-gate.js'), '
 for (const marker of ['buildKindleReleaseGate','auditKindleAccessibility','applySafeFixBatch','markAllCurrentReviewsIntentional','markKindleVisualProofComplete','freezeKindleRelease','kindleReleaseReport']) if (!releaseGate.includes(marker)) throw new Error(`Missing Kindle Release Gate marker: ${marker}`);
 const semanticStyles = readFileSync(join(ROOT, 'src/lib/semantic-styles.js'), 'utf8');
 for (const marker of ['EBOOK_SEMANTIC_ROLES','semanticRoleForBlock','semanticRoleCounts']) if (!semanticStyles.includes(marker)) throw new Error(`Missing semantic style marker: ${marker}`);
+const sourceSpacing = readFileSync(join(ROOT, 'src/lib/source-spacing.js'), 'utf8');
+for (const marker of ['SOURCE_SPACING_VERSION = 1','sourceStructuredExtraGapIn','sourceStructuredGapEm']) if (!sourceSpacing.includes(marker)) throw new Error(`Missing v1.0.45 Source Fidelity marker: ${marker}`);
 const docxParser = readFileSync(join(ROOT, 'src/lib/docx-parser.js'), 'utf8');
 for (const marker of ['footnotes.xml','endnotes.xml','loadMediaAssets','mediaRefs','canonicalizeManuscriptV2']) if (!docxParser.includes(marker)) throw new Error(`Missing semantic import marker: ${marker}`);
 if (!main.includes('const ebookIntelligence = scanKindleIntelligence(state.project);') || !main.includes('ebookReport.ready && ebookQuality.ready && ebookIntelligence.ready')) throw new Error('Final Check omits Kindle Intelligence.');

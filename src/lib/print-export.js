@@ -78,7 +78,10 @@ function renderPage(page, design, project, blocksById) {
     }
     if (fragment.kind === 'body') style += `text-align:${design.bodyAlignment};`;
     if (fragment.kind === 'body' && !fragment.continuation && !fragment.suppressIndent) style += `text-indent:${design.firstLineIndent}in;`;
-    if (fragment.isFinalPiece && design.paragraphGap && ['body','chapter-opening','text-message'].includes(fragment.kind)) style += `padding-bottom:${design.paragraphGap}in;`;
+    if (fragment.isFinalPiece && ['body','chapter-opening','text-message'].includes(fragment.kind)) {
+      const gap = Math.max(0, Number(design.paragraphGap || 0) + Number(fragment.sourceExtraAfterIn || 0));
+      if (gap) style += `padding-bottom:${gap}in;`;
+    }
     return `<div class="fragment ${escapeHtml(fragment.kind)} ${fragment.continuation ? 'continuation' : ''}" style="${style}">${content}</div>`;
   }).join('');
 

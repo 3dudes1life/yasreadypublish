@@ -1,5 +1,6 @@
 import { buildEbookSections, ebookTocEntries, matterSectionHeading, normalizeEbookDesign, verifyEbookSourceCoverage } from './ebook-model.js';
 import { blankRenderMode } from './spacing-policy.js';
+import { sourceStructuredGapEm } from './source-spacing.js';
 import { getBlockPresentationOverride } from './presentation-overrides.js';
 import { semanticRoleForBlock } from './semantic-styles.js';
 import { chapterHeadingOverride, normalizeEbookThemeStudio, splitChapterHeading, themeArtworkAssets } from './ebook-theme-studio.js';
@@ -254,13 +255,19 @@ function renderBlock(block, { blankMode = 'preserve', sectionType = 'chapter', d
   }
 
   const role = semanticRoleForBlock(project, block, sectionType);
+  const sourceSpacingStyle = role === 'text-message' && !overrideStyle.includes('margin-bottom')
+    ? `margin-bottom:${sourceStructuredGapEm(block, design.paragraphGapEm, role)}em`
+    : '';
   const semanticAttr = ` data-yrp-semantic-role="${escapeXml(role)}"`;
   if (role === 'subhead') return `<h2 id="${id}" class="subhead${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</h2>`;
   if (role === 'block-quote') return `<blockquote id="${id}" class="block-quote${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}><p>${content}</p></blockquote>`;
   if (role === 'written-note') return `<aside id="${id}" class="written-note${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}><p>${content}</p></aside>`;
   if (role === 'verse') return `<p id="${id}" class="verse${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</p>`;
   if (role === 'scene-break') return `<p id="${id}" class="scene-break${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${sceneOrnamentHtml(content, design, previewMode)}</p>`;
-  if (role === 'text-message') return `<div id="${id}" class="text-message${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}><p>${content}</p></div>`;
+  if (role === 'text-message') {
+    const style = mergeInlineStyles(sourceSpacingStyle, overrideStyle);
+    return `<div id="${id}" class="text-message${inspectClass}"${attrs}${semanticAttr}${style ? ` style="${style}"` : ''}><p>${content}</p></div>`;
+  }
   const openingClass = block.kind === 'chapter-opening' ? ' chapter-opening' : '';
   const afterBreakClass = afterBreak ? ' paragraph-after-break' : '';
   return `<p id="${id}" class="body${openingClass}${afterBreakClass}${inspectClass}"${attrs}${semanticAttr}${overrideStyle ? ` style="${overrideStyle}"` : ''}>${content}</p>`;
